@@ -123,10 +123,26 @@ class NoteTypeControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('update')
-            ->with(1, 'Updated', 'icon-phone', '#333333', 'testuser')
+            ->with(1, 'testuser', 'Updated', 'icon-phone', '#333333')
             ->willReturn($type);
 
         $result = $this->controller->update(1, 'Updated', 'icon-phone', '#333333');
+        $this->assertSame(200, $result->getStatus());
+    }
+
+    public function testUpdatePartialNameOnly(): void {
+        // A name-only PUT must not 400 (icon/color default to null and are
+        // forwarded as such, so the service preserves the existing values).
+        $type = new NoteType();
+        $type->setId(1);
+        $type->setName('Renamed');
+
+        $this->service->expects($this->once())
+            ->method('update')
+            ->with(1, 'testuser', 'Renamed', null, null)
+            ->willReturn($type);
+
+        $result = $this->controller->update(1, 'Renamed');
         $this->assertSame(200, $result->getStatus());
     }
 
@@ -134,7 +150,7 @@ class NoteTypeControllerTest extends TestCase {
         $this->service->method('update')
             ->willThrowException(new NoteTypeNotFoundException('Not found'));
 
-        $result = $this->controller->update(999, 'Name', 'icon', '#000');
+        $result = $this->controller->update(999, 'Name', 'icon-note', '#000');
         $this->assertSame(Http::STATUS_NOT_FOUND, $result->getStatus());
     }
 

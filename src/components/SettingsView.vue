@@ -236,6 +236,12 @@ async function save() {
 .crm-share-target-name {
 	flex: 1;
 	font-size: var(--default-font-size, 14px);
+	/* Clamp long user/group names so the 'Can edit' switch and Remove button
+	   stay in view, matching the dropdown option row (.crm-share-option-name). */
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .crm-share-target-type {

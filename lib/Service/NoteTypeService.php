@@ -19,6 +19,36 @@ class NoteTypeService {
     /** crm_note_types.name column length (VARCHAR(128)). */
     private const MAX_NAME_LENGTH = 128;
 
+    /** crm_note_types.icon column length (VARCHAR(64)). */
+    private const MAX_ICON_LENGTH = 64;
+
+    /**
+     * Allow-list of icon tokens the app can actually render.
+     *
+     * The render surfaces (NoteTypeBadge via iconComponentForType, the Contacts
+     * island via iconPathForType) resolve only these tokens; anything else
+     * renders as no icon. Rejecting unknown tokens at write time turns a value
+     * that would be silently dropped at render into a clean 400, and the length
+     * cap prevents an over-long string from triggering a DB-truncation 500.
+     *
+     * Keep in sync with src/utils/noteTypeIcon.js and NoteTypeModal.vue's
+     * iconOptions. `icon-note`/`icon-calendar` are legacy tokens kept valid so
+     * the shipped global default set (seedDefaults) and the column/controller
+     * default never fail validation.
+     */
+    private const ALLOWED_ICONS = [
+        'icon-comment',
+        'icon-phone',
+        'icon-calendar',
+        'icon-calendar-dark',
+        'icon-mail',
+        'icon-checkmark',
+        'icon-star',
+        'icon-link',
+        'icon-category-office',
+        'icon-note',
+    ];
+
     public function __construct(
         private NoteTypeMapper $mapper,
         private NoteMapper $noteMapper,
@@ -53,6 +83,7 @@ class NoteTypeService {
         bool $isDefault = false,
     ): NoteType {
         $this->assertNameLength($name);
+        $this->assertValidIcon($icon);
 
         $noteType = new NoteType();
         $noteType->setName($name);
@@ -81,16 +112,34 @@ class NoteTypeService {
     }
 
     /**
+     * Partial update: only the non-null fields are applied, so a caller can
+     * PATCH just the name (a rename) without resetting the icon/color, and a
+     * name-only payload behaves consistently with create()'s optional fields.
+     * Provided fields are validated/normalised exactly as in create().
+     *
      * @throws NoteTypeNotFoundException
+     * @throws NoteValidationException
      */
-    public function update(int $id, string $name, string $icon, string $color, string $userId): NoteType {
-        $this->assertNameLength($name);
-
+    public function update(
+        int $id,
+        string $userId,
+        ?string $name = null,
+        ?string $icon = null,
+        ?string $color = null,
+    ): NoteType {
         $noteType = $this->findOwned($id, $userId);
 
-        $noteType->setName($name);
-        $noteType->setIcon($icon);
-        $noteType->setColor($this->normalizeColor($color));
+        if ($name !== null) {
+            $this->assertNameLength($name);
+            $noteType->setName($name);
+        }
+        if ($icon !== null) {
+            $this->assertValidIcon($icon);
+            $noteType->setIcon($icon);
+        }
+        if ($color !== null) {
+            $noteType->setColor($this->normalizeColor($color));
+        }
 
         return $this->mapper->update($noteType);
     }
@@ -134,6 +183,27 @@ class NoteTypeService {
             throw new NoteValidationException(
                 'Name must not exceed ' . self::MAX_NAME_LENGTH . ' characters'
             );
+        }
+    }
+
+    /**
+     * Reject an icon token the app cannot render before it reaches the DB.
+     *
+     * Enforces both the VARCHAR(64) column bound (so an over-long token can't
+     * trigger a truncation 500 / silent corruption) and the render allow-list
+     * (so an unknown token fails fast with a 400 instead of being stored and
+     * silently dropped at render time).
+     *
+     * @throws NoteValidationException
+     */
+    private function assertValidIcon(string $icon): void {
+        if (mb_strlen($icon) > self::MAX_ICON_LENGTH) {
+            throw new NoteValidationException(
+                'Icon must not exceed ' . self::MAX_ICON_LENGTH . ' characters'
+            );
+        }
+        if (!in_array($icon, self::ALLOWED_ICONS, true)) {
+            throw new NoteValidationException('Unknown icon: ' . $icon);
         }
     }
 

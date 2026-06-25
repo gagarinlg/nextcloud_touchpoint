@@ -10,6 +10,7 @@ use OCA\CrmNotes\Db\NoteTypeMapper;
 use OCA\CrmNotes\Service\NoteTypeInUseException;
 use OCA\CrmNotes\Service\NoteTypeNotFoundException;
 use OCA\CrmNotes\Service\NoteTypeService;
+use OCA\CrmNotes\Service\NoteValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use PHPUnit\Framework\TestCase;
@@ -123,7 +124,7 @@ class NoteTypeServiceTest extends TestCase {
         $noteType = new NoteType();
         $noteType->setId(1);
         $noteType->setName('Old');
-        $noteType->setIcon('icon-old');
+        $noteType->setIcon('icon-phone');
         $noteType->setColor('#000000');
         $noteType->setUserId('user1');
 
@@ -136,13 +137,37 @@ class NoteTypeServiceTest extends TestCase {
             ->method('update')
             ->with($this->callback(function (NoteType $nt) {
                 return $nt->getName() === 'New'
-                    && $nt->getIcon() === 'icon-new'
+                    && $nt->getIcon() === 'icon-mail'
                     && $nt->getColor() === '#ffffff';
             }))
             ->willReturnArgument(0);
 
-        $result = $this->service->update(1, 'New', 'icon-new', '#ffffff', 'user1');
+        $result = $this->service->update(1, 'user1', 'New', 'icon-mail', '#ffffff');
         $this->assertSame('New', $result->getName());
+    }
+
+    public function testUpdatePartialPreservesUntouchedFields(): void {
+        // A name-only update must not reset the icon/color (PATCH-like).
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setIcon('icon-phone');
+        $noteType->setColor('#123456');
+        $noteType->setUserId('user1');
+
+        $this->mapper->method('findOwnedById')->with(1, 'user1')->willReturn($noteType);
+
+        $this->mapper->expects($this->once())
+            ->method('update')
+            ->with($this->callback(function (NoteType $nt) {
+                return $nt->getName() === 'Renamed'
+                    && $nt->getIcon() === 'icon-phone'
+                    && $nt->getColor() === '#123456';
+            }))
+            ->willReturnArgument(0);
+
+        $result = $this->service->update(1, 'user1', 'Renamed');
+        $this->assertSame('Renamed', $result->getName());
     }
 
     public function testUpdateNotFound(): void {
@@ -151,7 +176,7 @@ class NoteTypeServiceTest extends TestCase {
             ->willThrowException(new DoesNotExistException('Not found'));
 
         $this->expectException(NoteTypeNotFoundException::class);
-        $this->service->update(999, 'Name', 'icon', '#000', 'user1');
+        $this->service->update(999, 'user1', 'Name', 'icon-note', '#000');
     }
 
     public function testUpdateRejectsTypeNotOwned(): void {
@@ -165,7 +190,7 @@ class NoteTypeServiceTest extends TestCase {
         $this->mapper->expects($this->never())->method('update');
 
         $this->expectException(NoteTypeNotFoundException::class);
-        $this->service->update(5, 'Hijack', 'icon', '#000', 'attacker');
+        $this->service->update(5, 'attacker', 'Hijack', 'icon-note', '#000');
     }
 
     public function testDelete(): void {
@@ -255,9 +280,9 @@ class NoteTypeServiceTest extends TestCase {
                 return $nt;
             });
 
-        $this->service->create('A', 'i', '#abc', 'user1');
-        $this->service->create('B', 'i', '#A1B2C3', 'user1');
-        $this->service->create('C', 'i', 'hsl(210, 50%, 40%)', 'user1');
+        $this->service->create('A', 'icon-note', '#abc', 'user1');
+        $this->service->create('B', 'icon-note', '#A1B2C3', 'user1');
+        $this->service->create('C', 'icon-note', 'hsl(210, 50%, 40%)', 'user1');
 
         $this->assertSame(['#abc', '#A1B2C3', 'hsl(210, 50%, 40%)'], $colors);
     }
@@ -307,6 +332,52 @@ class NoteTypeServiceTest extends TestCase {
         $this->assertContains('Email', $insertedNames);
         $this->assertContains('Task', $insertedNames);
         $this->assertContains('General', $insertedNames);
+    }
+
+    public function testCreateRejectsUnknownIcon(): void {
+        // An icon token the render surfaces can't resolve must fail fast with a
+        // validation error rather than being stored and silently dropped.
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('X', 'icon-bogus', '#0082c9', 'user1');
+    }
+
+    public function testCreateRejectsOverlongIcon(): void {
+        // Longer than the VARCHAR(64) column bound — must not reach the DB.
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('X', str_repeat('a', 65), '#0082c9', 'user1');
+    }
+
+    public function testUpdateRejectsUnknownIcon(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setUserId('user1');
+        $this->mapper->method('findOwnedById')->with(1, 'user1')->willReturn($noteType);
+        $this->mapper->expects($this->never())->method('update');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->update(1, 'user1', 'Name', 'icon-bogus', '#0082c9');
+    }
+
+    public function testCreateAcceptsKnownIcons(): void {
+        $icons = [];
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (NoteType $nt) use (&$icons) {
+                $icons[] = $nt->getIcon();
+                return $nt;
+            });
+
+        foreach (['icon-phone', 'icon-calendar-dark', 'icon-mail', 'icon-note', 'icon-star'] as $icon) {
+            $this->service->create('X', $icon, '#0082c9', 'user1');
+        }
+
+        $this->assertSame(
+            ['icon-phone', 'icon-calendar-dark', 'icon-mail', 'icon-note', 'icon-star'],
+            $icons,
+        );
     }
 
     public function testSeedDefaultsSeedsSharedGlobalSet(): void {

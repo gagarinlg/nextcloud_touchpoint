@@ -60,9 +60,14 @@ class NoteTypeController extends Controller {
     }
 
     #[NoAdminRequired]
-    public function update(int $id, string $name, string $icon, string $color): JSONResponse {
+    public function update(
+        int $id,
+        ?string $name = null,
+        ?string $icon = null,
+        ?string $color = null,
+    ): JSONResponse {
         return $this->handleNotFound(
-            fn () => $this->noteTypeService->update($id, $name, $icon, $color, $this->getUserId())
+            fn () => $this->noteTypeService->update($id, $this->getUserId(), $name, $icon, $color)
         );
     }
 

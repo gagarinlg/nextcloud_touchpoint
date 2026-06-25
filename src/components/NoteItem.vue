@@ -173,6 +173,10 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	border: none;
 	padding: 0;
 	text-align: start;
+	/* Break a long unbroken contact name or a raw UID fallback inside the card
+	   instead of pushing the card width, matching .crm-note-title/.crm-note-content. */
+	max-width: 100%;
+	overflow-wrap: anywhere;
 }
 
 .crm-note-contact-name:hover {
