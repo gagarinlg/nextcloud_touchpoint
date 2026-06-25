@@ -239,7 +239,10 @@ class ContactController extends Controller {
             }
         }
 
-        if ($binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+        // $binary is provably non-empty here ($value was trimmed-non-empty at the
+        // top and the base64 branch only overwrites it with a non-empty decode),
+        // so the only remaining guard is the size cap.
+        if (strlen($binary) > self::MAX_PHOTO_BYTES) {
             return null;
         }
 

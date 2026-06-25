@@ -105,7 +105,9 @@ const _dateFormatter = new Intl.DateTimeFormat(getLocale().replace('_', '-'), {
 
 function formatDate(dateStr) {
 	if (!dateStr) return ''
-	const d = new Date(String(dateStr).replace(' ', 'T'))
+	// API timestamps are ISO-8601 (DateTimeInterface::ATOM); Date parses them
+	// directly with their timezone offset — no space-to-'T' munging needed.
+	const d = new Date(dateStr)
 	return isNaN(d.getTime()) ? '' : _dateFormatter.format(d)
 }
 

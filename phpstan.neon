@@ -22,3 +22,9 @@ parameters:
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
         - '#OCA\\Contacts\\Event\\LoadContactsOcaApiEvent#'
+        # registerEventListener() is generic over the (external, unresolvable)
+        # LoadContactsOcaApiEvent; without the Contacts app in scope phpstan
+        # cannot prove LoadContactsTabListener is IEventListener<Event>.
+        -
+            message: '#Parameter \#2 \$listener of method OCP\\AppFramework\\Bootstrap\\IRegistrationContext::registerEventListener\(\) expects#'
+            path: lib/AppInfo/Application.php

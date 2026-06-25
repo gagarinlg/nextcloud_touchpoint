@@ -105,15 +105,18 @@ const _dateFormatter = new Intl.DateTimeFormat(_locale, {
 	hour: '2-digit', minute: '2-digit',
 })
 
-const formattedDate = computed(() => {
-	if (!props.note.createdAt) return ''
-	return _dateFormatter.format(new Date(props.note.createdAt.replace(' ', 'T')))
-})
+// The API serializes timestamps as ISO-8601 (DateTimeInterface::ATOM), which
+// Date can parse directly including the timezone offset — no fragile
+// space-to-'T' munging or implicit-local-time assumptions.
+function formatTimestamp(value) {
+	if (!value) return ''
+	const d = new Date(value)
+	return Number.isNaN(d.getTime()) ? '' : _dateFormatter.format(d)
+}
 
-const formattedUpdatedDate = computed(() => {
-	if (!props.note.updatedAt) return ''
-	return _dateFormatter.format(new Date(props.note.updatedAt.replace(' ', 'T')))
-})
+const formattedDate = computed(() => formatTimestamp(props.note.createdAt))
+
+const formattedUpdatedDate = computed(() => formatTimestamp(props.note.updatedAt))
 
 // Compose each byline as a single interpolated string so translators control
 // word order for "created X by Y" / "edited X by Y" (CLAUDE.md forbids stitching

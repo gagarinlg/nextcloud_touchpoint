@@ -40,6 +40,7 @@ class NoteTypeService {
         try {
             return $this->mapper->findById($id, $userId);
         } catch (DoesNotExistException | MultipleObjectsReturnedException $e) {
+            $this->logger->debug('CRM Notes: note type lookup failed', ['exception' => $e]);
             throw new NoteTypeNotFoundException('Note type not found');
         }
     }
@@ -74,6 +75,7 @@ class NoteTypeService {
         try {
             return $this->mapper->findOwnedById($id, $userId);
         } catch (DoesNotExistException | MultipleObjectsReturnedException $e) {
+            $this->logger->debug('CRM Notes: owned note type lookup failed', ['exception' => $e]);
             throw new NoteTypeNotFoundException('Note type not found');
         }
     }
