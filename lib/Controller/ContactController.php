@@ -1,0 +1,279 @@
+<?php
+
+// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+declare(strict_types=1);
+
+namespace OCA\CrmNotes\Controller;
+
+use OCA\CrmNotes\AppInfo\Application;
+use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\JSONResponse;
+use OCP\Contacts\IManager;
+use OCP\IRequest;
+use OCP\IURLGenerator;
+use Psr\Log\LoggerInterface;
+
+class ContactController extends Controller {
+
+    /** Hard cap on decoded photo size (5 MiB) to avoid memory blow-ups. */
+    private const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+    /**
+     * The only Content-Types we will ever serve for a contact photo. The MIME
+     * is derived solely from the decoded bytes (magic-byte sniffing); anything
+     * we cannot positively identify as one of these raster image formats is
+     * served as application/octet-stream so it can never be treated as an
+     * active document (HTML/SVG/etc.) on top-level navigation.
+     */
+    private const ALLOWED_PHOTO_MIMES = [
+        'image/png',
+        'image/jpeg',
+        'image/gif',
+        'image/webp',
+    ];
+
+    public function __construct(
+        IRequest $request,
+        private IManager $contactsManager,
+        private IURLGenerator $urlGenerator,
+        private LoggerInterface $logger,
+    ) {
+        parent::__construct(Application::APP_ID, $request);
+    }
+
+    #[NoAdminRequired]
+    public function index(): JSONResponse {
+        $term = (string) $this->request->getParam('term', '');
+        // Ask the contacts manager for the PHOTO property too, so we can decide
+        // photo availability from the search result itself rather than a query
+        // keyed only on the caller's own address books. This lets contacts living
+        // in shared/group address books (which search() returns) get photos too.
+        $results = $this->contactsManager->search($term, ['FN', 'EMAIL'], ['types' => true]);
+
+        $contacts = [];
+        foreach ($results as $entry) {
+            $uid = $entry['UID'] ?? '';
+            if ($uid === '') {
+                continue;
+            }
+
+            $email = '';
+            if (!empty($entry['EMAIL'])) {
+                $email = is_array($entry['EMAIL']) ? $entry['EMAIL'][0] : $entry['EMAIL'];
+            }
+
+            // Use a photo URL only if this contact actually carries a PHOTO in any
+            // address book the user can read (own or shared).
+            $photoUrl = '';
+            if ($this->entryHasPhoto($entry)) {
+                $photoUrl = $this->urlGenerator->linkToRoute(
+                    'crm_notes.contact.photo',
+                    ['uid' => $uid]
+                );
+            }
+
+            $contacts[] = [
+                'uid' => $uid,
+                'name' => $entry['FN'] ?? '',
+                'email' => $email,
+                'photo' => $photoUrl,
+                'addressbookKey' => $entry['addressbook-key'] ?? '',
+                // Whether this entry is a real Nextcloud user account (lives in the
+                // system address book). The frontend uses this — rather than a
+                // hyphen heuristic on the UID — to decide whether the core avatar
+                // endpoint applies, so hyphenated usernames resolve correctly.
+                'isUser' => $this->entryIsSystemUser($entry),
+            ];
+        }
+
+        usort($contacts, fn (array $a, array $b) => strcasecmp($a['name'], $b['name']));
+
+        return new JSONResponse($contacts);
+    }
+
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
+    public function photo(string $uid): Http\Response {
+        $photoData = $this->extractPhotoForUid($uid);
+        if ($photoData === null) {
+            return new JSONResponse(['message' => 'Not found'], Http::STATUS_NOT_FOUND);
+        }
+
+        [$mimeType, $binary] = $photoData;
+        // Never trust an attacker-controlled MIME from the vCard PHOTO data: URI.
+        // Constrain to a fixed raster-image allow-list (the MIME has already been
+        // derived from the decoded bytes by detectMime()); anything else degrades
+        // to a non-active octet-stream. The inline Content-Disposition with a
+        // fixed filename further prevents the response being interpreted as a
+        // top-level active document.
+        if (!in_array($mimeType, self::ALLOWED_PHOTO_MIMES, true)) {
+            $mimeType = 'application/octet-stream';
+        }
+        $response = new DataDisplayResponse($binary, Http::STATUS_OK, [
+            'Content-Type' => $mimeType,
+            'Content-Disposition' => 'inline; filename="photo"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->cacheFor(3600);
+        return $response;
+    }
+
+    /**
+     * Whether a search-result entry represents a real Nextcloud user account
+     * (it lives in the system address book) rather than a plain vCard contact.
+     * The contacts manager flags system-book entries with isLocalSystemBook, and
+     * the system address book uses the reserved key 'system'. We deliberately do
+     * NOT infer this from the UID shape (e.g. "no hyphen"), because Nextcloud
+     * allows hyphenated usernames.
+     *
+     * @param array<string, mixed> $entry
+     */
+    private function entryIsSystemUser(array $entry): bool {
+        if (!empty($entry['isLocalSystemBook'])) {
+            return true;
+        }
+        return ($entry['addressbook-key'] ?? '') === 'system';
+    }
+
+    /**
+     * Whether a search result entry carries a usable PHOTO value. Works for any
+     * address book the caller can read (own, shared or group), because the value
+     * comes straight from the IManager search result rather than a query scoped
+     * to the caller's own principal.
+     *
+     * @param array<string, mixed> $entry
+     */
+    private function entryHasPhoto(array $entry): bool {
+        if (!isset($entry['PHOTO'])) {
+            return false;
+        }
+        $photo = $entry['PHOTO'];
+        if (is_array($photo)) {
+            $photo = $photo[0] ?? '';
+        }
+        return is_string($photo) && $photo !== '';
+    }
+
+    /**
+     * Resolve the PHOTO binary for a contact UID through the contacts manager,
+     * which covers every address book the caller can access (own AND shared/
+     * group books). Falls back to nothing if the contact has no photo.
+     *
+     * @return array{string, string}|null  [mimeType, binaryData] or null
+     */
+    private function extractPhotoForUid(string $uid): ?array {
+        if ($uid === '') {
+            return null;
+        }
+        try {
+            // Match on UID exactly; search() returns entries from every readable
+            // address book, so shared/group contacts resolve too.
+            $results = $this->contactsManager->search($uid, ['UID'], ['types' => true]);
+        } catch (\Throwable $e) {
+            $this->logger->debug('CRM Notes: contact photo lookup failed', ['exception' => $e]);
+            return null;
+        }
+
+        foreach ($results as $entry) {
+            if (($entry['UID'] ?? '') !== $uid) {
+                continue;
+            }
+            $photo = $entry['PHOTO'] ?? '';
+            if (is_array($photo)) {
+                $photo = $photo[0] ?? '';
+            }
+            if (!is_string($photo) || $photo === '') {
+                return null;
+            }
+            return $this->parsePhotoValue($photo);
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse a PHOTO property value (data: URI, raw/base64 binary or external URI)
+     * into [mimeType, binaryData].
+     *
+     * @return array{string, string}|null
+     */
+    private function parsePhotoValue(string $value): ?array {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        // vCard 4.0 data: URI value.
+        if (str_starts_with($value, 'data:')) {
+            if (preg_match('/^data:([^;]+);base64,(.+)$/s', $value, $m)) {
+                $binary = base64_decode($m[2], true);
+                if ($binary === false || $binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+                    return null;
+                }
+                // Deliberately ignore the data: URI's declared MIME ($m[1]) — it
+                // is attacker-controlled (e.g. 'text/html', 'image/svg+xml') and
+                // must never reach the response Content-Type. detectMime() sniffs
+                // the decoded bytes instead.
+                return [$this->detectMime($binary), $binary];
+            }
+            return null;
+        }
+
+        // External URI (http/https) — we do not fetch remote images.
+        if (preg_match('#^https?://#i', $value)) {
+            return null;
+        }
+
+        // Otherwise treat as (possibly base64-encoded) binary.
+        $binary = $value;
+        if ($this->looksLikeBase64($value)) {
+            $decoded = base64_decode(preg_replace('/\s+/', '', $value) ?? $value, true);
+            if ($decoded !== false && $decoded !== '') {
+                $binary = $decoded;
+            }
+        }
+
+        if ($binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+            return null;
+        }
+
+        return [$this->detectMime($binary), $binary];
+    }
+
+    private function looksLikeBase64(string $value): bool {
+        $stripped = preg_replace('/\s+/', '', $value) ?? $value;
+        return $stripped !== '' && preg_match('#^[A-Za-z0-9+/]+={0,2}$#', $stripped) === 1;
+    }
+
+    /**
+     * Determine the image MIME type purely from the decoded bytes' magic number.
+     * This is the SOLE source of the served Content-Type — the vCard-declared
+     * MIME is never trusted, since it is attacker-controllable and could ask the
+     * browser to render the payload as an active document (text/html, SVG).
+     *
+     * Returns one of self::ALLOWED_PHOTO_MIMES for a recognised raster image, or
+     * application/octet-stream for anything else (so it cannot execute).
+     */
+    private function detectMime(string $data): string {
+        if (str_starts_with($data, "\x89PNG")) {
+            return 'image/png';
+        }
+        if (str_starts_with($data, "\xff\xd8")) {
+            return 'image/jpeg';
+        }
+        if (str_starts_with($data, 'GIF8')) {
+            return 'image/gif';
+        }
+        // WebP: RIFF container with a 'WEBP' fourCC at offset 8.
+        if (str_starts_with($data, 'RIFF') && substr($data, 8, 4) === 'WEBP') {
+            return 'image/webp';
+        }
+        return 'application/octet-stream';
+    }
+}

@@ -1,0 +1,16 @@
+SPDX-License-Identifier: AGPL-3.0-or-later
+SPDX-License-Identifier: MIT
+SPDX-FileCopyrightText: Christopher Jeffrey
+SPDX-FileCopyrightText: Rob Cresswell <robcresswell@pm.me>
+SPDX-FileCopyrightText: crm_notes developers
+
+This file is generated from multiple sources. Included packages:
+- crm_notes
+	- version: 1.1.0
+	- license: AGPL-3.0-or-later
+- marked
+	- version: 17.0.4
+	- license: MIT
+- vue-material-design-icons
+	- version: 5.3.1
+	- license: MIT

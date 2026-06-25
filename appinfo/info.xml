@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>crm_notes</id>
+    <name>CRM Notes</name>
+    <summary>CRM-style notes attached to address book contacts</summary>
+    <description><![CDATA[
+Create and manage CRM-style notes for your contacts. Supports multiple note types
+(Call, Meeting, Email, Task, General) with customizable categories.
+Notes are linked to address book entries and provide a timeline view of interactions.
+
+Recommended companion app: **Contacts**. The standalone CRM Notes view works on
+its own, but installing the Contacts app additionally enables the in-app Notes tab
+and the contacts hover-menu entry, which surface a contact's notes directly inside
+Contacts. These integrations activate automatically when Contacts is present and
+stay dormant when it is not.
+    ]]></description>
+    <version>1.1.0</version>
+    <licence>AGPL-3.0-or-later</licence>
+    <author>CRM Notes Contributors</author>
+    <namespace>CrmNotes</namespace>
+    <category>office</category>
+    <category>organization</category>
+    <website>https://github.com/crm-notes/crm_notes</website>
+    <bugs>https://github.com/crm-notes/crm_notes/issues</bugs>
+    <repository type="git">https://github.com/crm-notes/crm_notes.git</repository>
+
+    <dependencies>
+        <php min-version="8.2" max-version="8.5" />
+        <nextcloud min-version="32" max-version="34" />
+    </dependencies>
+
+    <navigations>
+        <navigation>
+            <name>CRM Notes</name>
+            <route>crm_notes.page.index</route>
+            <icon>app.svg</icon>
+            <order>10</order>
+        </navigation>
+    </navigations>
+
+    <contactsmenu>
+        <provider>OCA\CrmNotes\ContactsMenu\Provider</provider>
+    </contactsmenu>
+
+    <settings>
+        <admin>OCA\CrmNotes\Settings\Admin</admin>
+        <admin-section>OCA\CrmNotes\Settings\AdminSection</admin-section>
+    </settings>
+</info>
