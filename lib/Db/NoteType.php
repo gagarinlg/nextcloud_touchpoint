@@ -24,7 +24,7 @@ use OCP\DB\Types;
  */
 class NoteType extends Entity implements \JsonSerializable {
     protected string $name = '';
-    protected ?string $icon = 'icon-note';
+    protected ?string $icon = 'icon-category-office';
     protected ?string $color = '#0082c9';
     protected string $userId = '';
     protected bool $isDefault = false;

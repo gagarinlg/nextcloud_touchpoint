@@ -108,4 +108,44 @@ class NoteSharingMapperTest extends TestCase {
         $ids = $this->mapper->findWritableNoteIds('user1', ['staff', 'sales']);
         $this->assertSame([], $ids);
     }
+
+    public function testFindByNoteIdsEmptyReturnsEarly(): void {
+        $this->db->expects($this->never())->method('getQueryBuilder');
+        $this->assertSame([], $this->mapper->findByNoteIds([]));
+    }
+
+    /**
+     * findByNoteIds() must batch a large note-id list into chunks of at most 900
+     * (matching NoteMapper) so the IN(...) clause never overflows a strict DB
+     * backend's per-query list limit. Each chunk builds its own query, so 2000
+     * ids => 3 queries (900 + 900 + 200).
+     */
+    public function testFindByNoteIdsChunksLargeIdList(): void {
+        $emptyResult = new class {
+            public function fetch() {
+                return false;
+            }
+
+            public function closeCursor(): void {
+            }
+        };
+
+        $qbCount = 0;
+        $this->db->method('getQueryBuilder')->willReturnCallback(function () use (&$qbCount, $emptyResult) {
+            $qbCount++;
+            $qb = $this->createMock(IQueryBuilder::class);
+            $qb->method('expr')->willReturn($this->expr);
+            $qb->method('select')->willReturnSelf();
+            $qb->method('from')->willReturnSelf();
+            $qb->method('where')->willReturnSelf();
+            $qb->method('createNamedParameter')->willReturn('param');
+            $qb->method('executeQuery')->willReturn($emptyResult);
+            return $qb;
+        });
+
+        $map = $this->mapper->findByNoteIds(range(1, 2000));
+
+        $this->assertSame(3, $qbCount, 'Expected 2000 note ids to be split into 3 chunked queries');
+        $this->assertSame([], $map);
+    }
 }

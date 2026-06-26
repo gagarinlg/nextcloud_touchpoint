@@ -31,10 +31,24 @@ const MDI_PATHS = {
 	note: 'M14,17H7V15H14M17,13H7V11H17M17,9H7V7H17M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z',
 	openInNew: 'M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z',
 	file: 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M15,18V16H6V18H15M18,14V12H6V14H18Z',
+	// MDI chevron-down — the standard NC collapsible-section affordance. Rotated
+	// via CSS to point up when the panel is collapsed.
+	chevronDown: 'M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z',
 }
 
 function mdiIcon(name, size = 16) {
 	return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" focusable="false"><path d="${MDI_PATHS[name]}" /></svg>`
+}
+
+// Inline loading spinner matching the NcLoadingIcon affordance the Vue views
+// use, themed with NC color tokens. Rendered as a non-Vue island so the
+// Contacts tab shows the same spinner cue as AllNotesView/ContactNotesView
+// instead of a bare 'Loading…' text node.
+function spinnerHtml() {
+	return `<span class="crm-contacts-notes-loading" role="status">
+		<span class="crm-contacts-spinner" aria-hidden="true"></span>
+		<span class="crm-visually-hidden">${t('crm_notes', 'Loading…')}</span>
+	</span>`
 }
 
 /**
@@ -186,6 +200,7 @@ async function injectNotesPanel(detailEl) {
 	panel.innerHTML = `
 		<div class="crm-contacts-notes-header">
 			<button type="button" class="crm-contacts-notes-toggle" aria-expanded="true" aria-controls="${bodyId}">
+				<span class="crm-contacts-notes-chevron" aria-hidden="true">${mdiIcon('chevronDown', 18)}</span>
 				<span class="crm-contacts-notes-icon" aria-hidden="true">${mdiIcon('note', 18)}</span>
 				<span>${t('crm_notes', 'CRM Notes')}</span>
 			</button>
@@ -197,7 +212,7 @@ async function injectNotesPanel(detailEl) {
 				rel="noopener">${mdiIcon('openInNew', 14)}</a>
 		</div>
 		<div id="${bodyId}" class="crm-contacts-notes-body">
-			<div class="crm-contacts-notes-loading">${t('crm_notes', 'Loading…')}</div>
+			${spinnerHtml()}
 		</div>
 	`
 	detailEl.appendChild(panel)
@@ -236,6 +251,51 @@ async function injectNotesPanel(detailEl) {
 			}
 			.crm-contacts-notes-toggle:hover {
 				background: var(--color-background-hover, rgba(0,0,0,.04));
+			}
+			.crm-contacts-notes-chevron {
+				display: inline-flex;
+				align-items: center;
+				color: var(--color-text-maxcontrast, #888);
+				transition: transform 0.15s ease-in-out;
+			}
+			/* Collapsed: chevron points up (rotated 180deg from chevron-down). */
+			.crm-contacts-notes-chevron--collapsed {
+				transform: rotate(-90deg);
+			}
+			.crm-contacts-notes-loading {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				padding: 8px 0;
+				color: var(--color-text-maxcontrast, #888);
+				font-size: 13px;
+			}
+			.crm-contacts-spinner {
+				display: inline-block;
+				width: 20px;
+				height: 20px;
+				border: 2px solid var(--color-border, #ddd);
+				border-top-color: var(--color-primary-element, #0082c9);
+				border-radius: 50%;
+				animation: crm-contacts-spin 0.8s linear infinite;
+			}
+			@keyframes crm-contacts-spin {
+				to { transform: rotate(360deg); }
+			}
+			@media (prefers-reduced-motion: reduce) {
+				.crm-contacts-spinner { animation-duration: 2s; }
+				.crm-contacts-notes-chevron { transition: none; }
+			}
+			.crm-visually-hidden {
+				position: absolute;
+				width: 1px;
+				height: 1px;
+				margin: -1px;
+				padding: 0;
+				overflow: hidden;
+				clip: rect(0, 0, 0, 0);
+				white-space: nowrap;
+				border: 0;
 			}
 			.crm-contacts-notes-toggle:focus-visible,
 			.crm-contacts-open-app:focus-visible {
@@ -349,10 +409,14 @@ async function injectNotesPanel(detailEl) {
 	// Space) and focus handling come for free, no manual keydown wiring needed.
 	const toggleBtn = panel.querySelector('.crm-contacts-notes-toggle')
 	const body = panel.querySelector('.crm-contacts-notes-body')
+	const chevron = panel.querySelector('.crm-contacts-notes-chevron')
 	toggleBtn.addEventListener('click', () => {
 		const expanded = toggleBtn.getAttribute('aria-expanded') !== 'false'
 		toggleBtn.setAttribute('aria-expanded', expanded ? 'false' : 'true')
 		body.style.display = expanded ? 'none' : ''
+		// Rotate the chevron in step with the aria-expanded flip so sighted users
+		// get a visible open/closed cue, matching NC's collapsible-section pattern.
+		if (chevron) chevron.classList.toggle('crm-contacts-notes-chevron--collapsed', expanded)
 	})
 
 	// Load notes (with in-panel error + retry, matching the Vue views)
@@ -361,7 +425,7 @@ async function injectNotesPanel(detailEl) {
 }
 
 async function loadNotesInto(bodyEl, uid) {
-	bodyEl.innerHTML = `<div class="crm-contacts-notes-loading">${t('crm_notes', 'Loading…')}</div>`
+	bodyEl.innerHTML = spinnerHtml()
 	try {
 		const [notes, noteTypeMap] = await Promise.all([fetchNotes(uid), fetchNoteTypeMap()])
 		bodyEl.innerHTML = ''

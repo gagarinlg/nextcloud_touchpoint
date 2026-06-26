@@ -107,9 +107,12 @@ class NoteTypeControllerTest extends TestCase {
         $type = new NoteType();
         $type->setId(2);
 
+        // The default icon must be a token the render surfaces actually resolve
+        // (src/utils/noteTypeIcon.js); 'icon-note' rendered as no icon, so the
+        // controller default is now the renderable 'icon-category-office'.
         $this->service->expects($this->once())
             ->method('create')
-            ->with('DefaultType', 'icon-note', '#0082c9', 'testuser')
+            ->with('DefaultType', 'icon-category-office', '#0082c9', 'testuser')
             ->willReturn($type);
 
         $result = $this->controller->create('DefaultType');

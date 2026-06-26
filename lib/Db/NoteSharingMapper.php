@@ -16,6 +16,14 @@ use OCP\IDBConnection;
  */
 class NoteSharingMapper extends QBMapper {
 
+    /**
+     * Maximum number of ids fed into a single IN(...) clause, mirroring
+     * NoteMapper::IN_CHUNK_SIZE. Kept below the ~1000-element cap some DB
+     * backends (notably Oracle) impose, so an unbounded note-id set is batched
+     * into safe chunks rather than building one oversized query.
+     */
+    private const IN_CHUNK_SIZE = 900;
+
     public function __construct(IDBConnection $db) {
         parent::__construct($db, 'crm_note_sharing', NoteSharing::class);
     }
@@ -40,17 +48,21 @@ class NoteSharingMapper extends QBMapper {
         if (empty($noteIds)) {
             return [];
         }
-        $qb = $this->db->getQueryBuilder();
-        $qb->select('*')
-            ->from($this->getTableName())
-            ->where($qb->expr()->in(
-                'note_id',
-                $qb->createNamedParameter($noteIds, IQueryBuilder::PARAM_INT_ARRAY)
-            ));
-
         $map = [];
-        foreach ($this->findEntities($qb) as $ns) {
-            $map[$ns->getNoteId()][] = $ns;
+        // Batch the IN(...) lookup so an unbounded id list never overflows a DB
+        // backend's per-query placeholder/list limit (matches NoteMapper).
+        foreach (array_chunk(array_values($noteIds), self::IN_CHUNK_SIZE) as $chunk) {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from($this->getTableName())
+                ->where($qb->expr()->in(
+                    'note_id',
+                    $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)
+                ));
+
+            foreach ($this->findEntities($qb) as $ns) {
+                $map[$ns->getNoteId()][] = $ns;
+            }
         }
         return $map;
     }

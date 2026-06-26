@@ -42,7 +42,9 @@ class NoteTypeTest extends TestCase {
 
     public function testDefaultValues(): void {
         $this->assertSame('', $this->noteType->getName());
-        $this->assertSame('icon-note', $this->noteType->getIcon());
+        // Default icon is the renderable 'icon-category-office' token; the old
+        // 'icon-note' default had no entry in the render maps and showed no icon.
+        $this->assertSame('icon-category-office', $this->noteType->getIcon());
         $this->assertSame('#0082c9', $this->noteType->getColor());
         $this->assertSame('', $this->noteType->getUserId());
         $this->assertFalse($this->noteType->getIsDefault());

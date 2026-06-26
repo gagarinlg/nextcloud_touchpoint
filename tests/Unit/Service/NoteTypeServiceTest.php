@@ -335,6 +335,104 @@ class NoteTypeServiceTest extends TestCase {
         $this->assertContains('General', $insertedNames);
     }
 
+    public function testSeedDefaultsUseRenderableIconTokens(): void {
+        // Every seeded icon token must be one the render surfaces actually
+        // resolve (src/utils/noteTypeIcon.js). 'icon-calendar'/'icon-note' are
+        // NOT rendered there, so Meeting/General must use 'icon-calendar-dark'
+        // and 'icon-category-office' instead — otherwise those default badges
+        // show no icon.
+        $this->mapper->method('findGlobalDefaults')->willReturn([]);
+
+        $byName = [];
+        $this->mapper->expects($this->exactly(5))
+            ->method('insert')
+            ->willReturnCallback(function (NoteType $nt) use (&$byName) {
+                $byName[$nt->getName()] = $nt->getIcon();
+                return $nt;
+            });
+
+        $this->service->seedDefaults('admin');
+
+        // Tokens rendered by src/utils/noteTypeIcon.js ICON_COMPONENTS/ICON_PATHS.
+        $renderable = [
+            'icon-comment',
+            'icon-phone',
+            'icon-calendar-dark',
+            'icon-mail',
+            'icon-checkmark',
+            'icon-star',
+            'icon-link',
+            'icon-category-office',
+            // legacy aliases that are now also mapped in the JS maps
+            'icon-calendar',
+            'icon-note',
+        ];
+        foreach ($byName as $name => $icon) {
+            $this->assertContains($icon, $renderable, "Seeded $name uses a non-renderable icon token: $icon");
+        }
+        // The two formerly-broken defaults must use the canonical rendered tokens.
+        $this->assertSame('icon-calendar-dark', $byName['Meeting']);
+        $this->assertSame('icon-category-office', $byName['General']);
+    }
+
+    public function testCreateRejectsDuplicateName(): void {
+        // The UNIQUE(user_id, name) index (Version1009) surfaces a duplicate
+        // name as a DBException; create() must translate it into a clean
+        // validation error (400) rather than letting it escape as a 500.
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+        $this->mapper->expects($this->once())->method('insert')->willThrowException($e);
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('Call', 'icon-phone', '#2ecc71', 'user1');
+    }
+
+    public function testCreateRethrowsNonUniqueDbException(): void {
+        // A non-duplicate DB failure must propagate unchanged.
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_CONNECTION_LOST);
+        $this->mapper->method('insert')->willThrowException($e);
+
+        $this->expectException(DBException::class);
+        $this->service->create('Call', 'icon-phone', '#2ecc71', 'user1');
+    }
+
+    public function testUpdateRejectsDuplicateName(): void {
+        // Renaming a type to a name the user already owns hits the unique index;
+        // update() must translate it into a validation error, not a 500.
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setIcon('icon-phone');
+        $noteType->setColor('#123456');
+        $noteType->setUserId('user1');
+        $this->mapper->method('findOwnedById')->with(1, 'user1')->willReturn($noteType);
+
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+        $this->mapper->expects($this->once())->method('update')->willThrowException($e);
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->update(1, 'user1', 'Existing');
+    }
+
+    public function testUpdateRethrowsNonUniqueDbException(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setIcon('icon-phone');
+        $noteType->setColor('#123456');
+        $noteType->setUserId('user1');
+        $this->mapper->method('findOwnedById')->with(1, 'user1')->willReturn($noteType);
+
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_CONNECTION_LOST);
+        $this->mapper->method('update')->willThrowException($e);
+
+        $this->expectException(DBException::class);
+        $this->service->update(1, 'user1', 'Renamed');
+    }
+
     public function testCreateRejectsUnknownIcon(): void {
         // An icon token the render surfaces can't resolve must fail fast with a
         // validation error rather than being stored and silently dropped.

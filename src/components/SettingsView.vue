@@ -88,6 +88,20 @@
 					@click="save">
 					{{ settingsStore.saving ? t('crm_notes', 'Saving…') : t('crm_notes', 'Save') }}
 				</NcButton>
+				<!-- When a load error coexists with already-loaded targets the form
+				     still renders, so explain why Save is greyed out instead of
+				     leaving it silently disabled (mirrors NoteModal's missing-field
+				     hint). Saving over a partially-failed load could clobber real
+				     settings, so Save stays disabled until a successful reload. -->
+				<p v-if="settingsStore.error && !settingsStore.saving"
+					class="crm-save-hint"
+					role="status"
+					aria-live="polite">
+					{{ t('crm_notes', 'Settings could not be loaded fully. Reload before saving to avoid overwriting your configuration.') }}
+					<NcButton type="tertiary" @click="settingsStore.load()">
+						{{ t('crm_notes', 'Reload') }}
+					</NcButton>
+				</p>
 			</div>
 		</template>
 	</div>
@@ -292,5 +306,19 @@ async function save() {
 
 .crm-settings-actions {
 	padding-top: calc(var(--default-grid-baseline, 4px) * 2);
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+}
+
+.crm-save-hint {
+	margin: 0;
+	font-size: var(--font-size-small, 13px);
+	color: var(--color-text-maxcontrast);
+	display: flex;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+	flex-wrap: wrap;
 }
 </style>

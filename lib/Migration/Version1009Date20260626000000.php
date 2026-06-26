@@ -46,6 +46,15 @@ class Version1009Date20260626000000 extends SimpleMigrationStep {
      * Remove any duplicate (user_id, name) rows before the unique index is
      * created, keeping the lowest id of each group. Without this, createUnique
      * could fail on an instance that already double-seeded.
+     *
+     * Because crm_note_types had no unique constraint before this migration, a
+     * user could legitimately have created two distinct types sharing a name
+     * (e.g. different color/icon) and attached notes to the higher-id one. There
+     * are no DB-level foreign keys or cascades (per CLAUDE.md), so deleting a
+     * non-surviving row would silently orphan every note whose note_type_id
+     * pointed at it — the badge would no longer resolve. To preserve those
+     * notes we first re-point them at the surviving keep_id, then delete the
+     * duplicate row.
      */
     #[\Override]
     public function preSchemaChange(IOutput $output, Closure $schemaClosure, array $options): void {
@@ -54,6 +63,7 @@ class Version1009Date20260626000000 extends SimpleMigrationStep {
         if (!$schema->hasTable('crm_note_types')) {
             return;
         }
+        $hasNotesTable = $schema->hasTable('crm_notes');
 
         // Find (user_id, name) groups that have more than one row.
         $qb = $this->db->getQueryBuilder();
@@ -70,12 +80,46 @@ class Version1009Date20260626000000 extends SimpleMigrationStep {
         $result->closeCursor();
 
         foreach ($dupes as $row) {
-            // Delete every row in the group except the surviving (lowest-id) one.
+            $keepId = (int) $row['keep_id'];
+
+            // Identify the non-surviving ids in this (user_id, name) group so we
+            // can both re-point referencing notes and delete the rows.
+            $idsQb = $this->db->getQueryBuilder();
+            $idsQb->select('id')
+                ->from('crm_note_types')
+                ->where($idsQb->expr()->eq('user_id', $idsQb->createNamedParameter($row['user_id'])))
+                ->andWhere($idsQb->expr()->eq('name', $idsQb->createNamedParameter($row['name'])))
+                ->andWhere($idsQb->expr()->neq('id', $idsQb->createNamedParameter($keepId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+            $idsResult = $idsQb->executeQuery();
+            $deleteIds = array_map(static fn ($r) => (int) $r['id'], $idsResult->fetchAll());
+            $idsResult->closeCursor();
+
+            if (empty($deleteIds)) {
+                continue;
+            }
+
+            // Re-point every note referencing a soon-to-be-deleted type at the
+            // surviving keep_id so no note_type_id is orphaned. There is no
+            // cascade, so this MUST happen before the delete below.
+            if ($hasNotesTable) {
+                $repoint = $this->db->getQueryBuilder();
+                $repoint->update('crm_notes')
+                    ->set('note_type_id', $repoint->createNamedParameter($keepId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                    ->where($repoint->expr()->in(
+                        'note_type_id',
+                        $repoint->createNamedParameter($deleteIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)
+                    ));
+                $repoint->executeStatement();
+            }
+
+            // Now delete the duplicate rows; their referencing notes (if any)
+            // have been re-pointed at keep_id above.
             $del = $this->db->getQueryBuilder();
             $del->delete('crm_note_types')
-                ->where($del->expr()->eq('user_id', $del->createNamedParameter($row['user_id'])))
-                ->andWhere($del->expr()->eq('name', $del->createNamedParameter($row['name'])))
-                ->andWhere($del->expr()->neq('id', $del->createNamedParameter((int) $row['keep_id'], \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)));
+                ->where($del->expr()->in(
+                    'id',
+                    $del->createNamedParameter($deleteIds, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT_ARRAY)
+                ));
             $del->executeStatement();
         }
     }

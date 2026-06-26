@@ -33,9 +33,11 @@ class NoteTypeService {
      * cap prevents an over-long string from triggering a DB-truncation 500.
      *
      * Keep in sync with src/utils/noteTypeIcon.js and NoteTypeModal.vue's
-     * iconOptions. `icon-note`/`icon-calendar` are legacy tokens kept valid so
-     * the shipped global default set (seedDefaults) and the column/controller
-     * default never fail validation.
+     * iconOptions. `icon-note`/`icon-calendar` are legacy tokens that older
+     * rows (and the pre-1009 column default) may still carry; they are mapped
+     * to a real glyph in noteTypeIcon.js's legacy aliases, so they render
+     * rather than disappear, and stay valid here so existing data never fails
+     * validation on update.
      */
     private const ALLOWED_ICONS = [
         'icon-comment',
@@ -93,7 +95,11 @@ class NoteTypeService {
         $noteType->setUserId($userId);
         $noteType->setIsDefault($isDefault);
 
-        return $this->mapper->insert($noteType);
+        try {
+            return $this->mapper->insert($noteType);
+        } catch (DBException $e) {
+            throw $this->mapDuplicateName($e);
+        }
     }
 
     /**
@@ -142,7 +148,24 @@ class NoteTypeService {
             $noteType->setColor($this->normalizeColor($color));
         }
 
-        return $this->mapper->update($noteType);
+        try {
+            return $this->mapper->update($noteType);
+        } catch (DBException $e) {
+            throw $this->mapDuplicateName($e);
+        }
+    }
+
+    /**
+     * Translate a UNIQUE(user_id, name) constraint violation (added in
+     * Version1009) into a clean NoteValidationException so ErrorHandler returns
+     * a 400 instead of letting the DBException escape as an opaque 500. Any
+     * other DB failure is re-thrown unchanged.
+     */
+    private function mapDuplicateName(DBException $e): \Throwable {
+        if ($e->getReason() === DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+            return new NoteValidationException('A note type with this name already exists');
+        }
+        return $e;
     }
 
     /**
@@ -248,12 +271,17 @@ class NoteTypeService {
         if (count($this->mapper->findGlobalDefaults()) > 0) {
             return;
         }
+        // Icon tokens MUST be ones the render surfaces actually resolve
+        // (src/utils/noteTypeIcon.js ICON_COMPONENTS/ICON_PATHS, mirrored by
+        // NoteTypeModal.vue's iconOptions). 'icon-calendar'/'icon-note' are NOT
+        // in those maps and would render as no icon, so Meeting uses
+        // 'icon-calendar-dark' and General uses 'icon-category-office'.
         $defaults = [
             ['name' => 'Call', 'icon' => 'icon-phone', 'color' => '#2ecc71'],
-            ['name' => 'Meeting', 'icon' => 'icon-calendar', 'color' => '#3498db'],
+            ['name' => 'Meeting', 'icon' => 'icon-calendar-dark', 'color' => '#3498db'],
             ['name' => 'Email', 'icon' => 'icon-mail', 'color' => '#9b59b6'],
             ['name' => 'Task', 'icon' => 'icon-checkmark', 'color' => '#e67e22'],
-            ['name' => 'General', 'icon' => 'icon-note', 'color' => '#0082c9'],
+            ['name' => 'General', 'icon' => 'icon-category-office', 'color' => '#0082c9'],
         ];
 
         foreach ($defaults as $default) {

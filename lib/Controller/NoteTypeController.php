@@ -51,7 +51,7 @@ class NoteTypeController extends Controller {
     #[NoAdminRequired]
     public function create(
         string $name,
-        string $icon = 'icon-note',
+        string $icon = 'icon-category-office',
         string $color = '#0082c9',
     ): JSONResponse {
         return $this->handleNotFound(

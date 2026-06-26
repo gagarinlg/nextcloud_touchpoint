@@ -110,9 +110,12 @@ function onContactClick(uid) {
 }
 
 .crm-view-header {
+	/* The all-notes header has no trailing action (unlike ContactNotesView /
+	   NoteTypesView), so it is a simple left-aligned heading. Avoid
+	   justify-content: space-between here — with a single child it does nothing,
+	   and a future action would jump to the far right unexpectedly. */
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 4);
 }
 
