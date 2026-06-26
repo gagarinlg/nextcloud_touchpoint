@@ -1690,4 +1690,67 @@ class NoteServiceTest extends TestCase {
         $this->expectException(NoteValidationException::class);
         $this->service->update(1, 'user1', null, null, null, null, ['ok-uid', $longUid]);
     }
+
+    public function testCreateRejectsOverLengthContent(): void {
+        // GRUMPY DEV #1: content is written into crm_notes.content (Types::TEXT,
+        // 64 KiB on MySQL/MariaDB). An over-length body must be rejected with a
+        // NoteValidationException (400) BEFORE the row is inserted, mirroring the
+        // title/contact_uid guards — never an opaque DB-truncation 500 or silent
+        // data loss. The cap is 16,000 characters (worst-case 64,000 bytes in
+        // utf8mb4), so 16,001 must be rejected.
+        $longContent = str_repeat('a', 16001);
+
+        $this->mapper->expects($this->never())->method('insert');
+        $this->noteContactMapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('uid-1', 1, 1, 'Title', $longContent, 'user1');
+    }
+
+    public function testCreateAcceptsMaxLengthContent(): void {
+        // Boundary: exactly 16,000 characters is allowed.
+        $maxContent = str_repeat('b', 16000);
+
+        $this->mapper->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn (Note $n) => $n->getContent() === $maxContent))
+            ->willReturnCallback(function (Note $n) { $n->setId(30); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $result = $this->service->create('uid-1', 1, 1, 'Title', $maxContent, 'user1');
+        $this->assertSame(30, $result->getId());
+    }
+
+    public function testUpdateRejectsOverLengthContent(): void {
+        // GRUMPY DEV #1: the same content guard applies to update()'s $content
+        // branch, and must run before the note row is mutated.
+        $longContent = str_repeat('c', 16001);
+
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Title');
+        $note->setUserId('user1');
+
+        $this->mapper->method('findById')->willReturn($note);
+        $this->mapper->expects($this->never())->method('update');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->update(1, 'user1', null, $longContent);
+    }
+
+    public function testUpdateAcceptsMaxLengthContent(): void {
+        // Boundary: exactly 16,000 characters is allowed on update too.
+        $maxContent = str_repeat('d', 16000);
+
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Title');
+        $note->setUserId('user1');
+
+        $this->mapper->method('findById')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        $result = $this->service->update(1, 'user1', null, $maxContent);
+        $this->assertSame($maxContent, $result->getContent());
+    }
 }

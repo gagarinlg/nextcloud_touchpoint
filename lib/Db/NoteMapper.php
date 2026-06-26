@@ -298,35 +298,6 @@ class NoteMapper extends QBMapper {
     }
 
     /**
-     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
-     * @return Note[]
-     */
-    public function findByContact(string $contactUid, ?string $userId, string $sort = self::SORT_NEWEST): array {
-        $qb = $this->db->getQueryBuilder();
-        $dir = $this->sortDir($sort);
-
-        $qb->select('*')
-            ->from($this->getTableName())
-            ->where(
-                $qb->expr()->eq('contact_uid', $qb->createNamedParameter($contactUid, IQueryBuilder::PARAM_STR))
-            )
-            // Pinned notes always float to the top; within each pinned/unpinned
-            // group the order follows the caller-chosen creation-time direction.
-            ->orderBy('is_pinned', 'DESC')
-            ->addOrderBy('created_at', $dir)
-            // Stable final tiebreaker on the unique id, in the same direction.
-            ->addOrderBy('id', $dir);
-
-        if ($userId !== null) {
-            $qb->andWhere(
-                $qb->expr()->eq('user_id', $qb->createNamedParameter($userId, IQueryBuilder::PARAM_STR))
-            );
-        }
-
-        return $this->findEntities($qb);
-    }
-
-    /**
      * Return the ids of notes whose PRIMARY contact (the scalar contact_uid
      * column) is this contact, without materialising any full Note rows.
      *
@@ -340,7 +311,7 @@ class NoteMapper extends QBMapper {
      * the junction). NoteService::findByContact() unions these ids with the
      * junction-table ids and de-duplicates.
      *
-     * This mirrors findSortKeysByIds()'s id-only approach: the contact panel
+     * This follows findSortKeysByIds()'s id-only approach: the contact panel
      * only needs these ids to fold direct links into its visible-set
      * computation, so a SELECT * (hydrating every linked note across all users)
      * would defeat the page's own pagination design. The lookup is deliberately

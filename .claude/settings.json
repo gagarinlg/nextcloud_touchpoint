@@ -165,7 +165,11 @@
       "Bash(find / -name \"db_backup-202606260300.zip\" 2>/dev/null | head; find /home /tmp /var -maxdepth 4 -name \"db_backup-*.zip\" 2>/dev/null | head)",
       "Read(//home/**)",
       "Bash(awk 'NR>=402 && NR<=632 && /def |self\\\\._zip *=|self\\\\._tables|def load|def open|def parse/' import_egroupware.py)",
-      "Bash(rm -f /tmp/photocheck.php /tmp/photo2.php /tmp/photo3.php /tmp/photo4.php /tmp/photo7.php /tmp/ctrltest.php /tmp/refl.php /tmp/photo_out.bin /tmp/p*.bin /tmp/probe.bin /tmp/final.bin /tmp/cookiejar.txt 2>/dev/null; echo \"cleaned\")"
+      "Bash(rm -f /tmp/photocheck.php /tmp/photo2.php /tmp/photo3.php /tmp/photo4.php /tmp/photo7.php /tmp/ctrltest.php /tmp/refl.php /tmp/photo_out.bin /tmp/p*.bin /tmp/probe.bin /tmp/final.bin /tmp/cookiejar.txt 2>/dev/null; echo \"cleaned\")",
+      "Bash(cat lib/Event/LoadContactsOcaApiEvent.php)",
+      "Bash(cat lib/Listener/LoadContactsOcaApi.php)",
+      "Bash(cat lib/Listener/LoadContactsFilesActions.php)",
+      "Bash(grep -oE \"OCA\\\\.Contacts ?= ?\\\\{[^}]*\\\\}|Contacts: ?\\\\{[^}]{0,200}\" js/contacts-main.mjs js/contacts-oca.mjs)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

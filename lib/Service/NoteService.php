@@ -30,6 +30,17 @@ class NoteService {
     /** crm_notes.contact_uid column length (VARCHAR(255)). */
     private const MAX_CONTACT_UID_LENGTH = 255;
     /**
+     * Hard cap on note content length. crm_notes.content is declared Types::TEXT
+     * (migration), which on MySQL/MariaDB tops out at 65,535 BYTES. mb_strlen()
+     * counts characters, and a single multibyte character can be up to 4 bytes in
+     * utf8mb4, so the worst-case byte cost of N characters is 4*N. Capping at
+     * 16,000 characters keeps the worst case (64,000 bytes) comfortably under the
+     * 65,535-byte TEXT limit, so an over-length body yields a clean 400 here
+     * instead of a silent truncation (non-strict MySQL) or an opaque DB-truncation
+     * 500 (strict mode) — exactly the guard already applied to title/contact_uid.
+     */
+    private const MAX_CONTENT_LENGTH = 16000;
+    /**
      * Hard server-side cap on the number of notes findByContact() will return
      * in one page. Mirrors the clamp NoteController::index() applies to findAll
      * so neither endpoint can be coerced into materialising, enriching and
@@ -394,8 +405,8 @@ class NoteService {
 
         // Order: pinned first, then created_at in the caller-chosen direction
         // (newest- or oldest-first), with the unique id as the final tiebreaker
-        // in the same direction. Mirrors NoteMapper::findByContact() so the
-        // contact panel orders the same way the all-notes views do.
+        // in the same direction. This is the canonical contact-panel ordering, so
+        // the panel orders the same way the all-notes views do.
         $ordered = array_keys($sortKeys);
         usort($ordered, function (int $a, int $b) use ($sortKeys, $oldestFirst) {
             $aPinned = $sortKeys[$a]['is_pinned'] ?? false;
@@ -453,6 +464,9 @@ class NoteService {
         ?array $sharing = null,
     ): Note {
         $this->assertMaxLength($title, self::MAX_TITLE_LENGTH, 'Title');
+        if ($content !== null) {
+            $this->assertMaxLength($content, self::MAX_CONTENT_LENGTH, 'Content');
+        }
         $this->assertMaxLength($contactUid, self::MAX_CONTACT_UID_LENGTH, 'Contact');
         // Validate every additional junction UID up front, before any row is
         // inserted, so an over-length entry yields a clean 400 (like the primary
@@ -543,6 +557,9 @@ class NoteService {
         // half-updated.
         if ($title !== null) {
             $this->assertMaxLength($title, self::MAX_TITLE_LENGTH, 'Title');
+        }
+        if ($content !== null) {
+            $this->assertMaxLength($content, self::MAX_CONTENT_LENGTH, 'Content');
         }
         if ($contactUids !== null) {
             foreach ($contactUids as $uid) {

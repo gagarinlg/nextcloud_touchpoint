@@ -123,46 +123,6 @@ class NoteMapperTest extends TestCase {
         }
     }
 
-    public function testFindByContactBuildsQuery(): void {
-        $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
-        $this->qb->expects($this->once())->method('where')->willReturnSelf();
-        $this->qb->expects($this->once())->method('andWhere')->willReturnSelf();
-        // Pinned notes float to the top; within each group the order is
-        // created_at (default DESC) then the id tiebreaker in the same direction.
-        $this->qb->expects($this->once())->method('orderBy')->with('is_pinned', 'DESC')->willReturnSelf();
-        $addOrderByArgs = [];
-        $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
-                $addOrderByArgs[] = [$col, $dir];
-                return $this->qb;
-            });
-
-        $this->mapper->findByContact('uid-123', 'user1');
-
-        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
-    }
-
-    public function testFindByContactOldestSortAscends(): void {
-        $this->qb->expects($this->once())->method('orderBy')->with('is_pinned', 'DESC')->willReturnSelf();
-        $addOrderByArgs = [];
-        $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
-                $addOrderByArgs[] = [$col, $dir];
-                return $this->qb;
-            });
-
-        $this->mapper->findByContact('uid-123', 'user1', NoteMapper::SORT_OLDEST);
-
-        // Pinned-first is preserved; created_at + id tiebreaker flip to ASC.
-        $this->assertSame([['created_at', 'ASC'], ['id', 'ASC']], $addOrderByArgs);
-    }
-
-    public function testFindByContactUsesCorrectParams(): void {
-        // 2 eq calls: contact_uid and user_id
-        $this->expr->expects($this->exactly(2))->method('eq');
-        $this->mapper->findByContact('uid-abc', 'user1');
-    }
-
     public function testFindByIdUsesCorrectParams(): void {
         // 2 eq calls: id and user_id
         $this->expr->expects($this->exactly(2))->method('eq');

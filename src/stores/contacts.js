@@ -46,6 +46,20 @@ export const useContactsStore = defineStore('contacts', {
 		select(contact) {
 			this.currentContact = contact
 		},
+		/**
+		 * Select the loaded contact with the given UID, if present.
+		 * Returns true when a matching contact was found and selected.
+		 * @param {string} uid contact UID to select
+		 * @return {boolean} whether a contact was selected
+		 */
+		selectByUid(uid) {
+			const contact = this.contacts.find(c => c.uid === uid)
+			if (contact) {
+				this.currentContact = contact
+				return true
+			}
+			return false
+		},
 		deselect() {
 			this.currentContact = null
 		},

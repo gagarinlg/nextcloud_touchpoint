@@ -93,7 +93,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
@@ -157,12 +157,53 @@ function onHideDetails() {
 	contactsStore.deselect()
 }
 
+// Deep link from the Contacts tab: /apps/crm_notes#contact/<encoded-uid>.
+// Parse the fragment and return the decoded UID, or null when absent/malformed.
+function contactUidFromHash() {
+	const match = window.location.hash.match(/^#contact\/(.+)$/)
+	if (!match) return null
+	try {
+		return decodeURIComponent(match[1])
+	} catch {
+		// Malformed percent-encoding — treat as no deep link rather than throwing.
+		return null
+	}
+}
+
+// Apply the #contact/<uid> deep link: switch to the contacts section and select
+// the contact once it is loaded. Called on startup (after contacts load) and on
+// every hashchange so re-clicking the Contacts-tab link while the app is already
+// open re-navigates instead of silently doing nothing.
+function applyContactDeepLink() {
+	const uid = contactUidFromHash()
+	if (!uid) return
+	activeSection.value = 'contacts'
+	if (!contactsStore.selectByUid(uid)) {
+		// Contacts may not have finished loading yet (startup race). The onMounted
+		// caller awaits the load before invoking us, but a hashchange can fire
+		// mid-load; in that case the post-load call below will pick it up.
+		contactsStore.deselect()
+	}
+}
+
+function onHashChange() {
+	applyContactDeepLink()
+}
+
 onMounted(async () => {
+	window.addEventListener('hashchange', onHashChange)
 	// Settle each load independently: one store's failure (each surfaces its own
 	// error/retry state) must not abort the others, and settingsStore.load()
 	// re-throws on failure, so Promise.all would otherwise produce an unhandled
 	// rejection here.
 	await Promise.allSettled([contactsStore.load(), noteTypesStore.load(), settingsStore.load()])
+	// Now that contacts are loaded, honour any #contact/<uid> deep link the user
+	// arrived with (e.g. the "Open in CRM Notes" link on the Contacts tab).
+	applyContactDeepLink()
+})
+
+onBeforeUnmount(() => {
+	window.removeEventListener('hashchange', onHashChange)
 })
 </script>
 
