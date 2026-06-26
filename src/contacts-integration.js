@@ -12,7 +12,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t, getLocale } from '@nextcloud/l10n'
-import { showError } from '@nextcloud/dialogs'
+import { showError, showSuccess } from '@nextcloud/dialogs'
 import { renderMarkdown } from './utils/markdown.js'
 import { iconPathForType } from './utils/noteTypeIcon.js'
 // Reuse the single, shared contrast implementation rather than carry a hex-only
@@ -39,6 +39,7 @@ const MDI_PATHS = {
 	// MDI chevron-down — the standard NC collapsible-section affordance. Rotated
 	// via CSS to point up when the panel is collapsed.
 	chevronDown: 'M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z',
+	plus: 'M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z',
 }
 
 function mdiIcon(name, size = 16) {
@@ -292,6 +293,7 @@ async function injectNotesPanel(detailEl) {
 	// (WCAG 3.2.5): the link is icon-only, so neither sighted nor AT users
 	// otherwise get a cue that activation spawns a new tab.
 	const openLabel = t('crm_notes', 'Open in CRM Notes (opens in a new tab)')
+	const addLabel = t('crm_notes', 'Add note')
 	// The header is a flex row of two independent, properly-roled controls: a real
 	// <button> that toggles the body, and a separate <a> link. Avoid nesting the
 	// link inside a role=button element (invalid ARIA / ambiguous a11y tree).
@@ -303,6 +305,7 @@ async function injectNotesPanel(detailEl) {
 				<span class="crm-contacts-notes-icon" aria-hidden="true">${mdiIcon('note', 18)}</span>
 				<span>${t('crm_notes', 'CRM Notes')}</span>
 			</button>
+			<button type="button" class="crm-contacts-notes-add" title="${addLabel}" aria-label="${addLabel}" aria-expanded="false">${mdiIcon('plus', 16)}</button>
 			<a class="crm-contacts-open-app"
 				href="${generateUrl('/apps/crm_notes')}#contact/${encodeURIComponent(uid)}"
 				title="${openLabel}"
@@ -310,6 +313,15 @@ async function injectNotesPanel(detailEl) {
 				target="_blank"
 				rel="noopener">${mdiIcon('openInNew', 14)}</a>
 		</div>
+		<form class="crm-contacts-notes-addform" hidden>
+			<input type="text" class="crm-contacts-addform-title" maxlength="255" placeholder="${t('crm_notes', 'Title')}" />
+			<select class="crm-contacts-addform-type" aria-label="${t('crm_notes', 'Note type')}"></select>
+			<textarea class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}"></textarea>
+			<div class="crm-contacts-addform-actions">
+				<button type="button" class="crm-contacts-addform-cancel">${t('crm_notes', 'Cancel')}</button>
+				<button type="submit" class="crm-contacts-addform-save">${t('crm_notes', 'Save')}</button>
+			</div>
+		</form>
 		<div id="${bodyId}" class="crm-contacts-notes-body">
 			${spinnerHtml()}
 		</div>
@@ -544,6 +556,42 @@ async function injectNotesPanel(detailEl) {
 				outline: 2px solid var(--color-primary-element);
 				outline-offset: 1px;
 			}
+			.crm-contacts-notes-add {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				border: none;
+				background: none;
+				color: var(--color-text-maxcontrast, #888);
+				cursor: pointer;
+				padding: calc(var(--default-grid-baseline, 4px) * 1);
+				border-radius: var(--border-radius, 4px);
+			}
+			.crm-contacts-notes-add:hover {
+				background: var(--color-background-hover, rgba(0,0,0,.04));
+				color: var(--color-main-text);
+			}
+			.crm-contacts-notes-addform {
+				display: flex;
+				flex-direction: column;
+				gap: calc(var(--default-grid-baseline, 4px) * 2);
+				padding: 0 calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2);
+			}
+			.crm-contacts-addform-title,
+			.crm-contacts-addform-type,
+			.crm-contacts-addform-content {
+				width: 100%;
+				box-sizing: border-box;
+			}
+			.crm-contacts-addform-content {
+				resize: vertical;
+				min-height: 56px;
+			}
+			.crm-contacts-addform-actions {
+				display: flex;
+				justify-content: flex-end;
+				gap: calc(var(--default-grid-baseline, 4px) * 2);
+			}
 		`
 		document.head.appendChild(style)
 	}
@@ -564,7 +612,77 @@ async function injectNotesPanel(detailEl) {
 
 	// Load notes (with in-panel error + retry, matching the Vue views)
 	const bodyEl = panel.querySelector('.crm-contacts-notes-body')
+	setupAddNote(panel, bodyEl, uid)
 	loadNotesInto(bodyEl, uid)
+}
+
+// Inline "add note" form: create a note for the open contact without leaving the
+// Contacts app. Posts to the same API the Vue app uses and prepends the created
+// note to the list on success.
+function setupAddNote(panel, bodyEl, uid) {
+	const addBtn = panel.querySelector('.crm-contacts-notes-add')
+	const form = panel.querySelector('.crm-contacts-notes-addform')
+	if (!addBtn || !form) return
+	const titleEl = form.querySelector('.crm-contacts-addform-title')
+	const typeEl = form.querySelector('.crm-contacts-addform-type')
+	const contentEl = form.querySelector('.crm-contacts-addform-content')
+	const cancelBtn = form.querySelector('.crm-contacts-addform-cancel')
+	const saveBtn = form.querySelector('.crm-contacts-addform-save')
+	const toggleBtn = panel.querySelector('.crm-contacts-notes-toggle')
+	let typeMap = {}
+	// Populate the note-type <select> from the same source the badges use.
+	fetchNoteTypeMap().then((map) => {
+		typeMap = map
+		typeEl.innerHTML = ''
+		for (const [id, type] of Object.entries(map)) {
+			const opt = document.createElement('option')
+			opt.value = id
+			opt.textContent = type.name
+			typeEl.appendChild(opt)
+		}
+	})
+	function closeForm() {
+		form.hidden = true
+		addBtn.setAttribute('aria-expanded', 'false')
+		form.reset()
+	}
+	addBtn.addEventListener('click', () => {
+		const willOpen = form.hidden
+		form.hidden = !willOpen
+		addBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false')
+		if (willOpen) {
+			if (toggleBtn && toggleBtn.getAttribute('aria-expanded') === 'false') toggleBtn.click()
+			titleEl.focus()
+		}
+	})
+	cancelBtn.addEventListener('click', closeForm)
+	form.addEventListener('submit', async (e) => {
+		e.preventDefault()
+		const title = titleEl.value.trim()
+		if (!title) { titleEl.focus(); return }
+		if (!typeEl.value) { showError(t('crm_notes', 'Please pick a note type first.')); return }
+		saveBtn.disabled = true
+		const prevLabel = saveBtn.textContent
+		saveBtn.textContent = t('crm_notes', 'Saving\u2026')
+		try {
+			const { data: note } = await axios.post(`${baseUrl}/notes`, {
+				contactUid: uid,
+				noteTypeId: Number(typeEl.value),
+				title,
+				content: contentEl.value || null,
+			})
+			const empty = bodyEl.querySelector('.crm-contacts-notes-empty')
+			if (empty) empty.remove()
+			bodyEl.insertBefore(renderNoteItem(note, typeMap), bodyEl.firstChild)
+			closeForm()
+			showSuccess(t('crm_notes', 'Note added.'))
+		} catch (err) {
+			showError(t('crm_notes', 'Failed to add note.'))
+		} finally {
+			saveBtn.disabled = false
+			saveBtn.textContent = prevLabel
+		}
+	})
 }
 
 async function loadNotesInto(bodyEl, uid) {
@@ -662,6 +780,7 @@ function findAndInject() {
 
 	// The contacts app detail panel can have different selectors depending on version
 	const selectors = [
+		'.contact-details-wrapper',
 		'.contact-details',
 		'.contact__details',
 		'[class*="contact-detail"]',

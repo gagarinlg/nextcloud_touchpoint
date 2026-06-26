@@ -2,6 +2,10 @@
     "pluralForm": "nplurals=2; plural=(n != 1);",
     "translations": {
         "Notes": "Notizen",
+        "Write a note…": "Notiz schreiben…",
+        "Please pick a note type first.": "Bitte zuerst einen Notiztyp auswählen.",
+        "Note added.": "Notiz hinzugefügt.",
+        "Failed to add note.": "Notiz konnte nicht hinzugefügt werden.",
         "Show contact details": "Kontaktdetails anzeigen",
         "Hide contact details": "Kontaktdetails ausblenden",
         "Contact details unavailable": "Kontaktdetails nicht verfügbar",
