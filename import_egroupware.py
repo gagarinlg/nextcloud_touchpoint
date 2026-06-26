@@ -1989,24 +1989,25 @@ def _nc_gid_int():
         return -1
 
 
-def _seed_note_types_for_user(cur, nc_uid):
-    """Ensure the user owns the default note types; return a {name: id} map.
+def _seed_global_note_types(cur):
+    """Ensure the shared GLOBAL default note types exist and return a {name: id} map.
 
-    Seeds any missing DEFAULT_NOTE_TYPES as owned (is_default=false) so imported
-    notes always reference the importing user's OWN type id — never a hardcoded
-    global id that could belong to another user (the app enforces note-type
-    ownership since the IDOR fix). The boolean is bound as a parameter rather
-    than the SQL keyword `false`, so the values are portable across databases."""
-    cur.execute("SELECT name FROM oc_crm_note_types WHERE user_id=%s", (nc_uid,))
+    Matches the app's NoteTypeService::seedDefaults model: ONE instance-wide set
+    of defaults stored with an empty user_id and is_default = true. Every user can
+    see and select them (NoteTypeMapper read scope) but no one owns them, so they
+    are immutable — and crucially they are NOT duplicated per user. Imported notes
+    reference these global ids. Idempotent (only inserts missing names); booleans
+    bound as params for cross-DB portability."""
+    cur.execute("SELECT name FROM oc_crm_note_types WHERE user_id=%s AND is_default=%s", ('', True))
     existing = {r[0] for r in cur.fetchall()}
     for (name, icon, color) in DEFAULT_NOTE_TYPES:
         if name not in existing:
             cur.execute(
                 """INSERT INTO oc_crm_note_types (name, icon, color, user_id, is_default)
                    VALUES (%s, %s, %s, %s, %s)""",
-                (name, icon, color, nc_uid, False)
+                (name, icon, color, '', True)
             )
-    cur.execute("SELECT id, name FROM oc_crm_note_types WHERE user_id=%s", (nc_uid,))
+    cur.execute("SELECT id, name FROM oc_crm_note_types WHERE user_id=%s AND is_default=%s", ('', True))
     return {r[1]: r[0] for r in cur.fetchall()}
 
 
@@ -2065,13 +2066,10 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
                     note_contacts[info_id] = []
                 note_contacts[info_id].append(contact_uid)
 
-    # Seed default note types (owned, is_default=false) and build a per-user
-    # {name: id} map so every imported note references the importing user's OWN
-    # type id.
-    note_type_ids_by_user = {}
-    if not DRY_RUN:
-        for nc_uid in all_note_nc_users:
-            note_type_ids_by_user[nc_uid] = _seed_note_types_for_user(cur, nc_uid)
+    # Seed the shared GLOBAL default note types once (user_id='', is_default=true),
+    # matching the app's model, and map every imported note to those global ids.
+    # (No per-user copies — that would duplicate the set the app seeds globally.)
+    global_note_types = {} if DRY_RUN else _seed_global_note_types(cur)
 
     imported = 0
     skipped  = 0
@@ -2091,15 +2089,9 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
         if DRY_RUN:
             note_type_id = 1
         else:
-            user_types = note_type_ids_by_user.get(nc_uid)
-            if not user_types:
-                # User resolved after the pre-seed pass — seed now so we never
-                # point this note at another user's note type.
-                user_types = _seed_note_types_for_user(cur, nc_uid)
-                note_type_ids_by_user[nc_uid] = user_types
-            note_type_id = user_types.get(type_name) or user_types.get('General')
+            note_type_id = global_note_types.get(type_name) or global_note_types.get('General')
             if not note_type_id:
-                log(f'  [WARN] no note type resolved for user {nc_uid}; skipping note {info_id}.')
+                log(f'  [WARN] no global note type resolved for "{type_name}"; skipping note {info_id}.')
                 skipped += 1
                 continue
 
