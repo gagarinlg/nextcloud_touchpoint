@@ -6,7 +6,7 @@
 			<div class="crm-contact-info">
 				<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" :size="48" />
 				<div class="crm-contact-meta">
-					<h1>{{ contact.name }}</h1>
+					<h1>{{ contact.name || contact.uid }}</h1>
 					<span v-if="contact.email" class="crm-contact-email">{{ contact.email }}</span>
 				</div>
 			</div>

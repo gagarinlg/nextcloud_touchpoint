@@ -831,12 +831,26 @@ function setupAddNote(panel, bodyEl, uid) {
 		form.hidden = true
 		addBtn.setAttribute('aria-expanded', 'false')
 		form.reset()
+		// Return focus to the trigger before/after hiding the form. Hiding the
+		// currently-focused element (Cancel button, or a field after a successful
+		// Save that calls closeForm()) would otherwise strand keyboard/AT focus on
+		// a now-hidden node, sending the next Tab to the document top. Mirrors the
+		// focus restoration the Vue NoteModal performs.
+		addBtn.focus()
 		// Keep the persistent "no note types" guidance (and the disabled Save) on
 		// reopen; only clear a transient missing-fields hint.
 		if (hintEl.dataset.crmNoTypes === '1') return
 		hintEl.hidden = true
 		hintEl.textContent = ''
 	}
+	// Allow Escape to dismiss the inline form (returning focus to the trigger via
+	// closeForm), matching the dismiss affordance of the Vue modal.
+	form.addEventListener('keydown', (e) => {
+		if (e.key === 'Escape' && !form.hidden) {
+			e.preventDefault()
+			closeForm()
+		}
+	})
 	addBtn.addEventListener('click', () => {
 		const willOpen = form.hidden
 		form.hidden = !willOpen

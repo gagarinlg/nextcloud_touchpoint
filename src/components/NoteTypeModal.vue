@@ -100,8 +100,11 @@ const iconOptions = [
 
 // Seed the color from the instance's themed primary rather than a hardcoded
 // brand-blue literal, so a rethemed instance's default swatch matches its
-// palette. Falls back to the classic NC blue if the variable is unavailable
-// (e.g. during SSR/tests) or resolves to empty.
+// palette. If the variable can't be resolved (e.g. during SSR/tests), leave the
+// swatch unset (empty) rather than asserting a specific off-palette brand hex:
+// in a real browser getComputedStyle always resolves to a concrete on-palette
+// color, and on save the backend's normalizeColor() supplies the canonical
+// default for an empty/unparseable value — so no hardcoded hex is needed here.
 function themedDefaultColor() {
 	try {
 		const value = getComputedStyle(document.documentElement)
@@ -109,9 +112,9 @@ function themedDefaultColor() {
 			.trim()
 		if (value) return value
 	} catch {
-		// getComputedStyle unavailable — fall through to the literal default.
+		// getComputedStyle unavailable — leave the swatch unset.
 	}
-	return '#0082c9'
+	return ''
 }
 
 const form = ref({ name: '', icon: 'icon-comment', color: themedDefaultColor() })
