@@ -350,27 +350,32 @@ class NoteService {
         // BEFORE loading any full rows. In public mode every candidate is
         // visible; otherwise it must be owned by the caller or shared with them.
         if ($isPublic) {
-            $visibleIds = $noteIds;
+            // Public mode: every candidate is visible and none was owner-scoped
+            // above, so fetch all sort keys in one unscoped pass.
+            $sortKeys = $this->mapper->findSortKeysByIds($noteIds, null);
         } else {
+            // The owner-scoped pass already returned this user's notes WITH their
+            // sort keys; reuse those rows instead of re-querying them. Only the
+            // shared-but-not-owned remainder still needs its sort keys fetched,
+            // so the heavy id->sort-key query never covers the owned set twice.
             $ownedKeys = $this->mapper->findSortKeysByIds($noteIds, $userId);
-            $visibleIds = array_keys($ownedKeys);
 
             $groupIds  = $this->settingsService->getUserGroupIds($userId);
             $sharedIds = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
             $sharedInContact = array_intersect($noteIds, $sharedIds);
-            foreach ($sharedInContact as $sharedId) {
-                $visibleIds[] = $sharedId;
+            // Shared ids that are not already in the owned set; only these need a
+            // second sort-key lookup.
+            $sharedOnlyIds = array_values(array_diff($sharedInContact, array_keys($ownedKeys)));
+
+            $sortKeys = $ownedKeys;
+            if (!empty($sharedOnlyIds)) {
+                $sortKeys += $this->mapper->findSortKeysByIds($sharedOnlyIds, null);
             }
-            $visibleIds = array_values(array_unique($visibleIds));
         }
 
-        if (empty($visibleIds)) {
+        if (empty($sortKeys)) {
             return [];
         }
-
-        // Fetch only the sort keys for the visible id set (unscoped: visibility
-        // was already decided above; shared rows are owned by another user).
-        $sortKeys = $this->mapper->findSortKeysByIds($visibleIds, null);
 
         // Order: pinned first, then updated_at desc, created_at desc, id desc.
         $ordered = array_keys($sortKeys);

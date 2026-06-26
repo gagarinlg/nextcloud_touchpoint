@@ -39,6 +39,45 @@ class SettingsControllerTest extends TestCase {
         );
     }
 
+    public function testSaveAppliesPublicFlagForAdminWhenExplicitlySent(): void {
+        // An admin POSTing notesPublic=true must persist the instance-wide flag.
+        $this->groupManager->method('isAdmin')->with('caller')->willReturn(true);
+        $this->service->expects($this->once())
+            ->method('setNotesPublic')
+            ->with(true);
+        $this->service->method('isNotesPublic')->willReturn(true);
+        $this->service->method('getUserShareTargets')->willReturn([]);
+
+        $response = $this->controller->save(true, null);
+        $this->assertSame(['notesPublic' => true, 'isAdmin' => true, 'shareTargets' => []], $response->getData());
+    }
+
+    public function testSaveDoesNotTouchPublicFlagWhenOmittedByAdmin(): void {
+        // GRUMPY DEV #1: an admin client that POSTs only shareTargets (no
+        // notesPublic key) must NOT silently flip the instance-wide flag off.
+        // notesPublic is now nullable and defaults to null, so an absent value
+        // means "leave it alone".
+        $this->groupManager->method('isAdmin')->with('caller')->willReturn(true);
+        $this->service->expects($this->never())->method('setNotesPublic');
+        $this->service->expects($this->once())
+            ->method('setUserShareTargets')
+            ->with('caller', [['type' => 'user', 'id' => 'bob']]);
+        $this->service->method('isNotesPublic')->willReturn(true);
+        $this->service->method('getUserShareTargets')->willReturn([]);
+
+        $this->controller->save(null, [['type' => 'user', 'id' => 'bob']]);
+    }
+
+    public function testSaveIgnoresPublicFlagForNonAdmin(): void {
+        // A non-admin may never change the instance-wide flag, even when sent.
+        $this->groupManager->method('isAdmin')->with('caller')->willReturn(false);
+        $this->service->expects($this->never())->method('setNotesPublic');
+        $this->service->method('isNotesPublic')->willReturn(false);
+        $this->service->method('getUserShareTargets')->willReturn([]);
+
+        $this->controller->save(true, null);
+    }
+
     public function testSearchPrincipalsRejectsShortQuery(): void {
         // A 1-character (or empty) query must never reach the service, so the
         // autocomplete cannot be walked to enumerate the directory.

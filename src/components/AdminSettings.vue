@@ -12,7 +12,7 @@
 					v-model="notesPublic"
 					type="switch"
 					:disabled="saving"
-					@update:modelValue="save">
+					@update:model-value="save">
 					{{ t('crm_notes', 'Notes are public (all users see all notes)') }}
 				</NcCheckboxRadioSwitch>
 				<p class="crm-admin-hint">

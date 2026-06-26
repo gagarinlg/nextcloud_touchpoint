@@ -237,20 +237,20 @@ async function injectNotesPanel(detailEl) {
 		style.id = 'crm-contacts-integration-style'
 		style.textContent = `
 			.crm-contacts-notes-panel {
-				margin: 12px 0;
+				margin: calc(var(--default-grid-baseline, 4px) * 3) 0;
 				border-top: 1px solid var(--color-border, #ddd);
-				padding-top: 8px;
+				padding-top: calc(var(--default-grid-baseline, 4px) * 2);
 			}
 			.crm-contacts-notes-header {
 				display: flex;
 				align-items: center;
-				gap: 8px;
-				padding: 8px 16px;
+				gap: calc(var(--default-grid-baseline, 4px) * 2);
+				padding: calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 4);
 			}
 			.crm-contacts-notes-toggle {
 				display: flex;
 				align-items: center;
-				gap: 8px;
+				gap: calc(var(--default-grid-baseline, 4px) * 2);
 				flex: 1;
 				min-width: 0;
 				padding: 0;
@@ -279,10 +279,10 @@ async function injectNotesPanel(detailEl) {
 			.crm-contacts-notes-loading {
 				display: flex;
 				align-items: center;
-				gap: 8px;
-				padding: 8px 0;
+				gap: calc(var(--default-grid-baseline, 4px) * 2);
+				padding: calc(var(--default-grid-baseline, 4px) * 2) 0;
 				color: var(--color-text-maxcontrast, #888);
-				font-size: 13px;
+				font-size: var(--font-size-small, 13px);
 			}
 			.crm-contacts-spinner {
 				display: inline-block;
@@ -318,24 +318,24 @@ async function injectNotesPanel(detailEl) {
 			}
 			.crm-contacts-open-app {
 				margin-left: auto;
-				font-size: 14px;
+				font-size: var(--font-size-small, 13px);
 				text-decoration: none;
 				color: var(--color-primary-element);
 			}
 			.crm-contacts-notes-body {
-				padding: 4px 16px;
+				padding: calc(var(--default-grid-baseline, 4px) * 1) calc(var(--default-grid-baseline, 4px) * 4);
 			}
 			.crm-contacts-note-item {
-				padding: 8px 0;
+				padding: calc(var(--default-grid-baseline, 4px) * 2) 0;
 				border-bottom: 1px solid var(--color-border, #ddd);
-				font-size: 13px;
+				font-size: var(--font-size-small, 13px);
 			}
 			.crm-contacts-note-item:last-child { border-bottom: none; }
 			.crm-contacts-note-header {
 				display: flex;
 				align-items: center;
-				gap: 6px;
-				margin-bottom: 4px;
+				gap: calc(var(--default-grid-baseline, 4px) * 1.5);
+				margin-bottom: calc(var(--default-grid-baseline, 4px) * 1);
 			}
 			.crm-contacts-note-title {
 				/* Reset UA heading defaults so this <h2> renders like the former
@@ -348,11 +348,11 @@ async function injectNotesPanel(detailEl) {
 			.crm-contacts-type-badge {
 				display: inline-flex;
 				align-items: center;
-				gap: 4px;
-				padding: 1px 8px;
-				border-radius: 8px;
+				gap: calc(var(--default-grid-baseline, 4px) * 1);
+				padding: 1px calc(var(--default-grid-baseline, 4px) * 2);
+				border-radius: var(--border-radius-pill, 100px);
 				color: var(--color-main-text);
-				font-size: 11px;
+				font-size: var(--font-size-small, 13px);
 				font-weight: 600;
 				white-space: nowrap;
 			}
@@ -365,55 +365,55 @@ async function injectNotesPanel(detailEl) {
 				   NoteItem.vue's .crm-note-content. --color-text-maxcontrast is
 				   reserved for the secondary .crm-contacts-note-date meta line. */
 				color: var(--color-main-text);
-				margin: 2px 0 4px;
+				margin: calc(var(--default-grid-baseline, 4px) * 0.5) 0 calc(var(--default-grid-baseline, 4px) * 1);
 				line-height: 1.5;
 				/* Break long unbroken strings (pasted URLs/tokens) so the note
 				   body wraps inside the tab instead of overflowing horizontally. */
 				overflow-wrap: anywhere;
 			}
-			.crm-contacts-note-content p { margin: 0 0 6px; }
+			.crm-contacts-note-content p { margin: 0 0 calc(var(--default-grid-baseline, 4px) * 1.5); }
 			.crm-contacts-note-content p:last-child { margin-bottom: 0; }
 			.crm-contacts-note-content ul,
-			.crm-contacts-note-content ol { padding-left: 18px; margin: 0 0 6px; }
+			.crm-contacts-note-content ol { padding-left: calc(var(--default-grid-baseline, 4px) * 4.5); margin: 0 0 calc(var(--default-grid-baseline, 4px) * 1.5); }
 			.crm-contacts-note-content h4,
 			.crm-contacts-note-content h5,
 			.crm-contacts-note-content h6 {
 				font-weight: 600;
-				margin: 6px 0 2px;
+				margin: calc(var(--default-grid-baseline, 4px) * 1.5) 0 calc(var(--default-grid-baseline, 4px) * 0.5);
 				color: var(--color-main-text);
 			}
 			.crm-contacts-note-content code {
 				font-family: var(--font-face-monospace, monospace);
 				background: var(--color-background-dark);
-				padding: 1px 4px;
+				padding: 1px calc(var(--default-grid-baseline, 4px) * 1);
 				border-radius: var(--border-radius-small, 4px);
 			}
 			.crm-contacts-note-content pre {
 				background: var(--color-background-dark);
-				padding: 8px;
+				padding: calc(var(--default-grid-baseline, 4px) * 2);
 				border-radius: var(--border-radius);
 				overflow-x: auto;
 			}
 			.crm-contacts-note-content a { color: var(--color-primary-element); }
 			.crm-contacts-note-date {
-				font-size: 11px;
+				font-size: var(--font-size-small, 13px);
 				color: var(--color-text-maxcontrast, #999);
 			}
 			.crm-contacts-notes-empty {
 				color: var(--color-text-maxcontrast, #888);
-				font-size: 13px;
-				padding: 8px 0;
+				font-size: var(--font-size-small, 13px);
+				padding: calc(var(--default-grid-baseline, 4px) * 2) 0;
 			}
 			.crm-contacts-notes-retry {
 				display: inline-block;
-				margin: 0 0 8px;
-				padding: 4px 12px;
+				margin: 0 0 calc(var(--default-grid-baseline, 4px) * 2);
+				padding: calc(var(--default-grid-baseline, 4px) * 1) calc(var(--default-grid-baseline, 4px) * 3);
 				border: 1px solid var(--color-border-dark, #ccc);
 				border-radius: var(--border-radius, 4px);
 				background: var(--color-main-background);
 				color: var(--color-main-text);
 				font: inherit;
-				font-size: 13px;
+				font-size: var(--font-size-small, 13px);
 				cursor: pointer;
 			}
 			.crm-contacts-notes-retry:hover {

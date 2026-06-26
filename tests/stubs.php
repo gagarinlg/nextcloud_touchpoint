@@ -223,6 +223,7 @@ namespace OCP {
         public function search(string $search, ?int $limit = null, ?int $offset = null): array;
         public function getUserGroups(IUser $user): array;
         public function groupExists(string $gid): bool;
+        public function isAdmin(string $userId): bool;
     }
 
     interface IUserManager {

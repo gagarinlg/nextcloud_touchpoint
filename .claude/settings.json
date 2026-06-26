@@ -100,7 +100,10 @@
       "Bash(stat *)",
       "Bash(jq *)",
       "Bash(sudo tail -n 8 /var/www/html/data/nextcloud.log)",
-      "Bash(echo \"EXIT_CODE: $?\")"
+      "Bash(echo \"EXIT_CODE: $?\")",
+      "Bash(grep -rn \"SELECT \\\\|INSERT \\\\|WHERE .*\\\\$\\\\|\\\\. \\\\$\" lib/Db/)",
+      "Bash(sudo tail -n 3 /var/www/html/data/nextcloud.log)",
+      "Bash(awk 'NR==8' appinfo/info.xml)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

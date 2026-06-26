@@ -396,6 +396,79 @@ class NoteServiceTest extends TestCase {
         $this->assertSame(42, $result[0]->getId());
     }
 
+    public function testFindByContactDoesNotRefetchOwnedSortKeys(): void {
+        // GRUMPY DEV #2: in private mode the owner-scoped sort-key lookup already
+        // returns the caller's rows WITH their sort keys. The second (unscoped)
+        // pass must only fetch the shared-but-not-owned remainder, never re-query
+        // the owned ids. Candidates: 1 (owned), 2 (owned), 42 (shared, not owned).
+        $mapper = $this->createMock(NoteMapper::class);
+        $noteContactMapper = $this->createMock(NoteContactMapper::class);
+        $noteFileMapper = $this->createMock(NoteFileMapper::class);
+        $noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $settingsService = $this->createMock(SettingsService::class);
+        $noteTypeService = $this->createMock(NoteTypeService::class);
+        $rootFolder = $this->createMock(IRootFolder::class);
+        $logger = $this->createMock(LoggerInterface::class);
+
+        $settingsService->method('isNotesPublic')->willReturn(false);
+        $settingsService->method('getUserGroupIds')->willReturn([]);
+
+        $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
+        $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
+        $nc42 = new NoteContact(); $nc42->setNoteId(42); $nc42->setContactUid('c');
+        $noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2, $nc42]);
+        $noteContactMapper->method('findByNoteIds')->willReturn([]);
+        $noteFileMapper->method('findByNoteIds')->willReturn([]);
+        $noteSharingMapper->method('findByNoteIds')->willReturn([]);
+        $mapper->method('findByContact')->willReturn([]);
+
+        // Note 42 is shared with the caller.
+        $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([42]);
+
+        $sortKeysCalls = [];
+        $mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids, ?string $userId) use (&$sortKeysCalls) {
+                sort($ids);
+                $sortKeysCalls[] = [$ids, $userId];
+                $owned = [
+                    1 => ['updated_at' => '2026-06-03 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    2 => ['updated_at' => '2026-06-02 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                ];
+                $all = $owned + [
+                    42 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                ];
+                $source = $userId === 'recipient' ? $owned : $all;
+                $keys = [];
+                foreach ($ids as $id) {
+                    if (isset($source[$id])) {
+                        $keys[$id] = $source[$id];
+                    }
+                }
+                return $keys;
+            }
+        );
+
+        $n1 = new Note(); $n1->setId(1); $n1->setUserId('recipient');
+        $n2 = new Note(); $n2->setId(2); $n2->setUserId('recipient');
+        $n42 = new Note(); $n42->setId(42); $n42->setUserId('owner');
+        $mapper->method('findByIds')->willReturn([$n1, $n2, $n42]);
+
+        $service = new NoteService(
+            $mapper, $noteContactMapper, $noteFileMapper, $noteSharingMapper,
+            $settingsService, $noteTypeService, $rootFolder, $logger,
+        );
+
+        $result = $service->findByContact('c', 'recipient');
+        $this->assertCount(3, $result);
+
+        // Exactly two sort-key queries: the owner-scoped pass over all
+        // candidates, then the unscoped pass over ONLY the shared-only remainder.
+        $this->assertCount(2, $sortKeysCalls);
+        $this->assertSame([[1, 2, 42], 'recipient'], $sortKeysCalls[0]);
+        // The owned ids 1 and 2 must NOT appear in the second, unscoped lookup.
+        $this->assertSame([[42], null], $sortKeysCalls[1]);
+    }
+
     public function testFindByContactEmpty(): void {
         $this->noteContactMapper->method('findByContactUid')->willReturn([]);
         $this->mapper->method('findByContact')->willReturn([]);

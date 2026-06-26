@@ -50,12 +50,17 @@ class SettingsController extends Controller {
     }
 
     #[NoAdminRequired]
-    public function save(bool $notesPublic = false, ?array $shareTargets = null): JSONResponse {
+    public function save(?bool $notesPublic = null, ?array $shareTargets = null): JSONResponse {
         return $this->handleNotFound(function () use ($notesPublic, $shareTargets) {
             $userId = $this->getUserId();
 
-            // Only admins may change the system-wide public flag
-            if ($this->isAdmin()) {
+            // Only admins may change the system-wide public flag, and only when
+            // it was explicitly sent. Treating an absent notesPublic as `false`
+            // would let an admin client that POSTs only shareTargets silently
+            // flip the instance-wide flag off; the per-user field and the
+            // instance-wide field are independent and each only written when the
+            // caller actually supplied it (mirroring the shareTargets guard).
+            if ($notesPublic !== null && $this->isAdmin()) {
                 $this->settingsService->setNotesPublic($notesPublic);
             }
 
