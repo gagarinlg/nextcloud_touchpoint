@@ -7,12 +7,12 @@ declare(strict_types=1);
 
 namespace OCA\CrmNotes\AppInfo;
 
-use OCA\Contacts\Event\LoadContactsOcaApiEvent;
 use OCA\CrmNotes\Listener\LoadContactsTabListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 
 class Application extends App implements IBootstrap {
 
@@ -23,8 +23,14 @@ class Application extends App implements IBootstrap {
     }
 
     public function register(IRegistrationContext $context): void {
+        // The Contacts app exposes no extension point for adding a section to its
+        // contact-detail view (and its LoadContactsOcaApiEvent only fires when a
+        // consumer dispatches it, never on the Contacts page itself). So hook the
+        // global before-render event and load our integration script whenever the
+        // page being rendered belongs to the Contacts app; the script injects the
+        // notes panel client-side.
         $context->registerEventListener(
-            LoadContactsOcaApiEvent::class,
+            BeforeTemplateRenderedEvent::class,
             LoadContactsTabListener::class,
         );
     }

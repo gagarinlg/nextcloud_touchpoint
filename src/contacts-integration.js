@@ -70,14 +70,40 @@ function safeColor(color) {
 
 // ---- Helpers ----------------------------------------------------------------
 
+// Decode a possibly-URL-encoded, standard- or URL-safe base64 string, or null.
+function decodeBase64Maybe(value) {
+	try {
+		const decoded = decodeURIComponent(value)
+		try {
+			return atob(decoded)
+		} catch {
+			// URL-safe base64 variant (- and _ instead of + and /).
+			return atob(decoded.replace(/-/g, '+').replace(/_/g, '/'))
+		}
+	} catch {
+		return null
+	}
+}
+
 function getContactUid(detailEl) {
-	// The contacts app puts the UID in a data attribute or in the URL hash
-	// Try data attribute first
+	// 1) Some Contacts versions expose the UID directly as a data attribute.
 	const uid = detailEl.dataset?.contactUid
 		|| detailEl.closest('[data-contact-uid]')?.dataset?.contactUid
 	if (uid) return uid
 
-	// Fall back to URL hash: /apps/contacts/All%20contacts/contact:UID
+	// 2) Contacts 8.x routes a contact as
+	//    /apps/contacts/<group>/<base64(`${uid}~${addressbookUri}`)>
+	//    The last path segment base64-decodes to "uid~addressbook"; the UID is
+	//    everything before the final '~' (the address-book uri carries none).
+	const segment = window.location.pathname.split('/').filter(Boolean).pop()
+	if (segment) {
+		const decoded = decodeBase64Maybe(segment)
+		if (decoded && decoded.includes('~')) {
+			return decoded.substring(0, decoded.lastIndexOf('~'))
+		}
+	}
+
+	// 3) Legacy hash/path format: .../contact:UID
 	const match = window.location.hash.match(/contact:([^/]+)/)
 		|| window.location.pathname.match(/contact:([^/]+)/)
 	return match ? decodeURIComponent(match[1]) : null
@@ -679,10 +705,18 @@ const observer = new MutationObserver(() => {
 	scheduleInject()
 })
 
-document.addEventListener('DOMContentLoaded', () => {
+function startObserving() {
 	observer.observe(document.body, { childList: true, subtree: true })
 	findAndInject()
-})
+}
+// This script is loaded as a (deferred) module, which can execute after
+// DOMContentLoaded has already fired — in that case the event would never call
+// us. Start immediately when the document is already parsed; otherwise wait.
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', startObserving)
+} else {
+	startObserving()
+}
 
 // Also handle popstate/hashchange for SPA navigation. A new contact route may
 // not have rendered its detail panel yet, so defer one coalesced attempt.
