@@ -78,8 +78,17 @@ function getContactUid(detailEl) {
 	return match ? decodeURIComponent(match[1]) : null
 }
 
-async function fetchNotes(contactUid) {
-	const { data } = await axios.get(`${baseUrl}/notes/contact/${encodeURIComponent(contactUid)}`)
+// Page size for the contacts-tab note list. Matches the Vue views' PAGE_SIZE and
+// stays at/under the server-side cap so a contact with a very large note history
+// loads (and the server enriches/sorts) only one bounded page at a time, with a
+// "Show more" control to fetch the next page on demand.
+const NOTES_PAGE_SIZE = 50
+
+async function fetchNotes(contactUid, limit = NOTES_PAGE_SIZE, offset = 0) {
+	const { data } = await axios.get(
+		`${baseUrl}/notes/contact/${encodeURIComponent(contactUid)}`,
+		{ params: { limit, offset } },
+	)
 	return data
 }
 
@@ -427,7 +436,7 @@ async function injectNotesPanel(detailEl) {
 async function loadNotesInto(bodyEl, uid) {
 	bodyEl.innerHTML = spinnerHtml()
 	try {
-		const [notes, noteTypeMap] = await Promise.all([fetchNotes(uid), fetchNoteTypeMap()])
+		const [notes, noteTypeMap] = await Promise.all([fetchNotes(uid, NOTES_PAGE_SIZE, 0), fetchNoteTypeMap()])
 		bodyEl.innerHTML = ''
 		if (!notes.length) {
 			const empty = document.createElement('p')
@@ -436,6 +445,11 @@ async function loadNotesInto(bodyEl, uid) {
 			bodyEl.appendChild(empty)
 		} else {
 			notes.forEach(note => bodyEl.appendChild(renderNoteItem(note, noteTypeMap)))
+			// A full page implies there may be more — offer an on-demand "Show
+			// more" that appends the next page rather than reloading everything.
+			if (notes.length === NOTES_PAGE_SIZE) {
+				appendShowMore(bodyEl, uid, noteTypeMap, notes.length)
+			}
 		}
 	} catch {
 		// Replace the stale "Loading…" with an in-place error + Retry control so
@@ -454,6 +468,37 @@ async function loadNotesInto(bodyEl, uid) {
 		bodyEl.appendChild(retry)
 		showError(t('crm_notes', 'Failed to load CRM notes.'))
 	}
+}
+
+// Append a "Show more" button that fetches and appends the next page of notes
+// in place. Reuses the retry-button styling so no new CSS is needed. Tracks the
+// running offset via a closure so repeated clicks keep advancing the window.
+function appendShowMore(bodyEl, uid, noteTypeMap, loadedCount) {
+	const more = document.createElement('button')
+	more.type = 'button'
+	more.className = 'crm-contacts-notes-retry'
+	more.textContent = t('crm_notes', 'Show more')
+	let offset = loadedCount
+	more.addEventListener('click', async () => {
+		more.disabled = true
+		more.textContent = t('crm_notes', 'Loading…')
+		try {
+			const next = await fetchNotes(uid, NOTES_PAGE_SIZE, offset)
+			next.forEach(note => bodyEl.insertBefore(renderNoteItem(note, noteTypeMap), more))
+			offset += next.length
+			if (next.length === NOTES_PAGE_SIZE) {
+				more.disabled = false
+				more.textContent = t('crm_notes', 'Show more')
+			} else {
+				more.remove()
+			}
+		} catch {
+			more.disabled = false
+			more.textContent = t('crm_notes', 'Show more')
+			showError(t('crm_notes', 'Failed to load more notes.'))
+		}
+	})
+	bodyEl.appendChild(more)
 }
 
 // ---- Observe ----------------------------------------------------------------

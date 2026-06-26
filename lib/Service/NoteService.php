@@ -29,6 +29,15 @@ class NoteService {
     private const MAX_TITLE_LENGTH = 255;
     /** crm_notes.contact_uid column length (VARCHAR(255)). */
     private const MAX_CONTACT_UID_LENGTH = 255;
+    /**
+     * Hard server-side cap on the number of notes findByContact() will return
+     * in one page. Mirrors the clamp NoteController::index() applies to findAll
+     * so neither endpoint can be coerced into materialising, enriching and
+     * PHP-sorting an unbounded note set per call.
+     */
+    public const MAX_CONTACT_PAGE_SIZE = 200;
+    /** Default page size for findByContact() when the caller does not specify one. */
+    public const DEFAULT_CONTACT_PAGE_SIZE = 50;
 
     public function __construct(
         private NoteMapper $mapper,
@@ -227,26 +236,6 @@ class NoteService {
     }
 
     /**
-     * Merge two Note arrays, deduplicating by ID.
-     *
-     * @param Note[] $primary
-     * @param Note[] $secondary
-     * @return Note[]
-     */
-    private function mergeUnique(array $primary, array $secondary): array {
-        $seen = [];
-        foreach ($primary as $n) {
-            $seen[$n->getId()] = $n;
-        }
-        foreach ($secondary as $n) {
-            if (!isset($seen[$n->getId()])) {
-                $seen[$n->getId()] = $n;
-            }
-        }
-        return array_values($seen);
-    }
-
-    /**
      * @return Note[]
      */
     public function findAll(string $userId, ?int $limit = null, ?int $offset = null): array {
@@ -344,13 +333,29 @@ class NoteService {
     }
 
     /**
+     * Return the notes attached to a contact that the caller may see, ordered
+     * pinned-first then most-recently-updated, as a bounded page.
+     *
+     * Like findAll(), pagination is pushed down to id + sort-key rows rather
+     * than materialising every linked note: we collect the candidate id set,
+     * filter it to the ids the caller is actually allowed to see, fetch only
+     * the (is_pinned, updated_at, created_at) tuples for that visible set,
+     * order them once, slice the requested window, and only then load and
+     * enrich that single page of full rows. A contact with a very large (or
+     * maliciously over-linked) note history therefore no longer forces a full
+     * load + PHP re-sort on every panel open.
+     *
+     * @param int|null $limit  page size; clamped to [1, MAX_CONTACT_PAGE_SIZE]
+     * @param int|null $offset window offset; clamped to [0, ∞)
      * @return Note[]
      */
-    public function findByContact(string $contactUid, string $userId): array {
-        $groupIds = $this->settingsService->getUserGroupIds($userId);
+    public function findByContact(string $contactUid, string $userId, ?int $limit = null, ?int $offset = null): array {
+        $limit  = max(1, min($limit ?? self::DEFAULT_CONTACT_PAGE_SIZE, self::MAX_CONTACT_PAGE_SIZE));
+        $offset = max(0, $offset ?? 0);
+
         $isPublic = $this->settingsService->isNotesPublic();
 
-        // Collect note IDs from the junction table
+        // Collect candidate note IDs from the junction table.
         $noteContacts = $this->noteContactMapper->findByContactUid($contactUid);
         $noteIds = array_map(fn (NoteContact $nc) => $nc->getNoteId(), $noteContacts);
 
@@ -358,46 +363,80 @@ class NoteService {
         // Do NOT owner-scope this lookup: a note created by another user, shared
         // with the caller, and linked to this contact ONLY via the legacy
         // contact_uid column (no junction row) would otherwise never enter
-        // $noteIds, so the shared-notes intersection below could never recover
-        // it. Collect all candidate IDs regardless of owner and let the
-        // owned/shared/public filtering further down decide visibility.
+        // $noteIds, so the shared-notes filtering below could never recover it.
+        // Collect all candidate IDs regardless of owner and let the
+        // owned/shared/public filtering decide visibility.
         $legacyNotes = $this->mapper->findByContact($contactUid, null);
         foreach ($legacyNotes as $note) {
-            if (!in_array($note->getId(), $noteIds)) {
-                $noteIds[] = $note->getId();
-            }
+            $noteIds[] = $note->getId();
         }
+        $noteIds = array_values(array_unique($noteIds));
 
         if (empty($noteIds)) {
             return [];
         }
 
-        // Load notes — scope by user unless public or shared
-        $notes = $this->mapper->findByIds($noteIds, $isPublic ? null : $userId);
+        // Reduce the candidate set to the ids the caller may actually see,
+        // BEFORE loading any full rows. In public mode every candidate is
+        // visible; otherwise it must be owned by the caller or shared with them.
+        if ($isPublic) {
+            $visibleIds = $noteIds;
+        } else {
+            $ownedKeys = $this->mapper->findSortKeysByIds($noteIds, $userId);
+            $visibleIds = array_keys($ownedKeys);
 
-        // If not public, also include notes shared with user
-        if (!$isPublic) {
-            $sharedIds   = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
-            $sharedInContact = array_values(array_intersect($noteIds, $sharedIds));
-            if (!empty($sharedInContact)) {
-                $sharedNotes = $this->mapper->findByIds($sharedInContact, null);
-                $notes = $this->mergeUnique($notes, $sharedNotes);
+            $groupIds  = $this->settingsService->getUserGroupIds($userId);
+            $sharedIds = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
+            $sharedInContact = array_intersect($noteIds, $sharedIds);
+            foreach ($sharedInContact as $sharedId) {
+                $visibleIds[] = $sharedId;
+            }
+            $visibleIds = array_values(array_unique($visibleIds));
+        }
+
+        if (empty($visibleIds)) {
+            return [];
+        }
+
+        // Fetch only the sort keys for the visible id set (unscoped: visibility
+        // was already decided above; shared rows are owned by another user).
+        $sortKeys = $this->mapper->findSortKeysByIds($visibleIds, null);
+
+        // Order: pinned first, then updated_at desc, created_at desc, id desc.
+        $ordered = array_keys($sortKeys);
+        usort($ordered, function (int $a, int $b) use ($sortKeys) {
+            $aPinned = $sortKeys[$a]['is_pinned'] ?? false;
+            $bPinned = $sortKeys[$b]['is_pinned'] ?? false;
+            if ($aPinned !== $bPinned) {
+                return $bPinned ? 1 : -1;
+            }
+            $aKey = $sortKeys[$a]['updated_at'] ?? $sortKeys[$a]['created_at'] ?? '';
+            $bKey = $sortKeys[$b]['updated_at'] ?? $sortKeys[$b]['created_at'] ?? '';
+            if ($aKey === $bKey) {
+                return $b <=> $a;
+            }
+            return $bKey <=> $aKey;
+        });
+
+        // Slice the requested window, then load and enrich only that page.
+        $ordered = array_slice($ordered, $offset, $limit);
+        if (empty($ordered)) {
+            return [];
+        }
+
+        $rows = $this->mapper->findByIds($ordered, null);
+        $byId = [];
+        foreach ($rows as $row) {
+            $byId[$row->getId()] = $row;
+        }
+        $page = [];
+        foreach ($ordered as $id) {
+            if (isset($byId[$id])) {
+                $page[] = $byId[$id];
             }
         }
 
-        $result = $this->enrichNotes($notes, $userId);
-
-        // Sort: pinned first, then by updated_at desc, then created_at desc
-        usort($result, function (Note $a, Note $b) {
-            if ($a->getIsPinned() !== $b->getIsPinned()) {
-                return $b->getIsPinned() ? 1 : -1;
-            }
-            $aDate = $a->getUpdatedAt() ?? $a->getCreatedAt() ?? new DateTime();
-            $bDate = $b->getUpdatedAt() ?? $b->getCreatedAt() ?? new DateTime();
-            return $bDate <=> $aDate;
-        });
-
-        return $result;
+        return $this->enrichNotes($page, $userId);
     }
 
     /**

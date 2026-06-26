@@ -37,15 +37,22 @@
 				:deleting="notesStore.isDeleting(note.id)"
 				@edit="notesStore.openModal(note)"
 				@delete="onDelete(note)" />
+			<div v-if="notesStore.contactNotesHasMore" class="crm-load-more">
+				<NcButton :disabled="notesStore.loadingMore" @click="onLoadMore">
+					{{ notesStore.loadingMore ? t('crm_notes', 'Loading…') : t('crm_notes', 'Load more') }}
+				</NcButton>
+			</div>
 		</template>
+		<!-- Announce newly-loaded notes to screen readers (no visual change). -->
+		<p class="crm-visually-hidden" aria-live="polite" role="status">{{ loadMoreStatus }}</p>
 
 		<NoteModal v-if="notesStore.showModal" :default-contact="contact" />
 	</div>
 </template>
 
 <script setup>
-import { computed, watch, onMounted } from 'vue'
-import { translate as t } from '@nextcloud/l10n'
+import { computed, ref, watch, onMounted } from 'vue'
+import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
 import { confirmDestructive } from '../utils/confirm.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
@@ -66,6 +73,9 @@ const contactsStore = useContactsStore()
 // Use computed so the displayed contact always reflects the current selection
 const contact = computed(() => contactsStore.currentContact)
 
+// Live-region text announced to screen readers after "Load more" appends notes.
+const loadMoreStatus = ref('')
+
 onMounted(() => {
 	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
 })
@@ -76,6 +86,19 @@ watch(() => contactsStore.currentContact, (c) => {
 
 function reload() {
 	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
+}
+
+async function onLoadMore() {
+	const before = notesStore.contactNotes.length
+	try {
+		await notesStore.loadMoreContactNotes()
+		const added = notesStore.contactNotes.length - before
+		if (added > 0) {
+			loadMoreStatus.value = n('crm_notes', '%n more note loaded', '%n more notes loaded', added)
+		}
+	} catch {
+		showError(t('crm_notes', 'Failed to load more notes.'))
+	}
 }
 
 async function onDelete(note) {
@@ -124,5 +147,23 @@ async function onDelete(note) {
 .crm-contact-email {
 	font-size: var(--font-size-small, 13px);
 	color: var(--color-text-maxcontrast);
+}
+
+.crm-load-more {
+	display: flex;
+	justify-content: center;
+	padding: calc(var(--default-grid-baseline, 4px) * 4) 0;
+}
+
+.crm-visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 </style>

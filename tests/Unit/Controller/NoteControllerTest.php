@@ -154,10 +154,14 @@ class NoteControllerTest extends TestCase {
     }
 
     public function testByContact(): void {
+        // No paging params present: the controller passes null/null through and
+        // lets the service apply its own defaults/clamp.
+        $this->request->method('getParam')->willReturn(null);
+
         $notes = [new Note()];
         $this->service->expects($this->once())
             ->method('findByContact')
-            ->with('contact-uid', 'testuser')
+            ->with('contact-uid', 'testuser', null, null)
             ->willReturn($notes);
 
         $result = $this->controller->byContact('contact-uid');
@@ -165,7 +169,26 @@ class NoteControllerTest extends TestCase {
         $this->assertCount(1, $result->getData());
     }
 
+    public function testByContactPassesLimitAndOffset(): void {
+        // Paging params are forwarded to the service, which performs the clamp.
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'limit' => '25',
+                'offset' => '50',
+                default => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('findByContact')
+            ->with('contact-uid', 'testuser', 25, 50)
+            ->willReturn([]);
+
+        $result = $this->controller->byContact('contact-uid');
+        $this->assertSame(200, $result->getStatus());
+    }
+
     public function testByContactEmpty(): void {
+        $this->request->method('getParam')->willReturn(null);
         $this->service->method('findByContact')->willReturn([]);
 
         $result = $this->controller->byContact('no-contact');

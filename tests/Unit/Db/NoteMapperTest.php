@@ -201,6 +201,34 @@ class NoteMapperTest extends TestCase {
         $this->assertSame([], $map);
     }
 
+    /**
+     * findSortKeysByIds() must surface the is_pinned flag (cast to bool) so
+     * contact-scoped callers can apply their pinned-first ordering on the id
+     * window without loading full rows.
+     */
+    public function testFindSortKeysByIdsReturnsPinnedFlag(): void {
+        $this->expr->method('in')->willReturn('in_expr');
+
+        $result = $this->createMock(IResult::class);
+        $rows = [
+            ['id' => 1, 'updated_at' => '2026-06-01 00:00:00', 'created_at' => '2026-05-01 00:00:00', 'is_pinned' => 1],
+            ['id' => 2, 'updated_at' => null, 'created_at' => '2026-05-02 00:00:00', 'is_pinned' => 0],
+            false,
+        ];
+        $i = 0;
+        $result->method('fetch')->willReturnCallback(function () use (&$i, $rows) {
+            return $rows[$i++];
+        });
+        $this->qb->method('executeQuery')->willReturn($result);
+
+        $map = $this->mapper->findSortKeysByIds([1, 2], 'user1');
+
+        $this->assertTrue($map[1]['is_pinned']);
+        $this->assertFalse($map[2]['is_pinned']);
+        $this->assertSame('2026-06-01 00:00:00', $map[1]['updated_at']);
+        $this->assertNull($map[2]['updated_at']);
+    }
+
     public function testFindByIdsEmptyReturnsEarly(): void {
         $this->db->expects($this->never())->method('getQueryBuilder');
         $this->assertSame([], $this->mapper->findByIds([], null));

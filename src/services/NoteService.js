@@ -15,8 +15,11 @@ export async function getAllNotes(limit, offset) {
 	return data
 }
 
-export async function getNotesByContact(contactUid) {
-	const { data } = await axios.get(`${baseUrl}/contact/${encodeURIComponent(contactUid)}`)
+export async function getNotesByContact(contactUid, limit, offset) {
+	const params = {}
+	if (limit != null) params.limit = limit
+	if (offset != null) params.offset = offset
+	const { data } = await axios.get(`${baseUrl}/contact/${encodeURIComponent(contactUid)}`, { params })
 	return data
 }
 

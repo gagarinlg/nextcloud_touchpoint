@@ -160,10 +160,12 @@ class NoteMapper extends QBMapper {
     /**
      * Fetch only the id + sort-key columns for the given note IDs, so a caller
      * can build an ordered id window without materialising every full row.
-     * Pass null for $userId to skip owner scoping (shared/public context).
+     * The is_pinned flag is included so contact-scoped callers can apply their
+     * pinned-first ordering on the id window too. Pass null for $userId to skip
+     * owner scoping (shared/public context).
      *
      * @param int[] $ids
-     * @return array<int, array{updated_at: ?string, created_at: ?string}>  map of id => sort keys
+     * @return array<int, array{updated_at: ?string, created_at: ?string, is_pinned: bool}>  map of id => sort keys
      */
     public function findSortKeysByIds(array $ids, ?string $userId): array {
         if (empty($ids)) {
@@ -175,7 +177,7 @@ class NoteMapper extends QBMapper {
         // placeholder/list limit.
         foreach (array_chunk(array_values($ids), self::IN_CHUNK_SIZE) as $chunk) {
             $qb = $this->db->getQueryBuilder();
-            $qb->select('id', 'updated_at', 'created_at')
+            $qb->select('id', 'updated_at', 'created_at', 'is_pinned')
                 ->from($this->getTableName())
                 ->where($qb->expr()->in(
                     'id',
@@ -193,6 +195,7 @@ class NoteMapper extends QBMapper {
                 $map[(int)$row['id']] = [
                     'updated_at' => $row['updated_at'] ?? null,
                     'created_at' => $row['created_at'] ?? null,
+                    'is_pinned' => (bool)$row['is_pinned'],
                 ];
             }
             $result->closeCursor();

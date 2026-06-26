@@ -216,17 +216,115 @@ class NoteServiceTest extends TestCase {
             ->with('contact-123')
             ->willReturn([$nc]);
 
-        // The legacy contact_uid lookup is now intentionally un-owner-scoped
-        // (null) so notes shared with the caller but linked only via the legacy
-        // column are still collected as candidates.
+        // The legacy contact_uid lookup is intentionally un-owner-scoped (null)
+        // so notes shared with the caller but linked only via the legacy column
+        // are still collected as candidates.
         $this->mapper->method('findByContact')
             ->with('contact-123', null)
             ->willReturn([$note2]);
 
+        // Visibility is decided on the id set BEFORE loading full rows: the
+        // owner-scoped sort-key lookup confirms the caller owns both candidates.
+        $this->mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids, ?string $userId) {
+                $keys = [];
+                foreach ($ids as $id) {
+                    $keys[$id] = [
+                        'updated_at' => sprintf('2026-06-0%d 10:00:00', $id),
+                        'created_at' => null,
+                        'is_pinned' => false,
+                    ];
+                }
+                return $keys;
+            }
+        );
+
+        // Only the windowed page of full rows is loaded, unscoped.
         $this->mapper->method('findByIds')->willReturn([$note1, $note2]);
 
         $result = $this->service->findByContact('contact-123', 'user1');
         $this->assertCount(2, $result);
+        // Ordered by updated_at desc: note 2 (06-02) before note 1 (06-01).
+        $this->assertSame(2, $result[0]->getId());
+        $this->assertSame(1, $result[1]->getId());
+    }
+
+    public function testFindByContactSortsPinnedFirst(): void {
+        // A pinned older note must sort ahead of an unpinned newer note. The
+        // pinned-first ordering is applied on the id window (sort keys), not on
+        // the full enriched rows.
+        $pinnedOld = new Note();
+        $pinnedOld->setId(1);
+        $pinnedOld->setUserId('user1');
+        $freshUnpinned = new Note();
+        $freshUnpinned->setId(2);
+        $freshUnpinned->setUserId('user1');
+
+        $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
+        $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
+        $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2]);
+        $this->mapper->method('findByContact')->willReturn([]);
+
+        $this->mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids) {
+                $all = [
+                    1 => ['updated_at' => '2026-01-01 00:00:00', 'created_at' => null, 'is_pinned' => true],
+                    2 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                ];
+                $keys = [];
+                foreach ($ids as $id) {
+                    if (isset($all[$id])) {
+                        $keys[$id] = $all[$id];
+                    }
+                }
+                return $keys;
+            }
+        );
+        $this->mapper->method('findByIds')->willReturn([$pinnedOld, $freshUnpinned]);
+
+        $result = $this->service->findByContact('c', 'user1');
+        $this->assertCount(2, $result);
+        $this->assertSame(1, $result[0]->getId(), 'Pinned note should sort first');
+        $this->assertSame(2, $result[1]->getId());
+    }
+
+    public function testFindByContactClampsAndPagesWindow(): void {
+        // Three owned candidates; a limit of 1 / offset of 1 must return only the
+        // second-most-recent note, proving the window is sliced on the ordered id
+        // set rather than after loading every full row.
+        $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
+        $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
+        $nc3 = new NoteContact(); $nc3->setNoteId(3); $nc3->setContactUid('c');
+        $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2, $nc3]);
+        $this->mapper->method('findByContact')->willReturn([]);
+
+        $this->mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids) {
+                $all = [
+                    1 => ['updated_at' => '2026-06-03 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    2 => ['updated_at' => '2026-06-02 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    3 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                ];
+                $keys = [];
+                foreach ($ids as $id) {
+                    if (isset($all[$id])) {
+                        $keys[$id] = $all[$id];
+                    }
+                }
+                return $keys;
+            }
+        );
+
+        // Only the windowed id (note 2) must be loaded as a full row.
+        $n2 = new Note(); $n2->setId(2); $n2->setUserId('user1');
+        $this->mapper->expects($this->once())
+            ->method('findByIds')
+            ->with([2], null)
+            ->willReturn([$n2]);
+
+        $result = $this->service->findByContact('c', 'user1', 1, 1);
+        $this->assertCount(1, $result);
+        $this->assertSame(2, $result[0]->getId());
     }
 
     public function testFindByContactRecoversLegacySharedNote(): void {
@@ -267,8 +365,24 @@ class NoteServiceTest extends TestCase {
             ->with('contact-x', null)
             ->willReturn([$shared]);
 
-        // Owner-scoped load returns nothing (caller does not own note 42)...
-        // ...but the shared-id intersection recovers it via an unscoped load.
+        // The owner-scoped sort-key lookup finds nothing (caller does not own
+        // note 42); the unscoped one (after the shared intersection) returns it.
+        $mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids, ?string $userId) {
+                if ($userId === 'recipient') {
+                    // Caller owns none of the candidates.
+                    return [];
+                }
+                $keys = [];
+                foreach ($ids as $id) {
+                    $keys[$id] = ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false];
+                }
+                return $keys;
+            }
+        );
+
+        // Only the windowed page (the shared id) is loaded as a full row,
+        // unscoped.
         $mapper->method('findByIds')->willReturnCallback(
             function (array $ids, ?string $userId) use ($shared) {
                 if ($userId === null && in_array(42, $ids, true)) {

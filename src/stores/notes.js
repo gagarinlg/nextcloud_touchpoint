@@ -13,6 +13,11 @@ export const useNotesStore = defineStore('notes', {
 		allNotesHasMore: false,
 		allNotesOffset: 0,
 		contactNotes: [],
+		contactNotesHasMore: false,
+		contactNotesOffset: 0,
+		// Contact UID the loaded contactNotes page belongs to, so loadMore can
+		// keep paging the right contact.
+		contactNotesUid: null,
 		loading: false,
 		loadingMore: false,
 		// True while save() has network calls in flight, so the modal's Save
@@ -62,13 +67,35 @@ export const useNotesStore = defineStore('notes', {
 		async loadForContact(uid) {
 			this.loading = true
 			this.contactNotesError = false
+			this.contactNotesUid = uid
+			this.contactNotesOffset = 0
+			this.contactNotesHasMore = false
 			try {
-				this.contactNotes = await NoteService.getNotesByContact(uid)
+				const notes = await NoteService.getNotesByContact(uid, PAGE_SIZE, 0)
+				this.contactNotes = notes
+				this.contactNotesOffset = notes.length
+				this.contactNotesHasMore = notes.length === PAGE_SIZE
 			} catch (e) {
 				this.contactNotesError = true
 				throw e
 			} finally {
 				this.loading = false
+			}
+		},
+		async loadMoreContactNotes() {
+			if (!this.contactNotesHasMore || this.loading || this.loadingMore || !this.contactNotesUid) return
+			this.loadingMore = true
+			try {
+				const notes = await NoteService.getNotesByContact(
+					this.contactNotesUid,
+					PAGE_SIZE,
+					this.contactNotesOffset,
+				)
+				this.contactNotes.push(...notes)
+				this.contactNotesOffset += notes.length
+				this.contactNotesHasMore = notes.length === PAGE_SIZE
+			} finally {
+				this.loadingMore = false
 			}
 		},
 		async save(payload, currentContactUid) {

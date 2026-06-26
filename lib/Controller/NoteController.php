@@ -58,9 +58,24 @@ class NoteController extends Controller {
 
     #[NoAdminRequired]
     public function byContact(string $contactUid): JSONResponse {
-        return $this->handleNotFound(
-            fn () => $this->noteService->findByContact($contactUid, $this->getUserId())
-        );
+        return $this->handleNotFound(function () use ($contactUid) {
+            // Surface the same bounded paging as index(): findByContact() pushes
+            // a LIMIT down to the id/sort-key window instead of materialising and
+            // PHP-sorting a contact's entire (possibly over-linked) note history
+            // on every panel open. The service clamps the window itself, but pass
+            // null through untouched so it can apply its own defaults.
+            $limit  = $this->request->getParam('limit');
+            $offset = $this->request->getParam('offset');
+            $limitInt  = $limit !== null && $limit !== '' ? (int)$limit : null;
+            $offsetInt = $offset !== null && $offset !== '' ? (int)$offset : null;
+
+            return $this->noteService->findByContact(
+                $contactUid,
+                $this->getUserId(),
+                $limitInt,
+                $offsetInt,
+            );
+        });
     }
 
     #[NoAdminRequired]
