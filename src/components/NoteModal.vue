@@ -146,6 +146,12 @@
 				{{ missingFieldsHint }}
 			</p>
 
+			<!-- Legend explaining the red asterisk that marks required fields above. -->
+			<p class="crm-required-legend">
+				<span class="crm-required" aria-hidden="true">*</span>
+				{{ t('crm_notes', 'required') }}
+			</p>
+
 			<div class="crm-modal-actions">
 				<NcButton :disabled="notesStore.saving" @click="notesStore.closeModal()">{{ t('crm_notes', 'Cancel') }}</NcButton>
 				<NcButton type="primary"
@@ -479,6 +485,12 @@ async function onSave() {
 	font-size: var(--font-size-small, 13px);
 	color: var(--color-text-maxcontrast);
 	text-align: end;
+}
+
+.crm-required-legend {
+	margin: 0;
+	font-size: var(--font-size-small, 13px);
+	color: var(--color-text-maxcontrast);
 }
 
 .crm-content-label-row {

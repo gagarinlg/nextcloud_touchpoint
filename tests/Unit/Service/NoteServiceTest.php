@@ -219,7 +219,6 @@ class NoteServiceTest extends TestCase {
                 $keys = [];
                 foreach ($ids as $id) {
                     $keys[$id] = [
-                        'updated_at' => null,
                         'created_at' => sprintf('2026-06-0%d 10:00:00', $id),
                         'is_pinned' => false,
                     ];
@@ -258,8 +257,8 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
                 $all = [
-                    1 => ['updated_at' => null, 'created_at' => '2026-01-01 00:00:00', 'is_pinned' => true],
-                    2 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
+                    1 => ['created_at' => '2026-01-01 00:00:00', 'is_pinned' => true],
+                    2 => ['created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
                 ];
                 $keys = [];
                 foreach ($ids as $id) {
@@ -291,9 +290,9 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
                 $all = [
-                    1 => ['updated_at' => null, 'created_at' => '2026-06-03 00:00:00', 'is_pinned' => false],
-                    2 => ['updated_at' => null, 'created_at' => '2026-06-02 00:00:00', 'is_pinned' => false],
-                    3 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
+                    1 => ['created_at' => '2026-06-03 00:00:00', 'is_pinned' => false],
+                    2 => ['created_at' => '2026-06-02 00:00:00', 'is_pinned' => false],
+                    3 => ['created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
                 ];
                 $keys = [];
                 foreach ($ids as $id) {
@@ -328,8 +327,8 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
                 $all = [
-                    1 => ['updated_at' => null, 'created_at' => '2026-01-01 00:00:00', 'is_pinned' => false],
-                    2 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
+                    1 => ['created_at' => '2026-01-01 00:00:00', 'is_pinned' => false],
+                    2 => ['created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
                 ];
                 $keys = [];
                 foreach ($ids as $id) {
@@ -401,7 +400,7 @@ class NoteServiceTest extends TestCase {
                 }
                 $keys = [];
                 foreach ($ids as $id) {
-                    $keys[$id] = ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false];
+                    $keys[$id] = ['created_at' => null, 'is_pinned' => false];
                 }
                 return $keys;
             }
@@ -472,11 +471,11 @@ class NoteServiceTest extends TestCase {
                 sort($ids);
                 $sortKeysCalls[] = [$ids, $userId];
                 $owned = [
-                    1 => ['updated_at' => '2026-06-03 00:00:00', 'created_at' => null, 'is_pinned' => false],
-                    2 => ['updated_at' => '2026-06-02 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    1 => ['created_at' => null, 'is_pinned' => false],
+                    2 => ['created_at' => null, 'is_pinned' => false],
                 ];
                 $all = $owned + [
-                    42 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    42 => ['created_at' => null, 'is_pinned' => false],
                 ];
                 $source = $userId === 'recipient' ? $owned : $all;
                 $keys = [];

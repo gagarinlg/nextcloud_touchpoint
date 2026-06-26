@@ -328,16 +328,17 @@ class NoteService {
 
     /**
      * Return the notes attached to a contact that the caller may see, ordered
-     * pinned-first then most-recently-updated, as a bounded page.
+     * pinned-first then by created_at in the caller-chosen direction
+     * (newest-first by default), as a bounded page.
      *
      * Like findAll(), pagination is pushed down to id + sort-key rows rather
      * than materialising every linked note: we collect the candidate id set,
      * filter it to the ids the caller is actually allowed to see, fetch only
-     * the (is_pinned, updated_at, created_at) tuples for that visible set,
-     * order them once, slice the requested window, and only then load and
-     * enrich that single page of full rows. A contact with a very large (or
-     * maliciously over-linked) note history therefore no longer forces a full
-     * load + PHP re-sort on every panel open.
+     * the (is_pinned, created_at) tuples for that visible set, order them once,
+     * slice the requested window, and only then load and enrich that single
+     * page of full rows. A contact with a very large (or maliciously
+     * over-linked) note history therefore no longer forces a full load + PHP
+     * re-sort on every panel open.
      *
      * @param int|null $limit  page size; clamped to [1, MAX_CONTACT_PAGE_SIZE]
      * @param int|null $offset window offset; clamped to [0, ∞)

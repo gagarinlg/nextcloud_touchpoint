@@ -733,6 +733,12 @@ function setupAddNote(panel, bodyEl, uid) {
 	const saveBtn = form.querySelector('.crm-contacts-addform-save')
 	const toggleBtn = panel.querySelector('.crm-contacts-notes-toggle')
 	let typeMap = {}
+	// Until the async type list resolves the <select> is empty, so there is
+	// nothing valid to submit; keep Save disabled (mirroring NoteModal's canSave
+	// guard) and show why, then enable + auto-select once options arrive. If the
+	// instance has zero note types, Save stays disabled with a "create one first"
+	// affordance instead of offering an empty required control.
+	saveBtn.disabled = true
 	// Populate the note-type <select> from the same source the badges use.
 	fetchNoteTypeMap().then((map) => {
 		typeMap = map
@@ -743,6 +749,34 @@ function setupAddNote(panel, bodyEl, uid) {
 			opt.textContent = type.name
 			typeEl.appendChild(opt)
 		}
+		const ids = Object.keys(map)
+		if (ids.length) {
+			// Auto-select the first type so an immediate submit has a valid value,
+			// matching NoteModal.vue's onMounted default-type selection.
+			typeEl.value = ids[0]
+			saveBtn.disabled = false
+			// Clear any prior "no note types" guidance now that picks exist; a
+			// transient missing-fields hint (if shown) is re-evaluated on next input.
+			if (hintEl.dataset.crmNoTypes === '1') {
+				delete hintEl.dataset.crmNoTypes
+				hintEl.hidden = true
+				hintEl.textContent = ''
+			}
+		} else {
+			// No note types exist yet: there is nothing to pick, so guide the user
+			// to create one rather than letting them submit an empty required field.
+			saveBtn.disabled = true
+			hintEl.dataset.crmNoTypes = '1'
+			hintEl.textContent = t('crm_notes', 'Create a note type first.')
+			hintEl.hidden = false
+		}
+	}).catch(() => {
+		// Could not load types — leave Save disabled and explain rather than
+		// presenting an empty required control that can never submit.
+		saveBtn.disabled = true
+		hintEl.dataset.crmNoTypes = '1'
+		hintEl.textContent = t('crm_notes', 'Could not load note types.')
+		hintEl.hidden = false
 	})
 	// Surface the still-missing required fields in form order, mirroring
 	// NoteModal.vue's missingFieldsHint, instead of silently focusing the title.
@@ -761,9 +795,12 @@ function setupAddNote(panel, bodyEl, uid) {
 	function closeForm() {
 		form.hidden = true
 		addBtn.setAttribute('aria-expanded', 'false')
+		form.reset()
+		// Keep the persistent "no note types" guidance (and the disabled Save) on
+		// reopen; only clear a transient missing-fields hint.
+		if (hintEl.dataset.crmNoTypes === '1') return
 		hintEl.hidden = true
 		hintEl.textContent = ''
-		form.reset()
 	}
 	addBtn.addEventListener('click', () => {
 		const willOpen = form.hidden

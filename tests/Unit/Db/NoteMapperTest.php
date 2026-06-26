@@ -190,17 +190,20 @@ class NoteMapperTest extends TestCase {
     }
 
     /**
-     * findSortKeysByIds() must surface the is_pinned flag (cast to bool) so
-     * contact-scoped callers can apply their pinned-first ordering on the id
-     * window without loading full rows.
+     * findSortKeysByIds() must surface the is_pinned flag (cast to bool) and the
+     * created_at sort key so contact-scoped callers can apply their pinned-first,
+     * created_at ordering on the id window without loading full rows. updated_at
+     * is deliberately NOT part of the returned shape: the contact ordering sorts
+     * by created_at (matching the all-notes views), so fetching updated_at would
+     * be dead weight.
      */
     public function testFindSortKeysByIdsReturnsPinnedFlag(): void {
         $this->expr->method('in')->willReturn('in_expr');
 
         $result = $this->createMock(IResult::class);
         $rows = [
-            ['id' => 1, 'updated_at' => '2026-06-01 00:00:00', 'created_at' => '2026-05-01 00:00:00', 'is_pinned' => 1],
-            ['id' => 2, 'updated_at' => null, 'created_at' => '2026-05-02 00:00:00', 'is_pinned' => 0],
+            ['id' => 1, 'created_at' => '2026-05-01 00:00:00', 'is_pinned' => 1],
+            ['id' => 2, 'created_at' => '2026-05-02 00:00:00', 'is_pinned' => 0],
             false,
         ];
         $i = 0;
@@ -213,8 +216,11 @@ class NoteMapperTest extends TestCase {
 
         $this->assertTrue($map[1]['is_pinned']);
         $this->assertFalse($map[2]['is_pinned']);
-        $this->assertSame('2026-06-01 00:00:00', $map[1]['updated_at']);
-        $this->assertNull($map[2]['updated_at']);
+        $this->assertSame('2026-05-01 00:00:00', $map[1]['created_at']);
+        $this->assertSame('2026-05-02 00:00:00', $map[2]['created_at']);
+        // updated_at must no longer be selected or surfaced.
+        $this->assertArrayNotHasKey('updated_at', $map[1]);
+        $this->assertArrayNotHasKey('updated_at', $map[2]);
     }
 
     /**

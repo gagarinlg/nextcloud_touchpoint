@@ -28,6 +28,7 @@
 		<div v-if="contactsAppEnabled && contact.email" class="crm-contact-card-section">
 			<NcButton type="tertiary"
 				:aria-expanded="showCard ? 'true' : 'false'"
+				aria-controls="crm-contact-card-region"
 				@click="showCard = !showCard">
 				<template #icon>
 					<IconChevronDown v-if="showCard" :size="20" />
@@ -35,9 +36,12 @@
 				</template>
 				{{ showCard ? t('crm_notes', 'Hide contact details') : t('crm_notes', 'Show contact details') }}
 			</NcButton>
-			<!-- Lazy: only mount the embedded Contacts card once expanded; keyed by
-			     uid so switching contacts gives a fresh mount. -->
-			<ContactCard v-if="showCard" :key="contact.uid" :email="contact.email" />
+			<!-- The region is always present so aria-controls always resolves to a
+			     real element; the embedded Contacts card is lazily mounted inside it
+			     only once expanded (keyed by uid so switching contacts remounts). -->
+			<div id="crm-contact-card-region">
+				<ContactCard v-if="showCard" :key="contact.uid" :email="contact.email" />
+			</div>
 		</div>
 
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.contactNotes.length" :size="32" />
