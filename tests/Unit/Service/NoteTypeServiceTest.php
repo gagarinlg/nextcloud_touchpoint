@@ -13,6 +13,7 @@ use OCA\CrmNotes\Service\NoteTypeService;
 use OCA\CrmNotes\Service\NoteValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
+use OCP\DB\Exception as DBException;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -394,6 +395,45 @@ class NoteTypeServiceTest extends TestCase {
                 return $nt;
             });
 
+        $this->service->seedDefaults('admin');
+    }
+
+    public function testSeedDefaultsToleratesConcurrentDuplicateInsert(): void {
+        // A concurrent first request can pass the empty-globals check too; its
+        // duplicate INSERT then hits the UNIQUE(user_id, name) index. seedDefaults
+        // must catch REASON_UNIQUE_CONSTRAINT_VIOLATION and keep going so the
+        // instance never ends up with a doubled global set, rather than 500ing.
+        $this->mapper->method('findGlobalDefaults')->willReturn([]);
+
+        $inserted = 0;
+        $this->mapper->expects($this->exactly(5))
+            ->method('insert')
+            ->willReturnCallback(function (NoteType $nt) use (&$inserted) {
+                $inserted++;
+                // Simulate the race losing on the 2nd and 4th inserts.
+                if (in_array($nt->getName(), ['Meeting', 'Task'], true)) {
+                    $e = $this->createMock(DBException::class);
+                    $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+                    throw $e;
+                }
+                return $nt;
+            });
+
+        // Must not throw.
+        $this->service->seedDefaults('admin');
+        $this->assertSame(5, $inserted);
+    }
+
+    public function testSeedDefaultsRethrowsNonUniqueDbException(): void {
+        // A genuine DB failure (not a duplicate) must propagate, not be swallowed.
+        $this->mapper->method('findGlobalDefaults')->willReturn([]);
+
+        // Any reason other than REASON_UNIQUE_CONSTRAINT_VIOLATION must propagate.
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_CONNECTION_LOST);
+        $this->mapper->method('insert')->willThrowException($e);
+
+        $this->expectException(DBException::class);
         $this->service->seedDefaults('admin');
     }
 }

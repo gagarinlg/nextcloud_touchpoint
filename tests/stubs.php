@@ -30,6 +30,7 @@ namespace OCP\DB {
 
     class Exception extends \Exception {
         public const REASON_UNIQUE_CONSTRAINT_VIOLATION = 1;
+        public const REASON_CONNECTION_LOST = 2;
 
         private int $reason = 0;
 

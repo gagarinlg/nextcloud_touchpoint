@@ -36,10 +36,10 @@ const badgeStyle = computed(() => {
 .crm-type-badge {
 	display: inline-flex;
 	align-items: center;
-	gap: 4px;
-	padding: 2px 10px;
-	border-radius: 10px;
-	font-size: 12px;
+	gap: calc(var(--default-grid-baseline, 4px) * 1);
+	padding: calc(var(--default-grid-baseline, 4px) * 0.5) calc(var(--default-grid-baseline, 4px) * 2.5);
+	border-radius: var(--border-radius-pill, 16px);
+	font-size: var(--font-size-small, 13px);
 	font-weight: 600;
 	white-space: nowrap;
 }

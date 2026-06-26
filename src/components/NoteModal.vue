@@ -460,13 +460,13 @@ async function onSave() {
 .crm-form-row {
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
 }
 
 .crm-form-row label,
 .crm-group-label {
 	font-weight: 600;
-	font-size: 14px;
+	font-size: var(--default-font-size, 14px);
 }
 
 .crm-required {
@@ -476,7 +476,7 @@ async function onSave() {
 
 .crm-save-hint {
 	margin: 0;
-	font-size: 13px;
+	font-size: var(--font-size-small, 13px);
 	color: var(--color-text-maxcontrast);
 	text-align: end;
 }
@@ -620,7 +620,7 @@ async function onSave() {
 .crm-modal-actions {
 	display: flex;
 	justify-content: flex-end;
-	gap: 8px;
-	margin-top: 4px;
+	gap: calc(var(--default-grid-baseline, 4px) * 2);
+	margin-top: calc(var(--default-grid-baseline, 4px) * 1);
 }
 </style>

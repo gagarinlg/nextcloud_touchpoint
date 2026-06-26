@@ -12,6 +12,7 @@ use OCA\CrmNotes\Db\NoteType;
 use OCA\CrmNotes\Db\NoteTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
+use OCP\DB\Exception as DBException;
 use Psr\Log\LoggerInterface;
 
 class NoteTypeService {
@@ -234,6 +235,14 @@ class NoteTypeService {
      *
      * Called in a user context (on app/page access); the userId is not needed
      * for the rows themselves, only as the natural "ensure defaults exist" hook.
+     *
+     * Seeding is idempotent against concurrency: the check-then-insert below is
+     * a fast-path optimisation, but the race-free guard is the UNIQUE index on
+     * (user_id, name) (Version1009). Two concurrent first requests can both pass
+     * the count check, but the second's duplicate INSERT then hits the unique
+     * constraint, which we catch and ignore — mirroring how create()/addFile()
+     * tolerate junction-table dupes — so the instance never ends up with a
+     * doubled global default set.
      */
     public function seedDefaults(string $userId): void {
         if (count($this->mapper->findGlobalDefaults()) > 0) {
@@ -254,7 +263,19 @@ class NoteTypeService {
             $noteType->setColor($this->normalizeColor($default['color']));
             $noteType->setUserId('');
             $noteType->setIsDefault(true);
-            $this->mapper->insert($noteType);
+            try {
+                $this->mapper->insert($noteType);
+            } catch (DBException $e) {
+                if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+                    throw $e;
+                }
+                // A concurrent request already seeded this default — ignore the
+                // duplicate so seeding stays idempotent under a race.
+                $this->logger->debug(
+                    'CRM Notes: global default note type already seeded concurrently',
+                    ['name' => $default['name']]
+                );
+            }
         }
     }
 }

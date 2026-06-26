@@ -87,7 +87,10 @@ import{g as b,a as H,t as s,s as k,c as y}from"./index-CwIPLMrY.chunk.mjs";impor
 				align-items: center;
 			}
 			.crm-contacts-note-content {
-				color: var(--color-text-maxcontrast, #666);
+				/* Primary note substance — full reading contrast, matching
+				   NoteItem.vue's .crm-note-content. --color-text-maxcontrast is
+				   reserved for the secondary .crm-contacts-note-date meta line. */
+				color: var(--color-main-text);
 				margin: 2px 0 4px;
 				line-height: 1.5;
 				/* Break long unbroken strings (pasted URLs/tokens) so the note

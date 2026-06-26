@@ -142,10 +142,16 @@ class ContactController extends Controller {
     }
 
     /**
-     * Whether a search result entry carries a usable PHOTO value. Works for any
-     * address book the caller can read (own, shared or group), because the value
-     * comes straight from the IManager search result rather than a query scoped
-     * to the caller's own principal.
+     * Whether a search result entry carries a *retrievable* PHOTO value. Works
+     * for any address book the caller can read (own, shared or group), because
+     * the value comes straight from the IManager search result rather than a
+     * query scoped to the caller's own principal.
+     *
+     * Crucially this advertises a photo URL only when parsePhotoValue() would
+     * actually succeed for the same value, so availability (the URL emitted by
+     * index()) and retrievability (the photo endpoint) never diverge — otherwise
+     * a contact with, say, an external-URI or unparseable PHOTO would be given a
+     * photo URL that then 404s, showing a broken avatar.
      *
      * @param array<string, mixed> $entry
      */
@@ -157,7 +163,10 @@ class ContactController extends Controller {
         if (is_array($photo)) {
             $photo = $photo[0] ?? '';
         }
-        return is_string($photo) && $photo !== '';
+        if (!is_string($photo) || $photo === '') {
+            return false;
+        }
+        return $this->parsePhotoValue($photo) !== null;
     }
 
     /**
@@ -209,20 +218,41 @@ class ContactController extends Controller {
             return null;
         }
 
-        // vCard 4.0 data: URI value.
+        // vCard 4.0 data: URI value. Per RFC 2397 the syntax is
+        //   data:[<mediatype>][;base64],<data>
+        // where <mediatype> may carry any number of ';param=value' segments and
+        // the optional ';base64' token (if present) is the LAST one before the
+        // comma. We must therefore accept:
+        //   - the base64 form  (data:image/png;base64,....)
+        //   - the same with extra params (data:image/jpeg;charset=...;base64,...)
+        //   - the percent-encoded (non-base64) form (data:image/png,%89PNG%0D...)
+        // Earlier code only matched the bare ';base64' form, so valid non-base64
+        // data: photos were dropped: entryHasPhoto() advertised a URL the photo
+        // endpoint then 404'd on, leaving a broken avatar in the UI.
         if (str_starts_with($value, 'data:')) {
-            if (preg_match('/^data:([^;]+);base64,(.+)$/s', $value, $m)) {
-                $binary = base64_decode($m[2], true);
-                if ($binary === false || $binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
-                    return null;
-                }
-                // Deliberately ignore the data: URI's declared MIME ($m[1]) — it
-                // is attacker-controlled (e.g. 'text/html', 'image/svg+xml') and
-                // must never reach the response Content-Type. detectMime() sniffs
-                // the decoded bytes instead.
-                return [$this->detectMime($binary), $binary];
+            $comma = strpos($value, ',');
+            if ($comma === false) {
+                return null;
             }
-            return null;
+            // Everything between 'data:' and the first comma is the metadata; the
+            // payload is everything after it. The declared MIME is deliberately
+            // never trusted — detectMime() sniffs the decoded bytes instead.
+            $meta = substr($value, 5, $comma - 5);
+            $payload = substr($value, $comma + 1);
+            $isBase64 = preg_match('/(^|;)base64$/i', $meta) === 1;
+
+            if ($isBase64) {
+                $binary = base64_decode($payload, true);
+            } else {
+                // Percent-decode the URL-encoded byte sequence. rawurldecode does
+                // not turn '+' into a space (correct for arbitrary binary).
+                $binary = rawurldecode($payload);
+            }
+
+            if ($binary === false || $binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+                return null;
+            }
+            return [$this->detectMime($binary), $binary];
         }
 
         // External URI (http/https) — we do not fetch remote images.

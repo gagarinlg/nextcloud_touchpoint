@@ -382,4 +382,73 @@ class ContactControllerTest extends TestCase {
         $this->assertInstanceOf(DataDisplayResponse::class, $result);
         $this->assertSame('application/octet-stream', $result->getHeaders()['Content-Type']);
     }
+
+    // ── data: URI parsing breadth (GRUMPY DEV r2 #2) ──────────────────────────
+
+    public function testPhotoResolvesNonBase64PercentEncodedDataUri(): void {
+        // RFC 2397 also permits the percent-encoded (non-base64) form. A PNG
+        // delivered this way must resolve, not 404. We URL-encode the raw bytes.
+        $pngBytes = "\x89PNG\r\n\x1a\nrest";
+        $encoded = rawurlencode($pngBytes);
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => 'data:image/png,' . $encoded]]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(DataDisplayResponse::class, $result);
+        $this->assertSame(200, $result->getStatus());
+        $this->assertSame('image/png', $result->getHeaders()['Content-Type']);
+    }
+
+    public function testPhotoResolvesDataUriWithExtraParamBeforeBase64(): void {
+        // A media type carrying an extra ';param' segment before ';base64' is
+        // valid and must still resolve (the old single-segment regex dropped it).
+        $jpeg = base64_encode("\xff\xd8\xff\xe0rest");
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => 'data:image/jpeg;charset=utf-8;base64,' . $jpeg]]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(DataDisplayResponse::class, $result);
+        $this->assertSame('image/jpeg', $result->getHeaders()['Content-Type']);
+    }
+
+    public function testPhotoReturns404ForMalformedDataUriWithoutComma(): void {
+        // A 'data:' value with no comma is malformed and must not crash — 404.
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => 'data:image/png;base64']]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(JSONResponse::class, $result);
+        $this->assertSame(404, $result->getStatus());
+    }
+
+    // ── availability/retrievability consistency (GRUMPY DEV r2 #2) ────────────
+
+    public function testIndexAdvertisesPhotoForNonBase64DataUri(): void {
+        // entryHasPhoto() now applies the same parse as the photo endpoint, so a
+        // valid percent-encoded data: URI is advertised (URL emitted), matching
+        // what photo() will actually return.
+        $this->request->method('getParam')->willReturn('');
+        $encoded = rawurlencode("\x89PNG\r\n\x1a\nrest");
+        $this->contactsManager->method('search')
+            ->willReturn([
+                ['UID' => 'u', 'FN' => 'PE', 'EMAIL' => '', 'PHOTO' => 'data:image/png,' . $encoded, 'addressbook-key' => '1'],
+            ]);
+
+        $data = $this->controller->index()->getData();
+        $this->assertSame('/route/u', $data[0]['photo']);
+    }
+
+    public function testIndexDoesNotAdvertisePhotoForExternalUri(): void {
+        // An external http(s) PHOTO URI is not retrievable (we never fetch remote
+        // images), so index() must NOT advertise a photo URL that would 404 —
+        // availability and retrievability stay consistent.
+        $this->request->method('getParam')->willReturn('');
+        $this->contactsManager->method('search')
+            ->willReturn([
+                ['UID' => 'u', 'FN' => 'Ext', 'EMAIL' => '', 'PHOTO' => 'https://example.com/p.png', 'addressbook-key' => '1'],
+            ]);
+
+        $data = $this->controller->index()->getData();
+        $this->assertSame('', $data[0]['photo']);
+    }
 }
