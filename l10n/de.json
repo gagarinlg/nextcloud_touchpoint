@@ -1,6 +1,7 @@
 {
     "pluralForm": "nplurals=2; plural=(n != 1);",
     "translations": {
+        "Notes": "Notizen",
         "Add contact…": "Kontakt hinzufügen…",
         "by {author}": "von {author}",
         "edited {date}": "bearbeitet {date}",

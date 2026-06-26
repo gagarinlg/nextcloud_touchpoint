@@ -1,6 +1,7 @@
 OC.L10N.register(
     "crm_notes",
     {
+    "Notes" : "Notizen",
     "Add contact…" : "Kontakt hinzufügen…",
     "by {author}" : "von {author}",
     "edited {date}" : "bearbeitet {date}",

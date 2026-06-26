@@ -4,10 +4,10 @@
 	<NcContent app-name="crm_notes">
 		<NcAppNavigation>
 			<template #list>
-				<NcAppNavigationItem :name="t('crm_notes', 'Contacts')"
+				<NcAppNavigationItem :name="t('crm_notes', 'Notes')"
 					:active="activeSection === 'contacts'"
 					@click="setSection('contacts')">
-					<template #icon><IconContacts :size="20" /></template>
+					<template #icon><IconNotes :size="20" /></template>
 				</NcAppNavigationItem>
 				<NcAppNavigationItem :name="t('crm_notes', 'Note types')"
 					:active="activeSection === 'note-types'"
@@ -104,6 +104,7 @@ import NcTextField from '@nextcloud/vue/components/NcTextField'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import IconContacts from 'vue-material-design-icons/AccountMultiple.vue'
+import IconNotes from 'vue-material-design-icons/NoteMultipleOutline.vue'
 import IconAlert from 'vue-material-design-icons/AlertCircle.vue'
 import IconSearch from 'vue-material-design-icons/Magnify.vue'
 import IconLabel from 'vue-material-design-icons/Label.vue'

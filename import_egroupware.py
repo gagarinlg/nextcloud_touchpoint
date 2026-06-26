@@ -378,6 +378,39 @@ def backup_database():
 # Step 2: Parse the EGroupware backup
 # ---------------------------------------------------------------------------
 
+def _decode_dump_blob(value):
+    """
+    Decode a binary BLOB value as it appears in a SQL dump into raw bytes.
+
+    Different dump dialects serialise binary differently:
+      - MySQL hex literal:   0x255044462d312e34...
+      - PostgreSQL bytea:    \\x255044462d312e34...
+      - base64 (some tools): JVBERi0xLjQ...
+    Falls back to a latin-1 byte view of the raw string. Any failure yields None
+    so a malformed value can never abort an import.
+    """
+    if value is None:
+        return None
+    try:
+        if isinstance(value, (bytes, bytearray)):
+            return bytes(value)
+        s = str(value).strip()
+        if s == '':
+            return None
+        low = s.lower()
+        if low.startswith('0x'):
+            return bytes.fromhex(s[2:])
+        if low.startswith('\\x'):
+            return bytes.fromhex(s[2:])
+        # base64 heuristic: only the base64 alphabet and a sane length.
+        if len(s) % 4 == 0 and re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', s):
+            import base64
+            return base64.b64decode(s, validate=True)
+        return s.encode('latin-1', 'replace')
+    except Exception:
+        return None
+
+
 class EgroupwareBackup:
     """
     Parses the EGroupware custom backup format.
@@ -476,24 +509,66 @@ class EgroupwareBackup:
 
     def read_sqlfs_file(self, fs_id):
         """
-        Read raw bytes of a SQLFS file by fs_id from the ZIP archive.
-        Returns bytes or None if the ZIP doesn't contain it or this is not a ZIP backup.
+        Read raw bytes of a SQLFS file by fs_id.
+
+        EGroupware's VFS ('sqlfs') stores file content in one of two ways:
+          - filesystem-backed (vfs_storage_mode=fs): content lives in files on disk
+            and is captured in the backup ZIP under sqlfs/<bucket>/<fs_id>;
+          - DB-backed (vfs_storage_mode=db): content lives inline in the
+            egw_sqlfs.fs_content column and therefore in the DB dump itself.
+        Try the ZIP first, then fall back to fs_content so DB-backed installs work
+        too. Returns bytes, or None if the content is in neither place (e.g. a
+        partial backup that did not include the files directory).
         """
-        if self._zip is None:
-            return None
-        # Files are stored under sqlfs/<dir_bucket>/<fs_id>
-        # The bucket is the first two digits of fs_id (EGroupware convention)
         fs_id_str = str(fs_id)
-        bucket = fs_id_str[:2] if len(fs_id_str) >= 2 else fs_id_str
-        entry = f'sqlfs/{bucket}/{fs_id_str}'
-        if entry in self._zip.namelist():
-            return self._zip.read(entry)
-        # Fallback: search all entries
-        suffix = f'/{fs_id_str}'
-        for name in self._zip.namelist():
-            if name.startswith('sqlfs/') and name.endswith(suffix):
-                return self._zip.read(name)
+
+        # 1) filesystem-backed: a blob file in the ZIP under sqlfs/<bucket>/<fs_id>
+        #    (bucket = first two digits of fs_id, EGroupware convention).
+        if self._zip is not None:
+            names = self._zip_sqlfs_names()
+            bucket = fs_id_str[:2] if len(fs_id_str) >= 2 else fs_id_str
+            entry = f'sqlfs/{bucket}/{fs_id_str}'
+            if entry in names:
+                return self._zip.read(entry)
+            suffix = f'/{fs_id_str}'
+            for name in names:
+                if name.endswith(suffix):
+                    return self._zip.read(name)
+
+        # 2) DB-backed: content inline in egw_sqlfs.fs_content (present in the dump).
+        content = self._sqlfs_content_map().get(fs_id_str)
+        if content:
+            decoded = _decode_dump_blob(content)
+            if decoded:
+                return decoded
+
         return None
+
+    def _zip_sqlfs_names(self):
+        """Cached set of sqlfs/ entry names in the ZIP (namelist() is O(n) per call)."""
+        if self._zip is None:
+            return frozenset()
+        cached = getattr(self, '_sqlfs_names_cache', None)
+        if cached is None:
+            cached = frozenset(
+                n for n in self._zip.namelist()
+                if n.startswith('sqlfs/') and not n.endswith('/')
+            )
+            self._sqlfs_names_cache = cached
+        return cached
+
+    def _sqlfs_content_map(self):
+        """Cached map fs_id (str) → raw fs_content value for DB-backed VFS files."""
+        cached = getattr(self, '_sqlfs_content_cache', None)
+        if cached is None:
+            cached = {}
+            for row in self.get('egw_sqlfs'):
+                fid = row.get('fs_id')
+                val = row.get('fs_content')
+                if fid is not None and val not in (None, '', 'NULL'):
+                    cached[str(fid)] = val
+            self._sqlfs_content_cache = cached
+        return cached
 
     def build_photo_index_from_sqlfs(self):
         """
@@ -1444,8 +1519,12 @@ def import_contacts(egw, cur, owner_to_ab_id=None, default_ab_id=None, egw_to_nc
     log(f'[CONTACTS] Imported {imported}, enriched system addressbook for {enriched} account contacts, skipped {skipped}.')
 
 
+# UID must be indexed too: Nextcloud resolves a contact's photo (and other
+# per-contact lookups) by searching the UID property, so a card without an indexed
+# UID row is unreachable by UID — its embedded photo never renders. Native NC cards
+# always carry this row; cards written directly to the DB must add it explicitly.
 _PROP_FIELDS = re.compile(
-    r'^(FN|EMAIL|TEL|ORG|NICKNAME|N|BDAY|ADR)[^:]*:(.+)$',
+    r'^(FN|EMAIL|TEL|ORG|NICKNAME|N|BDAY|ADR|UID)[^:]*:(.+)$',
     re.MULTILINE
 )
 
@@ -2250,7 +2329,13 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
         imported += 1
 
     log(f'[NOTES] Imported {imported}, skipped {skipped}.')
-    log(f'[ATTACHMENTS] Imported {attach_imported}, skipped {attach_skipped} (missing in ZIP).')
+    log(f'[ATTACHMENTS] Imported {attach_imported}, skipped {attach_skipped} (file content not in backup).')
+    if attach_skipped:
+        log('[ATTACHMENTS] Note: skipped attachments are referenced by egw_sqlfs but their '
+            'file content is neither in the backup ZIP (sqlfs/) nor inline in '
+            'egw_sqlfs.fs_content. EGroupware stores filesystem-backed VFS files under '
+            'its files_dir; re-export the backup with the files directory included '
+            '(or provide that directory) to import them.')
     return users_needing_scan
 
 

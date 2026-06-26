@@ -15,6 +15,8 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\Contacts\IManager;
+use OCP\DB\QueryBuilder\IQueryBuilder;
+use OCP\IDBConnection;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -45,6 +47,7 @@ class ContactController extends Controller {
         private IManager $contactsManager,
         private IURLGenerator $urlGenerator,
         private LoggerInterface $logger,
+        private IDBConnection $db,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
@@ -223,16 +226,52 @@ class ContactController extends Controller {
         if (is_array($photo)) {
             $photo = $photo[0] ?? '';
         }
+        if (is_array($photo)) {
+            // Typed structure (['type' => ..., 'value' => ...]) under ['types' => true].
+            $photo = $photo['value'] ?? '';
+        }
         if (!is_string($photo) || $photo === '') {
             return false;
         }
+        $photo = trim($photo);
+
+        // Inline value (data: URI or a still-serialized "PHOTO;...:" line, or raw
+        // base64): advertise only if parsePhotoValue() can actually decode it, so the
+        // endpoint never 404s on a URL index() promised.
+        if (str_starts_with($photo, 'data:') || preg_match('/^PHOTO[;:]/i', $photo) === 1) {
+            return $this->parsePhotoValue($photo) !== null;
+        }
+
+        // Nextcloud hands an *embedded* vCard photo back from search() as a reference
+        // to its own CardDAV photo export (e.g.
+        // "VALUE=uri:https://host/remote.php/dav/addressbooks/.../<card>.vcf?photo").
+        // That signals a real, servable embedded photo — the endpoint reads the bytes
+        // straight from the stored vCard rather than fetching this URL.
+        if (preg_match('#/remote\.php/dav/.+\.vcf\?photo#i', $photo) === 1) {
+            return true;
+        }
+
+        // Any other external URI (arbitrary http/https, or VALUE=uri: wrapping one)
+        // is a remote image we deliberately do not fetch — do not advertise it.
+        if (preg_match('#^(?:VALUE=uri:)?https?://#i', $photo) === 1) {
+            return false;
+        }
+
         return $this->parsePhotoValue($photo) !== null;
     }
 
     /**
-     * Resolve the PHOTO binary for a contact UID through the contacts manager,
-     * which covers every address book the caller can access (own AND shared/
-     * group books). Falls back to nothing if the contact has no photo.
+     * Resolve the PHOTO binary for a contact UID.
+     *
+     * IManager::search() does not reliably hand back inline photo bytes: for an
+     * *embedded* vCard PHOTO it returns a "VALUE=uri:" reference to Nextcloud's own
+     * CardDAV photo export, which we must not HTTP-fetch (SSRF / auth). Instead we
+     * read the embedded PHOTO straight from the stored vCard.
+     *
+     * Access control: we only ever look in address books the *current user* can
+     * read (IManager::getUserAddressBooks() — own, shared and group books). The
+     * card lookup is constrained to those address-book ids, so a caller cannot pull
+     * a photo for a contact UID that happens to exist in a book they cannot access.
      *
      * @return array{string, string}|null  [mimeType, binaryData] or null
      */
@@ -240,30 +279,87 @@ class ContactController extends Controller {
         if ($uid === '') {
             return null;
         }
+
+        // The set of address-book ids the current user may read. Empty → no access.
+        $accessibleIds = [];
         try {
-            // Match on UID exactly; search() returns entries from every readable
-            // address book, so shared/group contacts resolve too.
-            $results = $this->contactsManager->search($uid, ['UID'], ['types' => true]);
+            foreach ($this->contactsManager->getUserAddressBooks() as $addressBook) {
+                $key = $addressBook->getKey();
+                if (is_numeric($key)) {
+                    $accessibleIds[] = (int) $key;
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->debug('CRM Notes: address book enumeration failed', ['exception' => $e]);
+            return null;
+        }
+        if ($accessibleIds === []) {
+            return null;
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('carddata')
+                ->from('cards')
+                ->where($qb->expr()->eq('uid', $qb->createNamedParameter($uid)))
+                ->andWhere($qb->expr()->in(
+                    'addressbookid',
+                    $qb->createNamedParameter($accessibleIds, IQueryBuilder::PARAM_INT_ARRAY)
+                ))
+                ->setMaxResults(1);
+            $result = $qb->executeQuery();
+            $carddata = $result->fetchOne();
+            $result->closeCursor();
         } catch (\Throwable $e) {
             $this->logger->debug('CRM Notes: contact photo lookup failed', ['exception' => $e]);
             return null;
         }
 
-        foreach ($results as $entry) {
-            if (($entry['UID'] ?? '') !== $uid) {
-                continue;
-            }
-            $photo = $entry['PHOTO'] ?? '';
-            if (is_array($photo)) {
-                $photo = $photo[0] ?? '';
-            }
-            if (!is_string($photo) || $photo === '') {
-                return null;
-            }
-            return $this->parsePhotoValue($photo);
+        if (is_resource($carddata)) {
+            $carddata = stream_get_contents($carddata);
+        }
+        if (!is_string($carddata) || $carddata === '') {
+            return null;
         }
 
-        return null;
+        return $this->extractEmbeddedPhotoFromVCard($carddata);
+    }
+
+    /**
+     * Decode the embedded PHOTO from a full vCard's raw data.
+     *
+     * For a base64 (ENCODING=b) PHOTO, Sabre exposes the already-decoded raw image
+     * bytes via the Binary property. A data: URI value is decoded through the value
+     * parser; an external URI is refused there.
+     *
+     * @return array{string, string}|null  [mimeType, binaryData] or null
+     */
+    private function extractEmbeddedPhotoFromVCard(string $carddata): ?array {
+        try {
+            $doc = Reader::read($carddata, Reader::OPTION_FORGIVING);
+        } catch (\Throwable $e) {
+            $this->logger->debug('CRM Notes: could not parse contact vCard for photo', ['exception' => $e]);
+            return null;
+        }
+
+        if (!isset($doc->PHOTO)) {
+            return null;
+        }
+        $photo = $doc->PHOTO;
+
+        if ($photo instanceof Binary) {
+            $binary = (string) $photo->getValue();
+            if ($binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+                return null;
+            }
+            return [$this->detectMime($binary), $binary];
+        }
+
+        $value = trim((string) $photo->getValue());
+        if ($value === '') {
+            return null;
+        }
+        return $this->parsePhotoValue($value);
     }
 
     /**
