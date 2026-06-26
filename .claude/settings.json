@@ -98,7 +98,9 @@
       "Bash(COMPOSER_ALLOW_SUPERUSER=1 vendor/bin/phpstan analyse *)",
       "Bash(COMPOSER_ALLOW_SUPERUSER=1 ./vendor/bin/phpunit *)",
       "Bash(stat *)",
-      "Bash(jq *)"
+      "Bash(jq *)",
+      "Bash(sudo tail -n 8 /var/www/html/data/nextcloud.log)",
+      "Bash(echo \"EXIT_CODE: $?\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

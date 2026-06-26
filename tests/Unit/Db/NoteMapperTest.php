@@ -229,6 +229,80 @@ class NoteMapperTest extends TestCase {
         $this->assertNull($map[2]['updated_at']);
     }
 
+    /**
+     * findAccessiblePage() pushes the ordering + window into SQL: it must select
+     * the full rows, order by updated_at/created_at/id DESC, and apply
+     * setMaxResults/setFirstResult for the requested page — never load the whole
+     * key set.
+     */
+    public function testFindAccessiblePageBuildsOrderedWindowedQuery(): void {
+        $orX = new class {
+            public int $added = 0;
+            public function add($x): void {
+                $this->added++;
+            }
+        };
+        $this->expr->method('orX')->willReturn($orX);
+        $this->expr->method('in')->willReturn('in_expr');
+
+        $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
+        $this->qb->expects($this->once())->method('orderBy')->with('updated_at', 'DESC')->willReturnSelf();
+        $addOrderByArgs = [];
+        $this->qb->expects($this->exactly(2))->method('addOrderBy')
+            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
+                $addOrderByArgs[] = [$col, $dir];
+                return $this->qb;
+            });
+        $this->qb->expects($this->once())->method('setMaxResults')->with(25)->willReturnSelf();
+        $this->qb->expects($this->once())->method('setFirstResult')->with(50)->willReturnSelf();
+
+        $this->mapper->findAccessiblePage('user1', [2, 5], 25, 50);
+
+        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
+        // One owned-eq branch (added at orX construction) plus one IN(...) branch
+        // for the single shared-id chunk.
+        $this->assertSame(1, $orX->added, 'Shared-id IN(...) branch must be OR-added once');
+    }
+
+    /**
+     * findAccessiblePage() must split a shared-id set larger than the per-IN cap
+     * (900) into chunked OR(IN ...) groups so the single ordered+windowed query
+     * is preserved. 2000 shared ids => 3 IN-branch additions.
+     */
+    public function testFindAccessiblePageChunksLargeSharedIdSet(): void {
+        $orX = new class {
+            public int $added = 0;
+            public function add($x): void {
+                $this->added++;
+            }
+        };
+        $this->expr->method('orX')->willReturn($orX);
+        $this->expr->method('in')->willReturn('in_expr');
+
+        $this->mapper->findAccessiblePage('user1', range(1, 2000), 25, 0);
+
+        $this->assertSame(3, $orX->added, 'Expected 2000 shared ids to add 3 chunked IN branches');
+    }
+
+    public function testFindAccessiblePageWithNoSharesAndNoWindow(): void {
+        $orX = new class {
+            public int $added = 0;
+            public function add($x): void {
+                $this->added++;
+            }
+        };
+        $this->expr->method('orX')->willReturn($orX);
+        $this->expr->method('in')->willReturn('in_expr');
+
+        $this->qb->expects($this->never())->method('setMaxResults');
+        $this->qb->expects($this->never())->method('setFirstResult');
+
+        $this->mapper->findAccessiblePage('user1', [], null, null);
+
+        // No shared ids => no IN branch added beyond the owned-eq constructed one.
+        $this->assertSame(0, $orX->added);
+    }
+
     public function testFindByIdsEmptyReturnsEarly(): void {
         $this->db->expects($this->never())->method('getQueryBuilder');
         $this->assertSame([], $this->mapper->findByIds([], null));

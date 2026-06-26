@@ -111,54 +111,39 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testFindAll(): void {
-        // Private mode pushes pagination down to id + sort-key tuples, then
-        // loads only the windowed page of full rows.
-        $this->mapper->expects($this->once())
-            ->method('findOwnedSortKeys')
-            ->with('user1')
-            ->willReturn([
-                1 => ['updated_at' => '2026-06-03 10:00:00', 'created_at' => '2026-06-01 10:00:00'],
-                2 => ['updated_at' => '2026-06-02 10:00:00', 'created_at' => '2026-06-01 10:00:00'],
-                3 => ['updated_at' => '2026-06-01 10:00:00', 'created_at' => '2026-06-01 10:00:00'],
-            ]);
-
+        // Private mode pushes ordering and paging all the way down to SQL via
+        // findAccessiblePage(); the service must not load or PHP-sort the full
+        // key set. The DB returns the already-ordered page directly.
         $n1 = new Note(); $n1->setId(1); $n1->setUserId('user1');
         $n2 = new Note(); $n2->setId(2); $n2->setUserId('user1');
         $n3 = new Note(); $n3->setId(3); $n3->setUserId('user1');
         $this->mapper->expects($this->once())
-            ->method('findByIds')
+            ->method('findAccessiblePage')
+            ->with('user1', $this->anything(), null, null)
             ->willReturn([$n1, $n2, $n3]);
 
         $result = $this->service->findAll('user1');
         $this->assertCount(3, $result);
-        // Ordered by updated_at desc: note 1, then 2, then 3.
+        // Order is whatever the (SQL-ordered) mapper returns, preserved as-is.
         $this->assertSame(1, $result[0]->getId());
         $this->assertSame(2, $result[1]->getId());
         $this->assertSame(3, $result[2]->getId());
     }
 
     public function testFindAllPaginatesMergedOwnedAndShared(): void {
-        // Owned notes 1 and 3; shared note 2. With limit 2 / offset 0 we expect
-        // the two most-recently-updated of the merged set, ordered server-side.
-        $this->mapper->method('findOwnedSortKeys')->with('user1')->willReturn([
-            1 => ['updated_at' => '2026-06-05 10:00:00', 'created_at' => null],
-            3 => ['updated_at' => '2026-06-01 10:00:00', 'created_at' => null],
-        ]);
-
+        // Owned notes 1 and 3; shared note 2. The service must hand the shared
+        // id set and the requested window straight to findAccessiblePage(),
+        // which performs the merged ORDER BY + LIMIT/OFFSET in SQL.
         $sharing = $this->createMock(NoteSharingMapper::class);
         $sharing->method('findAccessibleNoteIds')->willReturn([2]);
         $sharing->method('findByNoteIds')->willReturn([]);
         $this->noteSharingMapper = $sharing;
 
-        $this->mapper->method('findSortKeysByIds')->with([2], null)->willReturn([
-            2 => ['updated_at' => '2026-06-04 10:00:00', 'created_at' => null],
-        ]);
-
         $n1 = new Note(); $n1->setId(1); $n1->setUserId('user1');
         $n2 = new Note(); $n2->setId(2); $n2->setUserId('owner');
         $this->mapper->expects($this->once())
-            ->method('findByIds')
-            ->with([1, 2], null)
+            ->method('findAccessiblePage')
+            ->with('user1', [2], 2, 0)
             ->willReturn([$n1, $n2]);
 
         $result = $this->makeService()->findAll('user1', 2, 0);
@@ -507,6 +492,34 @@ class NoteServiceTest extends TestCase {
         $this->noteSharingMapper->expects($this->once())
             ->method('syncSharing')
             ->with(8, $sharing);
+
+        $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
+    }
+
+    public function testCreateDeduplicatesRepeatedShareTargets(): void {
+        // crm_note_sharing has a UNIQUE index on
+        // (note_id, shared_with_type, shared_with_id). A payload that lists the
+        // same principal twice must be collapsed to a single target by
+        // sanitiseShareTargets() so syncSharing()'s second insert never trips the
+        // unique constraint (which would otherwise bubble up as a 500).
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(9); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $sharing = [
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => false],
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => true],
+            ['type' => 'group', 'id' => 'staff', 'canEdit' => true],
+            ['type' => 'group', 'id' => 'staff', 'canEdit' => false],
+        ];
+        // First occurrence of each (type, id) wins; duplicates are dropped.
+        $expected = [
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => false],
+            ['type' => 'group', 'id' => 'staff', 'canEdit' => true],
+        ];
+        $this->noteSharingMapper->expects($this->once())
+            ->method('syncSharing')
+            ->with(9, $expected);
 
         $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
     }

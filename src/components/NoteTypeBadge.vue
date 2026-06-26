@@ -5,7 +5,7 @@
 	     pill, which reads as a rendering glitch. Callers may also guard with
 	     v-if; this is a second line of defence. -->
 	<span v-if="type && type.name" class="crm-type-badge" :style="badgeStyle">
-		<component :is="iconComponent" v-if="iconComponent" :size="13" class="crm-type-badge-icon" />
+		<component :is="iconComponent" v-if="iconComponent" :size="13" class="crm-type-badge-icon" aria-hidden="true" />
 		{{ type.name }}
 	</span>
 </template>

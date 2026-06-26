@@ -10,7 +10,10 @@
 		</button>
 		<div class="crm-note-item-header">
 			<NoteTypeBadge v-if="noteType" :type="noteType" />
-			<span class="crm-note-title">{{ note.title }}</span>
+			<!-- Heading (not a plain span) so screen-reader users can traverse the
+			     note list heading-by-heading; styled below to the 14px/600 token
+			     so the visual is unchanged. -->
+			<h2 class="crm-note-title">{{ note.title }}</h2>
 			<IconPin v-if="note.isPinned"
 				class="crm-pin-indicator"
 				:size="16"
@@ -197,8 +200,12 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 }
 
 .crm-note-title {
+	/* Reset the UA heading defaults (margin, large bold size) so this <h2>
+	   renders identically to the former <span> at the design-system token. */
+	margin: 0;
 	font-weight: 600;
 	font-size: var(--default-font-size, 14px);
+	line-height: inherit;
 	/* Allow long unbroken titles (pasted URLs/filenames) to wrap inside the card
 	   instead of pushing the layout or clipping at the flex boundary. */
 	min-width: 0;
@@ -252,7 +259,7 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	font-family: var(--font-face-monospace, monospace);
 	background: var(--color-background-dark);
 	padding: 1px calc(var(--default-grid-baseline, 4px) * 1);
-	border-radius: 3px;
+	border-radius: var(--border-radius-small, 4px);
 }
 
 .crm-note-content :deep(pre) {

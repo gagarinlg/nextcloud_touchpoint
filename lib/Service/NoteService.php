@@ -90,15 +90,27 @@ class NoteService {
      */
     private function sanitiseShareTargets(array $targets): array {
         $clean = [];
+        $seen  = [];
         foreach ($targets as $target) {
             $type = (string)($target['type'] ?? '');
             $id   = (string)($target['id'] ?? '');
             if (($type !== 'user' && $type !== 'group') || $id === '') {
                 continue;
             }
+            // Deduplicate by (type, id) so the same principal is persisted once.
+            // crm_note_sharing has a UNIQUE index on
+            // (note_id, shared_with_type, shared_with_id); a payload listing the
+            // same principal twice would otherwise blow up syncSharing()'s second
+            // insert with a unique-constraint violation. Mirrors
+            // SettingsService::setUserShareTargets().
+            $key = $type . ':' . $id;
+            if (isset($seen[$key])) {
+                continue;
+            }
             if (!$this->settingsService->principalExists($type, $id)) {
                 continue;
             }
+            $seen[$key] = true;
             $clean[] = [
                 'type' => $type,
                 'id' => $id,
@@ -244,58 +256,16 @@ class NoteService {
             return $this->enrichNotes($notes, $userId);
         }
 
-        // Pagination is pushed down to id + sort-key rows: we fetch only the
-        // (id, updated_at, created_at) tuples for the owned + shared sets — not
-        // the full note bodies — order them once, slice the requested window,
-        // and only then load the full rows for that single page. This keeps the
-        // controller's default limit honest: a heavy user no longer materialises
-        // (and re-sorts) their entire note history on every loadMoreNotes call.
+        // Ordering and paging are pushed all the way down to the database: the
+        // owned set (user_id = :uid) is unioned with the explicitly-shared id
+        // set in a single WHERE, ordered newest-first, and the LIMIT/OFFSET
+        // window is applied in SQL. Only the requested page of rows is ever
+        // materialised — a heavy user no longer loads, unions and PHP-sorts
+        // their entire id/sort-key set on every loadMoreNotes call.
         $groupIds  = $this->settingsService->getUserGroupIds($userId);
         $sharedIds = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
 
-        $sortKeys = $this->mapper->findOwnedSortKeys($userId);
-        if (!empty($sharedIds)) {
-            // Shared rows may overlap owned rows; the union below dedupes by id.
-            // A user in a large group can have thousands of notes shared to them;
-            // findSortKeysByIds() chunks the IN(...) lookup internally so this
-            // fan-out never blows past a DB backend's per-query list limits.
-            foreach ($this->mapper->findSortKeysByIds($sharedIds, null) as $id => $keys) {
-                $sortKeys[$id] ??= $keys;
-            }
-        }
-
-        // Order the id list by updated_at desc, created_at desc, id desc.
-        $ordered = array_keys($sortKeys);
-        usort($ordered, function (int $a, int $b) use ($sortKeys) {
-            $aKey = $sortKeys[$a]['updated_at'] ?? $sortKeys[$a]['created_at'] ?? '';
-            $bKey = $sortKeys[$b]['updated_at'] ?? $sortKeys[$b]['created_at'] ?? '';
-            if ($aKey === $bKey) {
-                return $b <=> $a;
-            }
-            return $bKey <=> $aKey;
-        });
-
-        if ($offset !== null || $limit !== null) {
-            $ordered = array_slice($ordered, $offset ?? 0, $limit);
-        }
-
-        if (empty($ordered)) {
-            return [];
-        }
-
-        // Load only the windowed page of full rows, then restore the order
-        // computed above (findByIds does not guarantee ordering).
-        $rows = $this->mapper->findByIds($ordered, null);
-        $byId = [];
-        foreach ($rows as $row) {
-            $byId[$row->getId()] = $row;
-        }
-        $page = [];
-        foreach ($ordered as $id) {
-            if (isset($byId[$id])) {
-                $page[] = $byId[$id];
-            }
-        }
+        $page = $this->mapper->findAccessiblePage($userId, $sharedIds, $limit, $offset);
 
         return $this->enrichNotes($page, $userId);
     }

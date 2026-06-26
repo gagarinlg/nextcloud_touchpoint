@@ -168,7 +168,12 @@ function renderNoteItem(note, noteTypeMap = {}) {
 	const header = document.createElement('div')
 	header.className = 'crm-contacts-note-header'
 	header.appendChild(badge)
-	const titleEl = document.createElement('strong')
+	// Heading (not a plain <strong>) so screen-reader users can traverse the
+	// notes list heading-by-heading; the class below resets UA heading styles
+	// so the visual stays identical to the former bold inline title. Mirrors
+	// NoteItem.vue's <h2 class="crm-note-title">.
+	const titleEl = document.createElement('h2')
+	titleEl.className = 'crm-contacts-note-title'
 	titleEl.textContent = note.title || ''
 	header.appendChild(titleEl)
 	div.appendChild(header)
@@ -332,6 +337,14 @@ async function injectNotesPanel(detailEl) {
 				gap: 6px;
 				margin-bottom: 4px;
 			}
+			.crm-contacts-note-title {
+				/* Reset UA heading defaults so this <h2> renders like the former
+				   bold inline title. */
+				margin: 0;
+				font-size: inherit;
+				font-weight: 600;
+				line-height: inherit;
+			}
 			.crm-contacts-type-badge {
 				display: inline-flex;
 				align-items: center;
@@ -373,7 +386,7 @@ async function injectNotesPanel(detailEl) {
 				font-family: var(--font-face-monospace, monospace);
 				background: var(--color-background-dark);
 				padding: 1px 4px;
-				border-radius: 3px;
+				border-radius: var(--border-radius-small, 4px);
 			}
 			.crm-contacts-note-content pre {
 				background: var(--color-background-dark);

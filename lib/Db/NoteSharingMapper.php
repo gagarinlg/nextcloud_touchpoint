@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\CrmNotes\Db;
 
 use OCP\AppFramework\Db\QBMapper;
+use OCP\DB\Exception as DBException;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 
@@ -150,7 +151,18 @@ class NoteSharingMapper extends QBMapper {
             $ns->setSharedWithType($target['type']);
             $ns->setSharedWithId($target['id']);
             $ns->setCanEdit(!empty($target['canEdit']));
-            $this->insert($ns);
+            try {
+                $this->insert($ns);
+            } catch (DBException $e) {
+                // Tolerate a duplicate (note_id, type, id) row racing in past the
+                // caller-side dedupe — the unique index guarantees the principal
+                // is already shared with the same target, so swallowing the
+                // violation keeps the ACL correct rather than 500-ing. Mirrors
+                // NoteService::create()/addFile(). Anything else propagates.
+                if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
+                    throw $e;
+                }
+            }
         }
     }
 }

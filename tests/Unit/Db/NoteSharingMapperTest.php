@@ -109,6 +109,57 @@ class NoteSharingMapperTest extends TestCase {
         $this->assertSame([], $ids);
     }
 
+    /**
+     * syncSharing() must tolerate a unique-constraint violation on insert (the
+     * crm_note_sharing_unique index on (note_id, type, id)) the same way
+     * NoteService::create()/addFile() do, so a duplicate target racing past the
+     * service-side dedupe never surfaces as a 500. The owning principal is
+     * already shared, so swallowing the violation keeps the ACL correct.
+     */
+    public function testSyncSharingSwallowsDuplicateConstraintViolation(): void {
+        $mapper = new class($this->db) extends NoteSharingMapper {
+            public int $inserts = 0;
+            public int $deletes = 0;
+            public function deleteByNoteId(int $noteId): void {
+                $this->deletes++;
+            }
+            public function insert(\OCP\AppFramework\Db\Entity $entity): \OCP\AppFramework\Db\Entity {
+                $this->inserts++;
+                $dup = new \OCP\DB\Exception('duplicate');
+                $dup->setReason(\OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+                throw $dup;
+            }
+        };
+
+        // Must not throw despite every insert hitting the unique constraint.
+        $mapper->syncSharing(5, [
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => true],
+            ['type' => 'group', 'id' => 'staff'],
+        ]);
+
+        $this->assertSame(1, $mapper->deletes);
+        $this->assertSame(2, $mapper->inserts);
+    }
+
+    /**
+     * A non-unique DB failure during syncSharing() must still propagate rather
+     * than being silently swallowed.
+     */
+    public function testSyncSharingRethrowsNonUniqueDbException(): void {
+        $mapper = new class($this->db) extends NoteSharingMapper {
+            public function deleteByNoteId(int $noteId): void {
+            }
+            public function insert(\OCP\AppFramework\Db\Entity $entity): \OCP\AppFramework\Db\Entity {
+                $other = new \OCP\DB\Exception('connection lost');
+                $other->setReason(\OCP\DB\Exception::REASON_CONNECTION_LOST);
+                throw $other;
+            }
+        };
+
+        $this->expectException(\OCP\DB\Exception::class);
+        $mapper->syncSharing(5, [['type' => 'user', 'id' => 'bob']]);
+    }
+
     public function testFindByNoteIdsEmptyReturnsEarly(): void {
         $this->db->expects($this->never())->method('getQueryBuilder');
         $this->assertSame([], $this->mapper->findByNoteIds([]));

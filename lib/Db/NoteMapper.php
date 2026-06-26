@@ -204,28 +204,51 @@ class NoteMapper extends QBMapper {
     }
 
     /**
-     * Fetch only the id + sort-key columns for every note owned by $userId.
+     * Load one ordered page of the notes a user can see: the notes they own
+     * unioned with the explicitly-shared id set, ordered newest-first
+     * (updated_at DESC, created_at DESC, id DESC) with the LIMIT/OFFSET window
+     * applied in SQL. This pushes the ordering and paging down to the database
+     * so a heavy user no longer loads and PHP-sorts their entire id/sort-key set
+     * on every loadMore call.
      *
-     * @return array<int, array{updated_at: ?string, created_at: ?string}>  map of id => sort keys
+     * The shared id set is folded into the WHERE via an IN(...) clause. It is
+     * bounded by what is shared with this user/groups; should it ever exceed a
+     * backend's per-IN element cap the set is split into chunked OR(IN ...)
+     * groups so the single ordered+windowed query is preserved.
+     *
+     * @param int[] $sharedIds note ids shared with the user (may be empty)
+     * @return Note[]
      */
-    public function findOwnedSortKeys(string $userId): array {
+    public function findAccessiblePage(string $userId, array $sharedIds, ?int $limit = null, ?int $offset = null): array {
         $qb = $this->db->getQueryBuilder();
-        $qb->select('id', 'updated_at', 'created_at')
-            ->from($this->getTableName())
-            ->where(
-                $qb->expr()->eq('user_id', $qb->createNamedParameter($userId, IQueryBuilder::PARAM_STR))
-            );
+        $qb->select('*')
+            ->from($this->getTableName());
 
-        $result = $qb->executeQuery();
-        $map = [];
-        while ($row = $result->fetch()) {
-            $map[(int)$row['id']] = [
-                'updated_at' => $row['updated_at'] ?? null,
-                'created_at' => $row['created_at'] ?? null,
-            ];
+        $visible = $qb->expr()->orX(
+            $qb->expr()->eq('user_id', $qb->createNamedParameter($userId, IQueryBuilder::PARAM_STR))
+        );
+        foreach (array_chunk(array_values(array_unique($sharedIds)), self::IN_CHUNK_SIZE) as $chunk) {
+            $visible->add($qb->expr()->in(
+                'id',
+                $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)
+            ));
         }
-        $result->closeCursor();
-        return $map;
+
+        $qb->where($visible)
+            ->orderBy('updated_at', 'DESC')
+            ->addOrderBy('created_at', 'DESC')
+            // Stable final tiebreaker on the unique id so LIMIT/OFFSET paging is
+            // deterministic when notes share updated_at/created_at.
+            ->addOrderBy('id', 'DESC');
+
+        if ($limit !== null) {
+            $qb->setMaxResults($limit);
+        }
+        if ($offset !== null) {
+            $qb->setFirstResult($offset);
+        }
+
+        return $this->findEntities($qb);
     }
 
     /**
