@@ -165,23 +165,44 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+/* NcAppContent renders our #list slot into the splitpanes "list" pane, which has
+   a bounded height but overflow:hidden and lays its children out as a plain
+   block. That let the contact <ul> grow to its full content height (5000px+) and
+   never scroll. Turn the pane into a full-height flex column so the list itself
+   becomes the bounded scroll region — matching how the real Contacts app's list
+   scrolls. :deep() is required because the pane is owned by NcAppContent. */
+:deep(.splitpanes__pane-list) {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+}
+
 .crm-list-header {
 	padding: calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 3) calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 13);
 	position: sticky;
 	top: 0;
 	z-index: 1;
 	background: var(--color-main-background);
+	/* Stay pinned at the top; never shrink. */
+	flex: 0 0 auto;
 }
 
 .crm-loading { margin: calc(var(--default-grid-baseline, 4px) * 6) auto; display: block; }
 
 .crm-contacts-list {
+	/* The scroll region: take the remaining height and scroll within it.
+	   min-height:0 lets a flex child shrink below its content height so
+	   overflow can actually kick in. */
+	flex: 1 1 auto;
+	min-height: 0;
 	overflow-y: auto;
 	padding: 0 calc(var(--default-grid-baseline, 4px) * 1);
 	margin: 0;
 }
 
 .crm-contacts-hint {
+	/* Fixed footer hint below the scroll region. */
+	flex: 0 0 auto;
 	padding: calc(var(--default-grid-baseline, 4px) * 1) calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2);
 	font-size: var(--font-size-small, 13px);
 	color: var(--color-text-maxcontrast);

@@ -123,7 +123,13 @@
       "Bash(grep -n 'SORT_NEWEST\\\\|SORT_OLDEST\\\\|created_at\\\\|orderBy\\\\|addOrderBy\\\\|ASC\\\\|DESC\\\\|$sort\\\\|sortDir\\\\|direction' lib/Db/NoteMapper.php)",
       "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(class_exists\\('Sabre\\\\\\\\\\\\\\\\VObject\\\\\\\\\\\\\\\\Reader'\\)\\);\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/status.php)",
-      "Bash(chmod 644 /tmp/sortcheck.php)"
+      "Bash(chmod 644 /tmp/sortcheck.php)",
+      "Bash(node /tmp/claude-1000/-home-gagarin-code-notes/201b089e-4b17-4c99-96fa-7d77269a1f0f/scratchpad/diff.js)",
+      "Bash(node -e 'JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"l10n/de.json\"\\)\\);JSON.parse\\(require\\(\"fs\"\\).readFileSync\\(\"l10n/de_DE.json\"\\)\\);console.log\\(\"JSON valid\"\\)')",
+      "Bash(node -e 'require\\(\"./l10n/de_DE.js\"\\)')",
+      "Bash(node -e 'const OC={L10N:{register:\\(\\)=>{}}}; global.OC=OC; require\\(\"./l10n/de_DE.js\"\\); console.log\\(\"de_DE.js valid JS\"\\)')",
+      "Bash(node -e 'const OC={L10N:{register:\\(\\)=>{}}}; global.OC=OC; require\\(\"./l10n/de.js\"\\); console.log\\(\"de.js valid JS\"\\)')",
+      "Bash(echo \"exit $?\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

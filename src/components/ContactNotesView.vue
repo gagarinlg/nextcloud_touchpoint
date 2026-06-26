@@ -11,19 +11,13 @@
 				</div>
 			</div>
 			<div class="crm-header-actions">
-				<NcActions :menu-name="sortMenuName" :aria-label="t('crm_notes', 'Sort notes')">
-					<template #icon><IconSort :size="20" /></template>
-					<NcActionButton :model-value="notesStore.sort === 'newest'"
-						type="radio"
-						@click="setSort('newest')">
-						{{ t('crm_notes', 'Newest first') }}
-					</NcActionButton>
-					<NcActionButton :model-value="notesStore.sort === 'oldest'"
-						type="radio"
-						@click="setSort('oldest')">
-						{{ t('crm_notes', 'Oldest first') }}
-					</NcActionButton>
-				</NcActions>
+				<NcButton type="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
+					<template #icon>
+						<IconSortDescending v-if="notesStore.sort === 'newest'" :size="20" />
+						<IconSortAscending v-else :size="20" />
+					</template>
+					{{ sortLabel }}
+				</NcButton>
 				<NcButton type="primary" @click="notesStore.openModal(null)">
 					<template #icon><IconPlus :size="20" /></template>
 					{{ t('crm_notes', 'Add note') }}
@@ -74,12 +68,11 @@ import { withScrollPreserved } from '../utils/scroll.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
-import NcActions from '@nextcloud/vue/components/NcActions'
-import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconNote from 'vue-material-design-icons/Note.vue'
 import IconAlert from 'vue-material-design-icons/AlertCircle.vue'
-import IconSort from 'vue-material-design-icons/SortClockDescending.vue'
+import IconSortDescending from 'vue-material-design-icons/SortClockDescending.vue'
+import IconSortAscending from 'vue-material-design-icons/SortClockAscending.vue'
 import ContactAvatar from './ContactAvatar.vue'
 import NoteItem from './NoteItem.vue'
 import NoteModal from './NoteModal.vue'
@@ -100,13 +93,18 @@ const rootEl = ref(null)
 // Use computed so the displayed contact always reflects the current selection
 const contact = computed(() => contactsStore.currentContact)
 
-const sortMenuName = computed(() => notesStore.sort === 'oldest'
+// The button shows the order currently in effect; clicking flips to the other.
+const sortLabel = computed(() => notesStore.sort === 'oldest'
 	? t('crm_notes', 'Oldest first')
 	: t('crm_notes', 'Newest first'))
 
-function setSort(sort) {
-	if (notesStore.sort === sort) return
-	notesStore.setSort(sort)
+// Tell screen-reader users what the click will do, not just the current state.
+const sortAriaLabel = computed(() => notesStore.sort === 'newest'
+	? t('crm_notes', 'Sorted newest first. Click to sort oldest first.')
+	: t('crm_notes', 'Sorted oldest first. Click to sort newest first.'))
+
+function toggleSort() {
+	notesStore.setSort(notesStore.sort === 'newest' ? 'oldest' : 'newest')
 	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
 }
 
