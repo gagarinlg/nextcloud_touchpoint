@@ -2,6 +2,10 @@ OC.L10N.register(
     "crm_notes",
     {
     "Notes" : "Notizen",
+    "Show contact details" : "Kontaktdetails anzeigen",
+    "Hide contact details" : "Kontaktdetails ausblenden",
+    "Contact details unavailable" : "Kontaktdetails nicht verfügbar",
+    "The Contacts app could not render this card." : "Die Kontakte-App konnte diese Karte nicht darstellen.",
     "Add contact…" : "Kontakt hinzufügen…",
     "by {author}" : "von {author}",
     "edited {date}" : "bearbeitet {date}",

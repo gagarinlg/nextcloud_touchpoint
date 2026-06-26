@@ -25,6 +25,21 @@
 			</div>
 		</div>
 
+		<div v-if="contactsAppEnabled && contact.email" class="crm-contact-card-section">
+			<NcButton type="tertiary"
+				:aria-expanded="showCard ? 'true' : 'false'"
+				@click="showCard = !showCard">
+				<template #icon>
+					<IconChevronDown v-if="showCard" :size="20" />
+					<IconChevronRight v-else :size="20" />
+				</template>
+				{{ showCard ? t('crm_notes', 'Hide contact details') : t('crm_notes', 'Show contact details') }}
+			</NcButton>
+			<!-- Lazy: only mount the embedded Contacts card once expanded; keyed by
+			     uid so switching contacts gives a fresh mount. -->
+			<ContactCard v-if="showCard" :key="contact.uid" :email="contact.email" />
+		</div>
+
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.contactNotes.length" :size="32" />
 		<NcEmptyContent v-else-if="notesStore.contactNotesError && !notesStore.contactNotes.length"
 			:name="t('crm_notes', 'Could not load notes')"
@@ -77,11 +92,20 @@ import ContactAvatar from './ContactAvatar.vue'
 import NoteItem from './NoteItem.vue'
 import NoteModal from './NoteModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import ContactCard from './ContactCard.vue'
+import IconChevronDown from 'vue-material-design-icons/ChevronDown.vue'
+import IconChevronRight from 'vue-material-design-icons/ChevronRight.vue'
+import { loadState } from '@nextcloud/initial-state'
 import { useNotesStore } from '../stores/notes.js'
 import { useContactsStore } from '../stores/contacts.js'
 
 const notesStore = useNotesStore()
 const contactsStore = useContactsStore()
+
+// Whether the embedded contact-card integration is available (Contacts app
+// installed + its OCA bundle loaded on this page). Provided by PageController.
+const contactsAppEnabled = loadState('crm_notes', 'contactsAppEnabled', false)
+const showCard = ref(false)
 
 // Imperative handle to the declarative confirm dialog.
 const confirmDialog = ref(null)
