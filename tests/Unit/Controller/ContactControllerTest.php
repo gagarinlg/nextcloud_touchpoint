@@ -48,7 +48,7 @@ class ContactControllerTest extends TestCase {
 
         $this->contactsManager->expects($this->once())
             ->method('search')
-            ->with('', ['FN', 'EMAIL'], ['types' => true])
+            ->with('', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true])
             ->willReturn([
                 ['UID' => 'uid-1', 'FN' => 'Alice Smith', 'EMAIL' => 'alice@example.com', 'addressbook-key' => '1'],
                 ['UID' => 'uid-2', 'FN' => 'Bob Jones', 'EMAIL' => 'bob@example.com', 'addressbook-key' => '2'],
@@ -164,7 +164,7 @@ class ContactControllerTest extends TestCase {
 
         $this->contactsManager->expects($this->once())
             ->method('search')
-            ->with('alice', ['FN', 'EMAIL'], ['types' => true])
+            ->with('alice', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true])
             ->willReturn([]);
 
         $this->controller->index();
@@ -450,5 +450,74 @@ class ContactControllerTest extends TestCase {
 
         $data = $this->controller->index()->getData();
         $this->assertSame('', $data[0]['photo']);
+    }
+
+    // ── PHOTO returned as a still-serialized vCard property line (runtime bug) ──
+
+    public function testPhotoDecodesSerializedEncodingBPropertyLine(): void {
+        // The confirmed runtime bug: search() hands back the PHOTO as a raw vCard
+        // property line ("PHOTO;ENCODING=b;TYPE=PNG:<base64>") rather than decoded
+        // bytes. Sabre\VObject must decode it to the real image, not echo the
+        // ~100-byte reference string as octet-stream.
+        $png = "\x89PNG\r\n\x1a\nrealbytes";
+        $line = 'PHOTO;ENCODING=b;TYPE=PNG:' . base64_encode($png);
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => $line]]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(DataDisplayResponse::class, $result);
+        $this->assertSame(200, $result->getStatus());
+        $this->assertSame('image/png', $result->getHeaders()['Content-Type']);
+    }
+
+    public function testPhotoDecodesSerializedValueUriDataLine(): void {
+        // A "PHOTO;VALUE=uri:data:image/jpeg;base64,..." property line: the inner
+        // data: URI is decoded to the real JPEG.
+        $jpeg = "\xff\xd8\xff\xe0jpegbytes";
+        $line = 'PHOTO;VALUE=uri:data:image/jpeg;base64,' . base64_encode($jpeg);
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => $line]]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(DataDisplayResponse::class, $result);
+        $this->assertSame('image/jpeg', $result->getHeaders()['Content-Type']);
+    }
+
+    public function testPhotoReturns404ForSerializedExternalUriLine(): void {
+        // An external-URI PHOTO property line is not retrievable — 404 so the
+        // client falls back to initials cleanly.
+        $line = 'PHOTO;VALUE=uri:https://example.com/p.png';
+        $this->contactsManager->method('search')
+            ->willReturn([['UID' => 'uid', 'PHOTO' => $line]]);
+
+        $result = $this->controller->photo('uid');
+        $this->assertInstanceOf(JSONResponse::class, $result);
+        $this->assertSame(404, $result->getStatus());
+    }
+
+    // ── Contacts-app row parity: ORG + TEL exposed and flattened ──────────────
+
+    public function testIndexReturnsOrgAndPhoneFlattened(): void {
+        // ORG and TEL come back as typed structures under ['types' => true]; the
+        // API must flatten each to a scalar string (never a typed object),
+        // mirroring the firstContactValue() handling already applied to FN/EMAIL.
+        $this->request->method('getParam')->willReturn('');
+        $this->contactsManager->method('search')
+            ->willReturn([
+                [
+                    'UID' => 'uid-1',
+                    'FN' => 'Carol',
+                    'EMAIL' => '',
+                    'TEL' => [['type' => ['CELL'], 'value' => '+1 555 0100']],
+                    'ORG' => ['Acme Inc'],
+                    'addressbook-key' => '1',
+                ],
+            ]);
+
+        $data = $this->controller->index()->getData();
+        $this->assertArrayHasKey('org', $data[0]);
+        $this->assertArrayHasKey('phone', $data[0]);
+        $this->assertSame('Acme Inc', $data[0]['org']);
+        $this->assertSame('+1 555 0100', $data[0]['phone']);
     }
 }

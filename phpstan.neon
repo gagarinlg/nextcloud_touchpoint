@@ -16,12 +16,20 @@ parameters:
     # the PHPUnit bootstrap and is intentionally NOT used here.)
     scanDirectories:
         - vendor/nextcloud/ocp/OCP
+    # ContactController parses vCard PHOTO properties with Sabre\VObject, which
+    # Nextcloud bundles at runtime (3rdparty/sabre/vobject) but which is not a
+    # Composer dependency of this app. Tolerate the unresolved Sabre symbols
+    # rather than vendoring the whole library purely for static analysis — the
+    # runtime always provides it (bundled since well before NC 32).
     # The Contacts-tab integration references events from the separate Nextcloud
     # Contacts APP (not a Composer dependency of this app); tolerate the
     # unresolved symbol rather than vendoring the Contacts app for analysis.
     reportUnmatchedIgnoredErrors: false
     ignoreErrors:
         - '#OCA\\Contacts\\Event\\LoadContactsOcaApiEvent#'
+        # Sabre\VObject is provided by the Nextcloud runtime, not this app's
+        # Composer deps, so its symbols are unresolvable to static analysis.
+        - '#Sabre\\VObject#'
         # registerEventListener() is generic over the (external, unresolvable)
         # LoadContactsOcaApiEvent; without the Contacts app in scope phpstan
         # cannot prove LoadContactsTabListener is IEventListener<Event>.

@@ -397,6 +397,8 @@ namespace OCP\AppFramework\Http {
         }
         public function getData(): string { return $this->data; }
         public function getHeaders(): array { return $this->headers; }
+        // Mirror the real DataDisplayResponse, whose render() emits the raw body.
+        public function render(): string { return $this->data; }
     }
 
     class TemplateResponse extends Response {

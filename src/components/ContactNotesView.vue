@@ -1,7 +1,7 @@
 <!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
-	<div class="crm-contact-notes-view">
+	<div ref="rootEl" class="crm-contact-notes-view">
 		<div class="crm-view-header">
 			<div class="crm-contact-info">
 				<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" :size="48" />
@@ -10,10 +10,25 @@
 					<span v-if="contact.email" class="crm-contact-email">{{ contact.email }}</span>
 				</div>
 			</div>
-			<NcButton type="primary" @click="notesStore.openModal(null)">
-				<template #icon><IconPlus :size="20" /></template>
-				{{ t('crm_notes', 'Add note') }}
-			</NcButton>
+			<div class="crm-header-actions">
+				<NcActions :menu-name="sortMenuName" :aria-label="t('crm_notes', 'Sort notes')">
+					<template #icon><IconSort :size="20" /></template>
+					<NcActionButton :model-value="notesStore.sort === 'newest'"
+						type="radio"
+						@click="setSort('newest')">
+						{{ t('crm_notes', 'Newest first') }}
+					</NcActionButton>
+					<NcActionButton :model-value="notesStore.sort === 'oldest'"
+						type="radio"
+						@click="setSort('oldest')">
+						{{ t('crm_notes', 'Oldest first') }}
+					</NcActionButton>
+				</NcActions>
+				<NcButton type="primary" @click="notesStore.openModal(null)">
+					<template #icon><IconPlus :size="20" /></template>
+					{{ t('crm_notes', 'Add note') }}
+				</NcButton>
+			</div>
 		</div>
 
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.contactNotes.length" :size="32" />
@@ -47,6 +62,7 @@
 		<p class="crm-visually-hidden" aria-live="polite" role="status">{{ loadMoreStatus }}</p>
 
 		<NoteModal v-if="notesStore.showModal" :default-contact="contact" />
+		<ConfirmDialog ref="confirmDialog" />
 	</div>
 </template>
 
@@ -54,24 +70,45 @@
 import { computed, ref, watch, onMounted } from 'vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
-import { confirmDestructive } from '../utils/confirm.js'
+import { withScrollPreserved } from '../utils/scroll.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcActions from '@nextcloud/vue/components/NcActions'
+import NcActionButton from '@nextcloud/vue/components/NcActionButton'
 import IconPlus from 'vue-material-design-icons/Plus.vue'
 import IconNote from 'vue-material-design-icons/Note.vue'
 import IconAlert from 'vue-material-design-icons/AlertCircle.vue'
+import IconSort from 'vue-material-design-icons/SortClockDescending.vue'
 import ContactAvatar from './ContactAvatar.vue'
 import NoteItem from './NoteItem.vue'
 import NoteModal from './NoteModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import { useNotesStore } from '../stores/notes.js'
 import { useContactsStore } from '../stores/contacts.js'
 
 const notesStore = useNotesStore()
 const contactsStore = useContactsStore()
 
+// Imperative handle to the declarative confirm dialog.
+const confirmDialog = ref(null)
+
+// Root element, used to locate the scroll container for load-more scroll
+// preservation.
+const rootEl = ref(null)
+
 // Use computed so the displayed contact always reflects the current selection
 const contact = computed(() => contactsStore.currentContact)
+
+const sortMenuName = computed(() => notesStore.sort === 'oldest'
+	? t('crm_notes', 'Oldest first')
+	: t('crm_notes', 'Newest first'))
+
+function setSort(sort) {
+	if (notesStore.sort === sort) return
+	notesStore.setSort(sort)
+	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
+}
 
 // Live-region text announced to screen readers after "Load more" appends notes.
 const loadMoreStatus = ref('')
@@ -91,7 +128,11 @@ function reload() {
 async function onLoadMore() {
 	const before = notesStore.contactNotes.length
 	try {
-		await notesStore.loadMoreContactNotes()
+		// Appending the next page must not yank the viewport back to the top —
+		// keep the user reading where they were. Rows keep their stable
+		// :key="note.id" so only appended items mount; we still restore the
+		// scroll container's scrollTop after render. See utils/scroll.js.
+		await withScrollPreserved(rootEl.value, () => notesStore.loadMoreContactNotes())
 		const added = notesStore.contactNotes.length - before
 		if (added > 0) {
 			loadMoreStatus.value = n('crm_notes', '%n more note loaded', '%n more notes loaded', added)
@@ -102,11 +143,11 @@ async function onLoadMore() {
 }
 
 async function onDelete(note) {
-	const ok = await confirmDestructive(
-		t('crm_notes', 'Delete this note?'),
-		t('crm_notes', 'Delete note'),
-		t('crm_notes', 'Delete'),
-	)
+	const ok = await confirmDialog.value?.show({
+		message: t('crm_notes', 'Delete this note?'),
+		name: t('crm_notes', 'Delete note'),
+		confirmLabel: t('crm_notes', 'Delete'),
+	})
 	if (!ok) return
 	try {
 		await notesStore.remove(note.id, contact.value?.uid)
@@ -134,6 +175,12 @@ async function onDelete(note) {
 	display: flex;
 	align-items: center;
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
+}
+
+.crm-header-actions {
+	display: flex;
+	align-items: center;
+	gap: calc(var(--default-grid-baseline, 4px) * 1);
 }
 
 /* Promoted to h1 so the page has a level-1 heading for AT; keep the established

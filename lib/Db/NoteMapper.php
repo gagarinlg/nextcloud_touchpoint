@@ -24,28 +24,44 @@ class NoteMapper extends QBMapper {
      */
     private const IN_CHUNK_SIZE = 900;
 
+    /** Sort direction keyword: newest notes first. */
+    public const SORT_NEWEST = 'newest';
+    /** Sort direction keyword: oldest notes first. */
+    public const SORT_OLDEST = 'oldest';
+
     public function __construct(IDBConnection $db) {
         parent::__construct($db, 'crm_notes', Note::class);
     }
 
     /**
+     * Map a 'newest'|'oldest' sort keyword to the SQL ordering direction applied
+     * to created_at (and the id tiebreaker). Anything other than 'oldest' falls
+     * back to the default newest-first ('DESC').
+     */
+    private function sortDir(string $sort): string {
+        return $sort === self::SORT_OLDEST ? 'ASC' : 'DESC';
+    }
+
+    /**
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findAll(string $userId, ?int $limit = null, ?int $offset = null): array {
+    public function findAll(string $userId, ?int $limit = null, ?int $offset = null, string $sort = self::SORT_NEWEST): array {
         $qb = $this->db->getQueryBuilder();
+        $dir = $this->sortDir($sort);
 
         $qb->select('*')
             ->from($this->getTableName())
             ->where(
                 $qb->expr()->eq('user_id', $qb->createNamedParameter($userId, IQueryBuilder::PARAM_STR))
             )
-            ->orderBy('updated_at', 'DESC')
-            ->addOrderBy('created_at', 'DESC')
+            // Primary sort is creation time in the caller-chosen direction.
+            ->orderBy('created_at', $dir)
             // Stable final tiebreaker on the unique id so LIMIT/OFFSET paging is
-            // deterministic when notes share updated_at/created_at; without it
-            // tied rows can be reordered per query and duplicated/skipped across
-            // an OFFSET boundary.
-            ->addOrderBy('id', 'DESC');
+            // deterministic when notes share created_at; without it tied rows can
+            // be reordered per query and duplicated/skipped across an OFFSET
+            // boundary. Follows the same direction as created_at.
+            ->addOrderBy('id', $dir);
 
         if ($limit !== null) {
             $qb->setMaxResults($limit);
@@ -60,20 +76,22 @@ class NoteMapper extends QBMapper {
     /**
      * Return all notes regardless of owner (public mode).
      *
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findAllPublic(?int $limit = null, ?int $offset = null): array {
+    public function findAllPublic(?int $limit = null, ?int $offset = null, string $sort = self::SORT_NEWEST): array {
         $qb = $this->db->getQueryBuilder();
+        $dir = $this->sortDir($sort);
 
         $qb->select('*')
             ->from($this->getTableName())
-            ->orderBy('updated_at', 'DESC')
-            ->addOrderBy('created_at', 'DESC')
+            // Primary sort is creation time in the caller-chosen direction.
+            ->orderBy('created_at', $dir)
             // Stable final tiebreaker on the unique id so LIMIT/OFFSET paging is
-            // deterministic when notes share updated_at/created_at; without it
-            // tied rows can be reordered per query and duplicated/skipped across
-            // an OFFSET boundary.
-            ->addOrderBy('id', 'DESC');
+            // deterministic when notes share created_at; without it tied rows can
+            // be reordered per query and duplicated/skipped across an OFFSET
+            // boundary. Follows the same direction as created_at.
+            ->addOrderBy('id', $dir);
 
         if ($limit !== null) {
             $qb->setMaxResults($limit);
@@ -205,11 +223,12 @@ class NoteMapper extends QBMapper {
 
     /**
      * Load one ordered page of the notes a user can see: the notes they own
-     * unioned with the explicitly-shared id set, ordered newest-first
-     * (updated_at DESC, created_at DESC, id DESC) with the LIMIT/OFFSET window
-     * applied in SQL. This pushes the ordering and paging down to the database
-     * so a heavy user no longer loads and PHP-sorts their entire id/sort-key set
-     * on every loadMore call.
+     * unioned with the explicitly-shared id set, ordered by created_at in the
+     * caller-chosen direction (newest-first by default), with the id tiebreaker
+     * in the same direction and the LIMIT/OFFSET window applied in SQL. This
+     * pushes the ordering and paging down to the database so a heavy user no
+     * longer loads and PHP-sorts their entire id/sort-key set on every loadMore
+     * call.
      *
      * The shared id set is folded into the WHERE via an IN(...) clause. It is
      * bounded by what is shared with this user/groups; should it ever exceed a
@@ -217,10 +236,13 @@ class NoteMapper extends QBMapper {
      * groups so the single ordered+windowed query is preserved.
      *
      * @param int[] $sharedIds note ids shared with the user (may be empty)
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findAccessiblePage(string $userId, array $sharedIds, ?int $limit = null, ?int $offset = null): array {
+    public function findAccessiblePage(string $userId, array $sharedIds, ?int $limit = null, ?int $offset = null, string $sort = self::SORT_NEWEST): array {
         $qb = $this->db->getQueryBuilder();
+        $dir = $this->sortDir($sort);
+
         $qb->select('*')
             ->from($this->getTableName());
 
@@ -235,11 +257,12 @@ class NoteMapper extends QBMapper {
         }
 
         $qb->where($visible)
-            ->orderBy('updated_at', 'DESC')
-            ->addOrderBy('created_at', 'DESC')
+            // Primary sort is creation time in the caller-chosen direction.
+            ->orderBy('created_at', $dir)
             // Stable final tiebreaker on the unique id so LIMIT/OFFSET paging is
-            // deterministic when notes share updated_at/created_at.
-            ->addOrderBy('id', 'DESC');
+            // deterministic when notes share created_at. Follows the same
+            // direction as created_at.
+            ->addOrderBy('id', $dir);
 
         if ($limit !== null) {
             $qb->setMaxResults($limit);
@@ -275,19 +298,24 @@ class NoteMapper extends QBMapper {
     }
 
     /**
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findByContact(string $contactUid, ?string $userId): array {
+    public function findByContact(string $contactUid, ?string $userId, string $sort = self::SORT_NEWEST): array {
         $qb = $this->db->getQueryBuilder();
+        $dir = $this->sortDir($sort);
 
         $qb->select('*')
             ->from($this->getTableName())
             ->where(
                 $qb->expr()->eq('contact_uid', $qb->createNamedParameter($contactUid, IQueryBuilder::PARAM_STR))
             )
+            // Pinned notes always float to the top; within each pinned/unpinned
+            // group the order follows the caller-chosen creation-time direction.
             ->orderBy('is_pinned', 'DESC')
-            ->addOrderBy('updated_at', 'DESC')
-            ->addOrderBy('created_at', 'DESC');
+            ->addOrderBy('created_at', $dir)
+            // Stable final tiebreaker on the unique id, in the same direction.
+            ->addOrderBy('id', $dir);
 
         if ($userId !== null) {
             $qb->andWhere(

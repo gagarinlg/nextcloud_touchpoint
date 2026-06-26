@@ -2,8 +2,11 @@ SPDX-License-Identifier: AGPL-3.0-or-later
 SPDX-License-Identifier: GPL-3.0-or-later
 SPDX-License-Identifier: MIT
 SPDX-FileCopyrightText: @nextcloud/dialogs developers
+SPDX-FileCopyrightText: Anthony Fu <https://github.com/antfu>
 SPDX-FileCopyrightText: Antoni Andre <antoniandre.web@gmail.com>
+SPDX-FileCopyrightText: Eric Norris (https://github.com/ericnorris)
 SPDX-FileCopyrightText: Evan You
+SPDX-FileCopyrightText: Jacob Clevenger<https://github.com/wheatjs>
 SPDX-FileCopyrightText: Jeff Sagal <sagalbot@gmail.com>
 SPDX-FileCopyrightText: Nextcloud GmbH and Nextcloud contributors
 SPDX-FileCopyrightText: Rob Cresswell <robcresswell@pm.me>
@@ -11,6 +14,7 @@ SPDX-FileCopyrightText: Scott Cooper <scttcper@gmail.com>
 SPDX-FileCopyrightText: atomiks
 SPDX-FileCopyrightText: chenkai
 SPDX-FileCopyrightText: crm_notes developers
+SPDX-FileCopyrightText: ts-md5 developers
 
 This file is generated from multiple sources. Included packages:
 - @ckpack/vue-color
@@ -40,11 +44,23 @@ This file is generated from multiple sources. Included packages:
 - @nextcloud/vue
 	- version: 9.5.0
 	- license: AGPL-3.0-or-later
+- @vueuse/components
+	- version: 14.2.1
+	- license: MIT
+- @vueuse/core
+	- version: 14.2.1
+	- license: MIT
 - crm_notes
 	- version: 1.1.0
 	- license: AGPL-3.0-or-later
 - splitpanes
 	- version: 4.0.4
+	- license: MIT
+- striptags
+	- version: 3.2.0
+	- license: MIT
+- ts-md5
+	- version: 2.0.1
 	- license: MIT
 - vite
 	- version: 7.3.1

@@ -119,7 +119,7 @@ class NoteServiceTest extends TestCase {
         $n3 = new Note(); $n3->setId(3); $n3->setUserId('user1');
         $this->mapper->expects($this->once())
             ->method('findAccessiblePage')
-            ->with('user1', $this->anything(), null, null)
+            ->with('user1', $this->anything(), null, null, 'newest')
             ->willReturn([$n1, $n2, $n3]);
 
         $result = $this->service->findAll('user1');
@@ -143,7 +143,7 @@ class NoteServiceTest extends TestCase {
         $n2 = new Note(); $n2->setId(2); $n2->setUserId('owner');
         $this->mapper->expects($this->once())
             ->method('findAccessiblePage')
-            ->with('user1', [2], 2, 0)
+            ->with('user1', [2], 2, 0, 'newest')
             ->willReturn([$n1, $n2]);
 
         $result = $this->makeService()->findAll('user1', 2, 0);
@@ -215,8 +215,8 @@ class NoteServiceTest extends TestCase {
                 $keys = [];
                 foreach ($ids as $id) {
                     $keys[$id] = [
-                        'updated_at' => sprintf('2026-06-0%d 10:00:00', $id),
-                        'created_at' => null,
+                        'updated_at' => null,
+                        'created_at' => sprintf('2026-06-0%d 10:00:00', $id),
                         'is_pinned' => false,
                     ];
                 }
@@ -229,7 +229,8 @@ class NoteServiceTest extends TestCase {
 
         $result = $this->service->findByContact('contact-123', 'user1');
         $this->assertCount(2, $result);
-        // Ordered by updated_at desc: note 2 (06-02) before note 1 (06-01).
+        // Default newest-first ordering on created_at: note 2 (06-02) before
+        // note 1 (06-01).
         $this->assertSame(2, $result[0]->getId());
         $this->assertSame(1, $result[1]->getId());
     }
@@ -253,8 +254,8 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
                 $all = [
-                    1 => ['updated_at' => '2026-01-01 00:00:00', 'created_at' => null, 'is_pinned' => true],
-                    2 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    1 => ['updated_at' => null, 'created_at' => '2026-01-01 00:00:00', 'is_pinned' => true],
+                    2 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
                 ];
                 $keys = [];
                 foreach ($ids as $id) {
@@ -286,9 +287,9 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
                 $all = [
-                    1 => ['updated_at' => '2026-06-03 00:00:00', 'created_at' => null, 'is_pinned' => false],
-                    2 => ['updated_at' => '2026-06-02 00:00:00', 'created_at' => null, 'is_pinned' => false],
-                    3 => ['updated_at' => '2026-06-01 00:00:00', 'created_at' => null, 'is_pinned' => false],
+                    1 => ['updated_at' => null, 'created_at' => '2026-06-03 00:00:00', 'is_pinned' => false],
+                    2 => ['updated_at' => null, 'created_at' => '2026-06-02 00:00:00', 'is_pinned' => false],
+                    3 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
                 ];
                 $keys = [];
                 foreach ($ids as $id) {
@@ -310,6 +311,40 @@ class NoteServiceTest extends TestCase {
         $result = $this->service->findByContact('c', 'user1', 1, 1);
         $this->assertCount(1, $result);
         $this->assertSame(2, $result[0]->getId());
+    }
+
+    public function testFindByContactOldestSortReversesOrder(): void {
+        // With sort 'oldest' the created_at ordering flips to ascending, so the
+        // oldest note comes first — while pinned-first is unaffected.
+        $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
+        $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
+        $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2]);
+        $this->mapper->method('findByContact')->willReturn([]);
+
+        $this->mapper->method('findSortKeysByIds')->willReturnCallback(
+            function (array $ids) {
+                $all = [
+                    1 => ['updated_at' => null, 'created_at' => '2026-01-01 00:00:00', 'is_pinned' => false],
+                    2 => ['updated_at' => null, 'created_at' => '2026-06-01 00:00:00', 'is_pinned' => false],
+                ];
+                $keys = [];
+                foreach ($ids as $id) {
+                    if (isset($all[$id])) {
+                        $keys[$id] = $all[$id];
+                    }
+                }
+                return $keys;
+            }
+        );
+        $n1 = new Note(); $n1->setId(1); $n1->setUserId('user1');
+        $n2 = new Note(); $n2->setId(2); $n2->setUserId('user1');
+        $this->mapper->method('findByIds')->willReturn([$n1, $n2]);
+
+        $result = $this->service->findByContact('c', 'user1', null, null, 'oldest');
+        $this->assertCount(2, $result);
+        // Oldest-first: note 1 (Jan) before note 2 (Jun).
+        $this->assertSame(1, $result[0]->getId());
+        $this->assertSame(2, $result[1]->getId());
     }
 
     public function testFindByContactRecoversLegacySharedNote(): void {

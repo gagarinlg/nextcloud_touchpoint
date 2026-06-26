@@ -7,18 +7,22 @@ import { generateUrl } from '@nextcloud/router'
 
 const baseUrl = generateUrl('/apps/crm_notes/api/notes')
 
-export async function getAllNotes(limit, offset) {
+export async function getAllNotes(limit, offset, sort) {
 	const params = {}
 	if (limit != null) params.limit = limit
 	if (offset != null) params.offset = offset
+	// Only send a sort when it differs from the server default ('newest'); the
+	// backend validates the value to newest|oldest regardless.
+	if (sort === 'oldest') params.sort = sort
 	const { data } = await axios.get(baseUrl, { params })
 	return data
 }
 
-export async function getNotesByContact(contactUid, limit, offset) {
+export async function getNotesByContact(contactUid, limit, offset, sort) {
 	const params = {}
 	if (limit != null) params.limit = limit
 	if (offset != null) params.offset = offset
+	if (sort === 'oldest') params.sort = sort
 	const { data } = await axios.get(`${baseUrl}/contact/${encodeURIComponent(contactUid)}`, { params })
 	return data
 }

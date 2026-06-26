@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\CrmNotes\Controller;
 
 use OCA\CrmNotes\AppInfo\Application;
+use OCA\CrmNotes\Db\NoteMapper;
 use OCA\CrmNotes\Service\NoteService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -31,6 +32,19 @@ class NoteController extends Controller {
         parent::__construct(Application::APP_ID, $request);
     }
 
+    /**
+     * Read and validate the optional 'sort' query parameter, mapping anything
+     * other than the explicit 'oldest' keyword to the default newest-first.
+     * Centralised so index() and byContact() validate identically and a bogus
+     * value can never reach the service/mapper as a raw SQL direction.
+     */
+    private function getSortParam(): string {
+        $sort = (string) $this->request->getParam('sort', NoteMapper::SORT_NEWEST);
+        return $sort === NoteMapper::SORT_OLDEST
+            ? NoteMapper::SORT_OLDEST
+            : NoteMapper::SORT_NEWEST;
+    }
+
     #[NoAdminRequired]
     public function index(): JSONResponse {
         return $this->handleNotFound(function () {
@@ -47,7 +61,7 @@ class NoteController extends Controller {
             $limitInt  = max(1, min((int)($limit ?? 50), 200));
             $offsetInt = max(0, (int)($offset ?? 0));
 
-            return $this->noteService->findAll($this->getUserId(), $limitInt, $offsetInt);
+            return $this->noteService->findAll($this->getUserId(), $limitInt, $offsetInt, $this->getSortParam());
         });
     }
 
@@ -74,6 +88,7 @@ class NoteController extends Controller {
                 $this->getUserId(),
                 $limitInt,
                 $offsetInt,
+                $this->getSortParam(),
             );
         });
     }

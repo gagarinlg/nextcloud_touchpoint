@@ -18,6 +18,10 @@ export const useNotesStore = defineStore('notes', {
 		// Contact UID the loaded contactNotes page belongs to, so loadMore can
 		// keep paging the right contact.
 		contactNotesUid: null,
+		// Sort direction for both the all-notes and contact-notes lists:
+		// 'newest' (created_at descending, default) or 'oldest' (ascending).
+		// Threaded to the API; defaults to newest on each load.
+		sort: 'newest',
 		loading: false,
 		loadingMore: false,
 		// True while save() has network calls in flight, so the modal's Save
@@ -35,13 +39,18 @@ export const useNotesStore = defineStore('notes', {
 		removedFileIds: [], // noteFileId values to remove on save
 	}),
 	actions: {
+		// Switch the sort direction. Validates to the two supported values so a
+		// stray value can never be sent to the API; callers re-load afterwards.
+		setSort(sort) {
+			this.sort = sort === 'oldest' ? 'oldest' : 'newest'
+		},
 		async loadAll() {
 			this.loading = true
 			this.allNotesError = false
 			this.allNotesOffset = 0
 			this.allNotesHasMore = false
 			try {
-				const notes = await NoteService.getAllNotes(PAGE_SIZE, 0)
+				const notes = await NoteService.getAllNotes(PAGE_SIZE, 0, this.sort)
 				this.allNotes = notes
 				this.allNotesOffset = notes.length
 				this.allNotesHasMore = notes.length === PAGE_SIZE
@@ -56,7 +65,7 @@ export const useNotesStore = defineStore('notes', {
 			if (!this.allNotesHasMore || this.loading || this.loadingMore) return
 			this.loadingMore = true
 			try {
-				const notes = await NoteService.getAllNotes(PAGE_SIZE, this.allNotesOffset)
+				const notes = await NoteService.getAllNotes(PAGE_SIZE, this.allNotesOffset, this.sort)
 				this.allNotes.push(...notes)
 				this.allNotesOffset += notes.length
 				this.allNotesHasMore = notes.length === PAGE_SIZE
@@ -71,7 +80,7 @@ export const useNotesStore = defineStore('notes', {
 			this.contactNotesOffset = 0
 			this.contactNotesHasMore = false
 			try {
-				const notes = await NoteService.getNotesByContact(uid, PAGE_SIZE, 0)
+				const notes = await NoteService.getNotesByContact(uid, PAGE_SIZE, 0, this.sort)
 				this.contactNotes = notes
 				this.contactNotesOffset = notes.length
 				this.contactNotesHasMore = notes.length === PAGE_SIZE
@@ -90,6 +99,7 @@ export const useNotesStore = defineStore('notes', {
 					this.contactNotesUid,
 					PAGE_SIZE,
 					this.contactNotesOffset,
+					this.sort,
 				)
 				this.contactNotes.push(...notes)
 				this.contactNotesOffset += notes.length

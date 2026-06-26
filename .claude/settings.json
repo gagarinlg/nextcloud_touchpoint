@@ -109,11 +109,24 @@
       "Bash(awk 'NR==8' appinfo/info.xml)",
       "Bash(grep -iE \"select.*\\\\.\\\\s*\\\\\\\\\\\\$|where.*=.*\\\\\\\\\\\\$[a-z]\")",
       "Bash(break)",
-      "Bash(chmod 644 /tmp/emailcheck.php)"
+      "Bash(chmod 644 /tmp/emailcheck.php)",
+      "Bash(curl -s -u admin:admin \"http://localhost/index.php/apps/crm_notes/api/contacts/admin/photo\")",
+      "Bash(curl -s -u admin:admin -D - -o /dev/null \"http://localhost/index.php/apps/crm_notes/api/contacts/admin/photo\")",
+      "Bash(node -e ' *)",
+      "Bash(pkill -f \"playwright test\")",
+      "Bash(rm -f e2e/zz-*.spec.js)",
+      "Bash(cd /home/gagarin/code/notes; rm -f e2e/zz-*.spec.js 2>/dev/null; echo \"=== e2e spec files ===\"; ls -1 e2e/*.spec.js; echo \"=== helpers ===\"; ls -1 e2e/helpers.js 2>/dev/null; echo \"=== UX screenshots ===\"; ls -1 e2e/screenshots/ux/ 2>/dev/null || echo \"\\(none\\)\")",
+      "Bash(php -r \"require 'tests/bootstrap.php'; var_dump\\(class_exists\\('Sabre\\\\\\\\\\\\\\\\VObject\\\\\\\\\\\\\\\\Reader'\\)\\);\")",
+      "Bash(php -r '$j=json_decode\\(file_get_contents\\(\"/var/www/html/3rdparty/composer/installed.json\"\\),true\\); foreach\\(\\($j[\"packages\"]??$j\\) as $p\\){ if\\(\\($p[\"name\"]??\"\"\\)===\"sabre/vobject\"\\) echo $p[\"version\"].\"\\\\n\"; }')",
+      "Bash(awk '/public function findAll\\\\\\(/{f=1} f{print NR\": \"$0} /^    }$/{if\\(f\\){c++; if\\(c>=1\\){exit}}}' lib/Service/NoteService.php)",
+      "Bash(awk '/function findAccessiblePage\\\\\\(/{f=1} f{print NR\": \"$0} /return \\\\$this->findEntities/{if\\(f\\){exit}}' lib/Db/NoteMapper.php)",
+      "Bash(grep -n 'SORT_NEWEST\\\\|SORT_OLDEST\\\\|created_at\\\\|orderBy\\\\|addOrderBy\\\\|ASC\\\\|DESC\\\\|$sort\\\\|sortDir\\\\|direction' lib/Db/NoteMapper.php)",
+      "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(class_exists\\('Sabre\\\\\\\\\\\\\\\\VObject\\\\\\\\\\\\\\\\Reader'\\)\\);\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",
-      "/var/www/html/LICENSES"
+      "/var/www/html/LICENSES",
+      "/home/gagarin/code/notes/e2e"
     ]
   }
 }

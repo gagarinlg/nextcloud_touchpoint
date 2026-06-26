@@ -248,11 +248,24 @@ class NoteService {
     }
 
     /**
+     * Normalise an arbitrary caller-supplied sort keyword to one of the two
+     * supported values, defaulting to newest-first. Keeps validation in one
+     * place so every entry point (findAll, findByContact) is consistent.
+     */
+    private function normaliseSort(string $sort): string {
+        return $sort === NoteMapper::SORT_OLDEST
+            ? NoteMapper::SORT_OLDEST
+            : NoteMapper::SORT_NEWEST;
+    }
+
+    /**
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findAll(string $userId, ?int $limit = null, ?int $offset = null): array {
+    public function findAll(string $userId, ?int $limit = null, ?int $offset = null, string $sort = NoteMapper::SORT_NEWEST): array {
+        $sort = $this->normaliseSort($sort);
         if ($this->settingsService->isNotesPublic()) {
-            $notes = $this->mapper->findAllPublic($limit, $offset);
+            $notes = $this->mapper->findAllPublic($limit, $offset, $sort);
             return $this->enrichNotes($notes, $userId);
         }
 
@@ -265,7 +278,7 @@ class NoteService {
         $groupIds  = $this->settingsService->getUserGroupIds($userId);
         $sharedIds = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
 
-        $page = $this->mapper->findAccessiblePage($userId, $sharedIds, $limit, $offset);
+        $page = $this->mapper->findAccessiblePage($userId, $sharedIds, $limit, $offset, $sort);
 
         return $this->enrichNotes($page, $userId);
     }
@@ -317,11 +330,13 @@ class NoteService {
      *
      * @param int|null $limit  page size; clamped to [1, MAX_CONTACT_PAGE_SIZE]
      * @param int|null $offset window offset; clamped to [0, ∞)
+     * @param string $sort 'newest' (created_at DESC, default) or 'oldest' (created_at ASC)
      * @return Note[]
      */
-    public function findByContact(string $contactUid, string $userId, ?int $limit = null, ?int $offset = null): array {
+    public function findByContact(string $contactUid, string $userId, ?int $limit = null, ?int $offset = null, string $sort = NoteMapper::SORT_NEWEST): array {
         $limit  = max(1, min($limit ?? self::DEFAULT_CONTACT_PAGE_SIZE, self::MAX_CONTACT_PAGE_SIZE));
         $offset = max(0, $offset ?? 0);
+        $oldestFirst = $this->normaliseSort($sort) === NoteMapper::SORT_OLDEST;
 
         $isPublic = $this->settingsService->isNotesPublic();
 
@@ -377,20 +392,23 @@ class NoteService {
             return [];
         }
 
-        // Order: pinned first, then updated_at desc, created_at desc, id desc.
+        // Order: pinned first, then created_at in the caller-chosen direction
+        // (newest- or oldest-first), with the unique id as the final tiebreaker
+        // in the same direction. Mirrors NoteMapper::findByContact() so the
+        // contact panel orders the same way the all-notes views do.
         $ordered = array_keys($sortKeys);
-        usort($ordered, function (int $a, int $b) use ($sortKeys) {
+        usort($ordered, function (int $a, int $b) use ($sortKeys, $oldestFirst) {
             $aPinned = $sortKeys[$a]['is_pinned'] ?? false;
             $bPinned = $sortKeys[$b]['is_pinned'] ?? false;
             if ($aPinned !== $bPinned) {
                 return $bPinned ? 1 : -1;
             }
-            $aKey = $sortKeys[$a]['updated_at'] ?? $sortKeys[$a]['created_at'] ?? '';
-            $bKey = $sortKeys[$b]['updated_at'] ?? $sortKeys[$b]['created_at'] ?? '';
+            $aKey = $sortKeys[$a]['created_at'] ?? '';
+            $bKey = $sortKeys[$b]['created_at'] ?? '';
             if ($aKey === $bKey) {
-                return $b <=> $a;
+                return $oldestFirst ? ($a <=> $b) : ($b <=> $a);
             }
-            return $bKey <=> $aKey;
+            return $oldestFirst ? ($aKey <=> $bKey) : ($bKey <=> $aKey);
         });
 
         // Slice the requested window, then load and enrich only that page.

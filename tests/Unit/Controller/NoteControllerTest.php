@@ -55,7 +55,7 @@ class NoteControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('findAll')
-            ->with('testuser', 50, 0)
+            ->with('testuser', 50, 0, 'newest')
             ->willReturn($notes);
 
         $result = $this->controller->index();
@@ -73,7 +73,7 @@ class NoteControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('findAll')
-            ->with('testuser', 10, 5)
+            ->with('testuser', 10, 5, 'newest')
             ->willReturn([]);
 
         $result = $this->controller->index();
@@ -90,7 +90,7 @@ class NoteControllerTest extends TestCase {
         // offset defaults to 0 when absent.
         $this->service->expects($this->once())
             ->method('findAll')
-            ->with('testuser', 20, 0)
+            ->with('testuser', 20, 0, 'newest')
             ->willReturn([]);
 
         $this->controller->index();
@@ -107,7 +107,7 @@ class NoteControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('findAll')
-            ->with('testuser', 200, 0)
+            ->with('testuser', 200, 0, 'newest')
             ->willReturn([]);
 
         $this->controller->index();
@@ -125,10 +125,58 @@ class NoteControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('findAll')
-            ->with('testuser', 1, 0)
+            ->with('testuser', 1, 0, 'newest')
             ->willReturn([]);
 
         $this->controller->index();
+    }
+
+    public function testIndexPassesOldestSort(): void {
+        // ?sort=oldest is forwarded to the service verbatim.
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'sort' => 'oldest',
+                default => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('findAll')
+            ->with('testuser', 50, 0, 'oldest')
+            ->willReturn([]);
+
+        $this->controller->index();
+    }
+
+    public function testIndexRejectsInvalidSort(): void {
+        // Any value other than 'oldest' is normalised to the 'newest' default, so
+        // a bogus ?sort never reaches the service (and never the SQL direction).
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'sort' => 'sideways; DROP TABLE',
+                default => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('findAll')
+            ->with('testuser', 50, 0, 'newest')
+            ->willReturn([]);
+
+        $this->controller->index();
+    }
+
+    public function testByContactPassesOldestSort(): void {
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'sort' => 'oldest',
+                default => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('findByContact')
+            ->with('contact-uid', 'testuser', null, null, 'oldest')
+            ->willReturn([]);
+
+        $this->controller->byContact('contact-uid');
     }
 
     public function testShow(): void {
@@ -161,7 +209,7 @@ class NoteControllerTest extends TestCase {
         $notes = [new Note()];
         $this->service->expects($this->once())
             ->method('findByContact')
-            ->with('contact-uid', 'testuser', null, null)
+            ->with('contact-uid', 'testuser', null, null, 'newest')
             ->willReturn($notes);
 
         $result = $this->controller->byContact('contact-uid');
@@ -180,7 +228,7 @@ class NoteControllerTest extends TestCase {
 
         $this->service->expects($this->once())
             ->method('findByContact')
-            ->with('contact-uid', 'testuser', 25, 50)
+            ->with('contact-uid', 'testuser', 25, 50, 'newest')
             ->willReturn([]);
 
         $result = $this->controller->byContact('contact-uid');

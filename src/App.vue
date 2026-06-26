@@ -62,9 +62,11 @@
 						:active="isSelected(contact)"
 						@click="contactsStore.select(contact)">
 						<template #icon>
-							<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" />
+							<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" :size="44" />
 						</template>
-						<template #subname>{{ contact.email }}</template>
+						<!-- Match the Contacts app's list row subline: the email, or the
+						     first phone number when there is no email. -->
+						<template #subname>{{ contactSubline(contact) }}</template>
 					</NcListItem>
 				</ul>
 				<p v-if="hiddenContactCount > 0" class="crm-contacts-hint">
@@ -140,6 +142,13 @@ function focusContactSearch() {
 
 function isSelected(contact) {
 	return contactsStore.currentContact?.uid === contact.uid
+}
+
+// The Contacts app's list row shows the email as the subline, falling back to
+// the first phone number when the contact has no email. Mirror that here so our
+// list reads the same way.
+function contactSubline(contact) {
+	return contact.email || contact.phone || ''
 }
 
 function onHideDetails() {

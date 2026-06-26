@@ -18,6 +18,8 @@ use OCP\Contacts\IManager;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use Sabre\VObject\Property\Binary;
+use Sabre\VObject\Reader;
 
 class ContactController extends Controller {
 
@@ -87,11 +89,19 @@ class ContactController extends Controller {
     #[NoAdminRequired]
     public function index(): JSONResponse {
         $term = (string) $this->request->getParam('term', '');
-        // Ask the contacts manager for the PHOTO property too, so we can decide
-        // photo availability from the search result itself rather than a query
-        // keyed only on the caller's own address books. This lets contacts living
-        // in shared/group address books (which search() returns) get photos too.
-        $results = $this->contactsManager->search($term, ['FN', 'EMAIL'], ['types' => true]);
+        // Ask the contacts manager for the same vCard properties the Contacts app
+        // renders for a list row — FN (display name), EMAIL and TEL (the Contacts
+        // app's row subline is email, falling back to the first phone number) and
+        // ORG (organisation) — plus PHOTO so we can decide photo availability from
+        // the search result itself rather than a query keyed only on the caller's
+        // own address books. This lets contacts living in shared/group address
+        // books (which search() returns) get photos too. Searching these extra
+        // fields also matches the Contacts app, which searches name/org/email/etc.
+        $results = $this->contactsManager->search(
+            $term,
+            ['FN', 'EMAIL', 'TEL', 'ORG'],
+            ['types' => true]
+        );
 
         $contacts = [];
         foreach ($results as $entry) {
@@ -106,6 +116,12 @@ class ContactController extends Controller {
             // string — otherwise the client renders the raw object ("JSON" under
             // the name) and the contact filter throws calling .toLowerCase() on it.
             $email = $this->firstContactValue($entry['EMAIL'] ?? '');
+            // TEL and ORG come back as the same typed structures as EMAIL/FN under
+            // ['types' => true]; flatten each to a scalar so the API never emits a
+            // typed object (which the client would render as raw JSON / crash the
+            // filter's .toLowerCase()).
+            $phone = $this->firstContactValue($entry['TEL'] ?? '');
+            $org   = $this->firstContactValue($entry['ORG'] ?? '');
 
             // Use a photo URL only if this contact actually carries a PHOTO in any
             // address book the user can read (own or shared).
@@ -121,6 +137,11 @@ class ContactController extends Controller {
                 'uid' => $uid,
                 'name' => $this->firstContactValue($entry['FN'] ?? ''),
                 'email' => $email,
+                // Phone (first TEL) and organisation (ORG): the Contacts app shows
+                // the email — or, when there is none, the first phone number — as a
+                // row's subline, and uses ORG elsewhere. Both are flattened scalars.
+                'phone' => $phone,
+                'org' => $org,
                 'photo' => $photoUrl,
                 'addressbookKey' => $entry['addressbook-key'] ?? '',
                 // Whether this entry is a real Nextcloud user account (lives in the
@@ -257,6 +278,26 @@ class ContactController extends Controller {
             return null;
         }
 
+        // Runtime bug fix: IManager::search() can hand back the PHOTO as a raw,
+        // still-serialized vCard property line (e.g.
+        //   "PHOTO;ENCODING=b;TYPE=JPEG:/9j/4AAQ..."  or
+        //   "PHOTO;VALUE=uri:data:image/png;base64,iVBOR...")
+        // rather than a clean value. Feeding that literal string to the browser as
+        // octet-stream is exactly the ~100-byte "PHOTO;VALUE=uri:..." breakage that
+        // made every photo contact fall back to initials. When the value still
+        // carries the property name, hand it to Sabre\VObject — which bundles with
+        // Nextcloud — to decode it properly (base64 ENCODING=b becomes a Binary
+        // property whose getValue() is the raw image bytes) instead of hand-rolling
+        // the vCard grammar.
+        if (preg_match('/^PHOTO[;:]/i', $value)) {
+            // The vCard parser is authoritative for a serialized property line:
+            // whatever it returns (decoded image bytes, or null for an external/
+            // unparseable URI) is the answer. We must NOT fall through to the
+            // value-based parsing below, or the literal "PHOTO;VALUE=uri:..."
+            // string would be mis-served as octet-stream — the exact bug we fix.
+            return $this->parsePhotoViaVObject($value);
+        }
+
         // vCard 4.0 data: URI value. Per RFC 2397 the syntax is
         //   data:[<mediatype>][;base64],<data>
         // where <mediatype> may carry any number of ';param=value' segments and
@@ -316,6 +357,62 @@ class ContactController extends Controller {
         }
 
         return [$this->detectMime($binary), $binary];
+    }
+
+    /**
+     * Decode a still-serialized vCard PHOTO property line with Sabre\VObject.
+     *
+     * The line is wrapped in a minimal vCard so the bundled parser can apply the
+     * proper vCard semantics: an embedded base64 photo (ENCODING=b / vCard 4.0
+     * inline binary) is exposed as a Binary property whose getValue() returns the
+     * decoded raw bytes, from which we sniff the MIME. A data:/http(s) URI value
+     * is routed back through the value-based parser (data: URIs are decoded,
+     * external URIs are refused with null so the client falls back cleanly).
+     *
+     * @return array{string, string}|null  [mimeType, binaryData] or null
+     */
+    private function parsePhotoViaVObject(string $propertyLine): ?array {
+        // Fold any continuation, then wrap in the smallest valid vCard.
+        $card = "BEGIN:VCARD\r\nVERSION:3.0\r\n" . $propertyLine . "\r\nEND:VCARD\r\n";
+        try {
+            $doc = Reader::read($card, Reader::OPTION_FORGIVING);
+        } catch (\Throwable $e) {
+            $this->logger->debug('CRM Notes: could not parse PHOTO vCard line', ['exception' => $e]);
+            return null;
+        }
+
+        if (!isset($doc->PHOTO)) {
+            return null;
+        }
+        $photo = $doc->PHOTO;
+
+        // A vCard-4.0 inline 'data:' URI is a value, not an ENCODING=b binary;
+        // some Sabre versions still surface it as a Binary and would then
+        // base64-decode the whole "data:image/...;base64,..." string into garbage.
+        // Detect the data: URI in the raw line and decode it through the
+        // (correct) value parser instead.
+        if (preg_match('/:\s*(data:[^\r\n]+)$/i', $propertyLine, $m)) {
+            return $this->parsePhotoValue(trim($m[1]));
+        }
+
+        // Embedded binary (base64 ENCODING=b): Sabre exposes the decoded raw
+        // bytes directly via the Binary property.
+        if ($photo instanceof Binary) {
+            $binary = (string) $photo->getValue();
+            if ($binary === '' || strlen($binary) > self::MAX_PHOTO_BYTES) {
+                return null;
+            }
+            return [$this->detectMime($binary), $binary];
+        }
+
+        // Otherwise the value is a URI string (data: or external). Re-run it
+        // through the value parser so a data: URI is decoded and an external URI
+        // is refused — but guard against recursing back into this method.
+        $inner = trim((string) $photo->getValue());
+        if ($inner === '' || preg_match('/^PHOTO[;:]/i', $inner)) {
+            return null;
+        }
+        return $this->parsePhotoValue($inner);
     }
 
     private function looksLikeBase64(string $value): bool {

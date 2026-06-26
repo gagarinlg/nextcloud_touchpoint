@@ -47,34 +47,37 @@ class NoteMapperTest extends TestCase {
     public function testFindAllBuildsQuery(): void {
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
         $this->qb->expects($this->once())->method('from')->with('crm_notes')->willReturnSelf();
-        // Notes are ordered by updated_at first, then created_at, then a stable
-        // id tiebreaker so LIMIT/OFFSET paging is deterministic.
-        $this->qb->expects($this->once())->method('orderBy')->with('updated_at', 'DESC')->willReturnSelf();
-        $addOrderByArgs = [];
-        $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
-                $addOrderByArgs[] = [$col, $dir];
-                return $this->qb;
-            });
+        // Default sort: created_at is the primary key, descending (newest first),
+        // followed by the stable id tiebreaker so LIMIT/OFFSET paging is
+        // deterministic.
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'DESC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'DESC')->willReturnSelf();
 
         $this->mapper->findAll('user1');
+    }
 
-        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
+    public function testFindAllOldestSortAscends(): void {
+        // 'oldest' flips both the primary created_at key and the id tiebreaker
+        // to ascending.
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'ASC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'ASC')->willReturnSelf();
+
+        $this->mapper->findAll('user1', null, null, NoteMapper::SORT_OLDEST);
     }
 
     public function testFindAllPublicHasStableIdTiebreaker(): void {
-        $addOrderByArgs = [];
-        $this->qb->expects($this->once())->method('orderBy')->with('updated_at', 'DESC')->willReturnSelf();
-        $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
-                $addOrderByArgs[] = [$col, $dir];
-                return $this->qb;
-            });
+        // Default newest-first: created_at DESC primary, id DESC tiebreaker.
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'DESC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'DESC')->willReturnSelf();
 
         $this->mapper->findAllPublic();
+    }
 
-        // The final tiebreaker on the unique id keeps public-mode paging stable.
-        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
+    public function testFindAllPublicOldestSortAscends(): void {
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'ASC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'ASC')->willReturnSelf();
+
+        $this->mapper->findAllPublic(null, null, NoteMapper::SORT_OLDEST);
     }
 
     public function testFindAllPublicWithLimitAndOffset(): void {
@@ -121,12 +124,34 @@ class NoteMapperTest extends TestCase {
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
         $this->qb->expects($this->once())->method('where')->willReturnSelf();
         $this->qb->expects($this->once())->method('andWhere')->willReturnSelf();
+        // Pinned notes float to the top; within each group the order is
+        // created_at (default DESC) then the id tiebreaker in the same direction.
         $this->qb->expects($this->once())->method('orderBy')->with('is_pinned', 'DESC')->willReturnSelf();
-        // First addOrderBy is updated_at, then created_at.
+        $addOrderByArgs = [];
         $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnSelf();
+            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
+                $addOrderByArgs[] = [$col, $dir];
+                return $this->qb;
+            });
 
         $this->mapper->findByContact('uid-123', 'user1');
+
+        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
+    }
+
+    public function testFindByContactOldestSortAscends(): void {
+        $this->qb->expects($this->once())->method('orderBy')->with('is_pinned', 'DESC')->willReturnSelf();
+        $addOrderByArgs = [];
+        $this->qb->expects($this->exactly(2))->method('addOrderBy')
+            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
+                $addOrderByArgs[] = [$col, $dir];
+                return $this->qb;
+            });
+
+        $this->mapper->findByContact('uid-123', 'user1', NoteMapper::SORT_OLDEST);
+
+        // Pinned-first is preserved; created_at + id tiebreaker flip to ASC.
+        $this->assertSame([['created_at', 'ASC'], ['id', 'ASC']], $addOrderByArgs);
     }
 
     public function testFindByContactUsesCorrectParams(): void {
@@ -246,19 +271,15 @@ class NoteMapperTest extends TestCase {
         $this->expr->method('in')->willReturn('in_expr');
 
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
-        $this->qb->expects($this->once())->method('orderBy')->with('updated_at', 'DESC')->willReturnSelf();
-        $addOrderByArgs = [];
-        $this->qb->expects($this->exactly(2))->method('addOrderBy')
-            ->willReturnCallback(function (string $col, string $dir) use (&$addOrderByArgs) {
-                $addOrderByArgs[] = [$col, $dir];
-                return $this->qb;
-            });
+        // created_at is now the primary sort (descending by default), with the id
+        // tiebreaker as the single addOrderBy.
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'DESC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'DESC')->willReturnSelf();
         $this->qb->expects($this->once())->method('setMaxResults')->with(25)->willReturnSelf();
         $this->qb->expects($this->once())->method('setFirstResult')->with(50)->willReturnSelf();
 
         $this->mapper->findAccessiblePage('user1', [2, 5], 25, 50);
 
-        $this->assertSame([['created_at', 'DESC'], ['id', 'DESC']], $addOrderByArgs);
         // One owned-eq branch (added at orX construction) plus one IN(...) branch
         // for the single shared-id chunk.
         $this->assertSame(1, $orX->added, 'Shared-id IN(...) branch must be OR-added once');
@@ -269,6 +290,24 @@ class NoteMapperTest extends TestCase {
      * (900) into chunked OR(IN ...) groups so the single ordered+windowed query
      * is preserved. 2000 shared ids => 3 IN-branch additions.
      */
+    public function testFindAccessiblePageOldestSortAscends(): void {
+        $orX = new class {
+            public int $added = 0;
+            public function add($x): void {
+                $this->added++;
+            }
+        };
+        $this->expr->method('orX')->willReturn($orX);
+        $this->expr->method('in')->willReturn('in_expr');
+
+        // 'oldest' flips both the created_at primary key and the id tiebreaker
+        // to ascending.
+        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'ASC')->willReturnSelf();
+        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'ASC')->willReturnSelf();
+
+        $this->mapper->findAccessiblePage('user1', [2, 5], 25, 50, NoteMapper::SORT_OLDEST);
+    }
+
     public function testFindAccessiblePageChunksLargeSharedIdSet(): void {
         $orX = new class {
             public int $added = 0;

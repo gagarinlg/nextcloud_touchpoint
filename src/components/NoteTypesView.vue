@@ -48,13 +48,14 @@
 		</div>
 
 		<NoteTypeModal v-if="noteTypesStore.showModal" />
+		<ConfirmDialog ref="confirmDialog" />
 	</div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
-import { confirmDestructive } from '../utils/confirm.js'
 import NcButton from '@nextcloud/vue/components/NcButton'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
@@ -65,9 +66,13 @@ import IconAlert from 'vue-material-design-icons/AlertCircle.vue'
 import IconLabel from 'vue-material-design-icons/Label.vue'
 import NoteTypeModal from './NoteTypeModal.vue'
 import NoteTypeBadge from './NoteTypeBadge.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import { useNoteTypesStore } from '../stores/noteTypes.js'
 
 const noteTypesStore = useNoteTypesStore()
+
+// Imperative handle to the declarative confirm dialog.
+const confirmDialog = ref(null)
 
 async function onDelete(type) {
 	// Look up how many of the user's notes still use this type so we can warn
@@ -90,11 +95,11 @@ async function onDelete(type) {
 		return
 	}
 
-	const ok = await confirmDestructive(
-		t('crm_notes', 'Delete this note type? Notes using it will lose their type.'),
-		t('crm_notes', 'Delete note type'),
-		t('crm_notes', 'Delete'),
-	)
+	const ok = await confirmDialog.value?.show({
+		message: t('crm_notes', 'Delete this note type? Notes using it will lose their type.'),
+		name: t('crm_notes', 'Delete note type'),
+		confirmLabel: t('crm_notes', 'Delete'),
+	})
 	if (!ok) return
 	try {
 		await noteTypesStore.remove(type.id)
