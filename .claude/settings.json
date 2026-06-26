@@ -121,7 +121,9 @@
       "Bash(awk '/public function findAll\\\\\\(/{f=1} f{print NR\": \"$0} /^    }$/{if\\(f\\){c++; if\\(c>=1\\){exit}}}' lib/Service/NoteService.php)",
       "Bash(awk '/function findAccessiblePage\\\\\\(/{f=1} f{print NR\": \"$0} /return \\\\$this->findEntities/{if\\(f\\){exit}}' lib/Db/NoteMapper.php)",
       "Bash(grep -n 'SORT_NEWEST\\\\|SORT_OLDEST\\\\|created_at\\\\|orderBy\\\\|addOrderBy\\\\|ASC\\\\|DESC\\\\|$sort\\\\|sortDir\\\\|direction' lib/Db/NoteMapper.php)",
-      "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(class_exists\\('Sabre\\\\\\\\\\\\\\\\VObject\\\\\\\\\\\\\\\\Reader'\\)\\);\")"
+      "Bash(php -r \"require 'vendor/autoload.php'; var_dump\\(class_exists\\('Sabre\\\\\\\\\\\\\\\\VObject\\\\\\\\\\\\\\\\Reader'\\)\\);\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost/status.php)",
+      "Bash(chmod 644 /tmp/sortcheck.php)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",
