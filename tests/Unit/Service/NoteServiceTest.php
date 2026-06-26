@@ -1239,6 +1239,34 @@ class NoteServiceTest extends TestCase {
         $this->makeService()->create('uid', 1, 999, 'Title', 'Body', 'user1');
     }
 
+    public function testCreateRejectsNullNoteType(): void {
+        // GRUMPY DEV #1: an omitted noteTypeId arrives as null. It must surface as
+        // a clean validation error (400) rather than a TypeError -> opaque 500,
+        // and no note row may be inserted.
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->makeService()->create('uid', 1, null, 'Title', 'Body', 'user1');
+    }
+
+    public function testCreateRejectsNonPositiveNoteType(): void {
+        // A zero/negative id can never identify a real note type; reject it as a
+        // validation error before any lookup or insert.
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->makeService()->create('uid', 1, 0, 'Title', 'Body', 'user1');
+    }
+
+    public function testCreateRejectsBlankTitle(): void {
+        // A whitespace-only (or empty) title is a client error: reject with a 400
+        // and never persist an empty-titled note. Mirrors NoteModal.vue's guard.
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->makeService()->create('uid', 1, 1, '   ', 'Body', 'user1');
+    }
+
     public function testUpdateRejectsForeignNoteType(): void {
         $note = new Note();
         $note->setId(1);

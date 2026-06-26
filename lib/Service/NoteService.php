@@ -81,14 +81,23 @@ class NoteService {
      * type must be one the caller can see (own type or a global default);
      * arbitrary/foreign ids are rejected so they never enter note_type_id.
      *
+     * A null or non-positive id means the required field was omitted/invalid;
+     * reject it as a clean validation error rather than letting a null TypeError
+     * (or a doomed lookup) escape as an opaque 500. Returns the validated id so
+     * callers obtain a guaranteed non-null int for the entity setter.
+     *
      * @throws NoteValidationException
      */
-    private function assertNoteTypeVisible(int $noteTypeId, string $userId): void {
+    private function assertNoteTypeVisible(?int $noteTypeId, string $userId): int {
+        if ($noteTypeId === null || $noteTypeId <= 0) {
+            throw new NoteValidationException('A note type is required');
+        }
         try {
             $this->noteTypeService->find($noteTypeId, $userId);
         } catch (NoteTypeNotFoundException $e) {
             throw new NoteValidationException('Invalid note type');
         }
+        return $noteTypeId;
     }
 
     /**
@@ -456,7 +465,7 @@ class NoteService {
     public function create(
         string $contactUid,
         int $addressbookId,
-        int $noteTypeId,
+        ?int $noteTypeId,
         string $title,
         ?string $content,
         string $userId,
@@ -464,6 +473,13 @@ class NoteService {
         array $contactUids = [],
         ?array $sharing = null,
     ): Note {
+        // A missing/blank title is a client error, not a server error: reject it
+        // here so an omitted title yields a clean 400 (like over-length input)
+        // rather than persisting an empty-titled note. Mirrors NoteModal.vue's
+        // required-title guard on the frontend.
+        if (trim($title) === '') {
+            throw new NoteValidationException('Title must not be empty');
+        }
         $this->assertMaxLength($title, self::MAX_TITLE_LENGTH, 'Title');
         if ($content !== null) {
             $this->assertMaxLength($content, self::MAX_CONTENT_LENGTH, 'Content');
@@ -476,7 +492,7 @@ class NoteService {
         foreach ($contactUids as $uid) {
             $this->assertMaxLength((string)$uid, self::MAX_CONTACT_UID_LENGTH, 'Contact');
         }
-        $this->assertNoteTypeVisible($noteTypeId, $userId);
+        $noteTypeId = $this->assertNoteTypeVisible($noteTypeId, $userId);
 
         $now = new DateTime();
 

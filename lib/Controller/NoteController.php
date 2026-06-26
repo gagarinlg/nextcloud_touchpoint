@@ -96,8 +96,14 @@ class NoteController extends Controller {
     #[NoAdminRequired]
     public function create(
         string $contactUid,
-        int $noteTypeId,
-        string $title,
+        // Nullable with a null default so an omitted noteTypeId arrives here as
+        // null instead of letting the AppFramework feed null into a non-nullable
+        // int parameter (which raises a TypeError caught only by ErrorHandler's
+        // generic \Throwable arm -> opaque 500). NoteService::create() rejects a
+        // null/<=0 value via assertNoteTypeVisible, so a missing required type
+        // produces a clean 400 like every other invalid-input path.
+        ?int $noteTypeId = null,
+        string $title = '',
         // addressbook_id is currently unused for authorization or lookups; the
         // contacts manager only exposes a non-numeric address-book key, so no
         // real numeric id is available. Defaults to 0 and may be omitted by

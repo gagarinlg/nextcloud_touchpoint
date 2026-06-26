@@ -46,6 +46,21 @@ function mdiIcon(name, size = 16) {
 	return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor" aria-hidden="true" focusable="false"><path d="${MDI_PATHS[name]}" /></svg>`
 }
 
+// Escape a string for safe interpolation into HTML markup (text content OR a
+// double-quoted attribute value). Applied to every translated string dropped
+// into the panel's innerHTML template: a translation/copy-edit containing a
+// quote, <, > or & must not break out of an attribute or corrupt the markup.
+// Dynamic data on this surface already goes through textContent/DOMPurify; this
+// brings the static chrome up to the same standard.
+function escapeHtml(value) {
+	return String(value)
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;')
+}
+
 // Inline loading spinner matching the NcLoadingIcon affordance the Vue views
 // use, themed with NC color tokens. Rendered as a non-Vue island so the
 // Contacts tab shows the same spinner cue as AllNotesView/ContactNotesView
@@ -53,7 +68,7 @@ function mdiIcon(name, size = 16) {
 function spinnerHtml() {
 	return `<span class="crm-contacts-notes-loading" role="status">
 		<span class="crm-contacts-spinner" aria-hidden="true"></span>
-		<span class="crm-visually-hidden">${t('crm_notes', 'Loading…')}</span>
+		<span class="crm-visually-hidden">${escapeHtml(t('crm_notes', 'Loading…'))}</span>
 	</span>`
 }
 
@@ -324,33 +339,33 @@ async function injectNotesPanel(detailEl) {
 			<button type="button" class="crm-contacts-notes-toggle" aria-expanded="true" aria-controls="${bodyId}">
 				<span class="crm-contacts-notes-chevron" aria-hidden="true">${mdiIcon('chevronDown', 18)}</span>
 				<span class="crm-contacts-notes-icon" aria-hidden="true">${mdiIcon('note', 18)}</span>
-				<span>${t('crm_notes', 'CRM Notes')}</span>
+				<span>${escapeHtml(t('crm_notes', 'CRM Notes'))}</span>
 			</button>
-			<button type="button" class="crm-contacts-notes-add" title="${addLabel}" aria-label="${addLabel}" aria-expanded="false" aria-controls="${addFormId}">${mdiIcon('plus', 16)}</button>
+			<button type="button" class="crm-contacts-notes-add" title="${escapeHtml(addLabel)}" aria-label="${escapeHtml(addLabel)}" aria-expanded="false" aria-controls="${addFormId}">${mdiIcon('plus', 16)}</button>
 			<a class="crm-contacts-open-app"
 				href="${generateUrl('/apps/crm_notes')}#contact/${encodeURIComponent(uid)}"
-				title="${openLabel}"
-				aria-label="${openLabel}"
+				title="${escapeHtml(openLabel)}"
+				aria-label="${escapeHtml(openLabel)}"
 				target="_blank"
 				rel="noopener">${mdiIcon('openInNew', 14)}</a>
 		</div>
 		<form id="${addFormId}" class="crm-contacts-notes-addform" hidden>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-title">${t('crm_notes', 'Title')}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
-				<input id="${addFormId}-title" type="text" class="crm-contacts-addform-title" maxlength="255" required placeholder="${t('crm_notes', 'Note title')}" />
+				<label class="crm-contacts-addform-label" for="${addFormId}-title">${escapeHtml(t('crm_notes', 'Title'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<input id="${addFormId}-title" type="text" class="crm-contacts-addform-title" maxlength="255" required placeholder="${escapeHtml(t('crm_notes', 'Note title'))}" />
 			</div>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-type">${t('crm_notes', 'Type')}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<label class="crm-contacts-addform-label" for="${addFormId}-type">${escapeHtml(t('crm_notes', 'Type'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
 				<select id="${addFormId}-type" class="crm-contacts-addform-type" required></select>
 			</div>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-content">${t('crm_notes', 'Content')}</label>
-				<textarea id="${addFormId}-content" class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}"></textarea>
+				<label class="crm-contacts-addform-label" for="${addFormId}-content">${escapeHtml(t('crm_notes', 'Content'))}</label>
+				<textarea id="${addFormId}-content" class="crm-contacts-addform-content" rows="3" placeholder="${escapeHtml(t('crm_notes', 'Write a note…'))}"></textarea>
 			</div>
 			<p class="crm-contacts-addform-hint" role="status" aria-live="polite" hidden></p>
 			<div class="crm-contacts-addform-actions">
-				<button type="button" class="crm-contacts-addform-cancel">${t('crm_notes', 'Cancel')}</button>
-				<button type="submit" class="crm-contacts-addform-save">${t('crm_notes', 'Save')}</button>
+				<button type="button" class="crm-contacts-addform-cancel">${escapeHtml(t('crm_notes', 'Cancel'))}</button>
+				<button type="submit" class="crm-contacts-addform-save">${escapeHtml(t('crm_notes', 'Save'))}</button>
 			</div>
 		</form>
 		<div id="${bodyId}" class="crm-contacts-notes-body">
