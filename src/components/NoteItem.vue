@@ -2,12 +2,22 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-note-item" :class="{ 'is-pinned': note.isPinned }">
-		<button v-if="showContact && contactName"
+		<!-- Only a resolvable contact (present in the loaded contacts list) gets a
+		     clickable button, because activating it selects that contact — which is
+		     impossible when we have no contact record for the UID. For an
+		     unresolvable contact (e.g. beyond the loaded cap, deleted, or foreign)
+		     we render the fallback label as plain, non-interactive text so the user
+		     isn't offered a dead, button-shaped control. -->
+		<button v-if="showContact && contactResolved"
 			type="button"
 			class="crm-note-contact-name"
 			@click.stop="$emit('contact-click', note.contactUid)">
 			{{ contactName }}
 		</button>
+		<span v-else-if="showContact && contactName"
+			class="crm-note-contact-name crm-note-contact-name--static">
+			{{ contactName }}
+		</span>
 		<div class="crm-note-item-header">
 			<NoteTypeBadge v-if="noteType" :type="noteType" />
 			<!-- Heading (not a plain span) so screen-reader users can traverse the
@@ -89,6 +99,10 @@ const noteTypesStore = useNoteTypesStore()
 const contactsStore = useContactsStore()
 
 const noteType = computed(() => noteTypesStore.byId(props.note.noteTypeId))
+
+// Whether the note's contact is present in the loaded contacts list. Only then
+// can a click select it, so this gates the clickable affordance below.
+const contactResolved = computed(() => !!contactsStore.byUid(props.note.contactUid))
 
 const contactName = computed(() => {
 	const c = contactsStore.byUid(props.note.contactUid)
@@ -184,6 +198,17 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 
 .crm-note-contact-name:hover {
 	text-decoration: underline;
+}
+
+/* Unresolvable contact: same label slot, but plain non-interactive text — no
+   pointer, no hover underline, and a muted colour so it doesn't read as a link. */
+.crm-note-contact-name--static {
+	color: var(--color-text-maxcontrast);
+	cursor: default;
+}
+
+.crm-note-contact-name--static:hover {
+	text-decoration: none;
 }
 
 .crm-note-contact-name:focus-visible {
@@ -351,6 +376,15 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	gap: calc(var(--default-grid-baseline, 4px) * 1);
 	opacity: 0;
 	transition: opacity 0.15s;
+}
+
+/* Honour reduced-motion: the visibility toggle still works (opacity flips on
+   hover/focus below), it just snaps instead of fading. Matches the spinner/
+   chevron treatment in contacts-integration.js. */
+@media (prefers-reduced-motion: reduce) {
+	.crm-note-actions {
+		transition: none;
+	}
 }
 
 /* Reveal the actions on hover (mouse) and on keyboard focus, so they are not

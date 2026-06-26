@@ -16,7 +16,9 @@ and can be shared with other users/groups. It surfaces:
 - An entry in the contacts menu (hover card) linking to a contact's notes.
 - An admin settings section.
 
-Version is **1.1.0** (kept in sync between `appinfo/info.xml` and `package.json`).
+The app version is kept in sync between `appinfo/info.xml` (`<version>`) and
+`package.json` (`"version"`); treat those two files as the source of truth rather
+than pinning a number here.
 
 ## Tech stack
 

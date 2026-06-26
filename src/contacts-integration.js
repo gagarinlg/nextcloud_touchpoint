@@ -18,9 +18,11 @@ import { iconPathForType } from './utils/noteTypeIcon.js'
 // Reuse the single, shared contrast implementation rather than carry a hex-only
 // duplicate here. The Vue NoteTypeBadge and this non-Vue Contacts panel must
 // compute identical foregrounds for the same stored color, and that helper
-// resolves both #rgb/#rrggbb and hsl()/hsla() — so a stored hsl() type color
-// keeps its AA contrast guarantee on this render surface too, instead of
-// falling back to a possibly low-contrast main-text token on a saturated badge.
+// resolves both #rgb/#rrggbb and hsl()/hsla(). It picks black or white by the
+// actual WCAG contrast ratio (whichever scores higher against the background)
+// and falls back to the NC main-text token only when neither pure foreground
+// reaches AA — so this surface gets the same best-effort contrast as the Vue
+// badge for the same stored color, including saturated hsl() values.
 import { readableTextColor } from './utils/color.js'
 
 const baseUrl = generateUrl('/apps/crm_notes/api')
@@ -239,14 +241,27 @@ function renderNoteItem(note, noteTypeMap = {}) {
 }
 
 async function injectNotesPanel(detailEl) {
-	if (detailEl.querySelector('.crm-contacts-notes-panel')) return
-
 	const uid = getContactUid(detailEl)
 	if (!uid) return
+
+	// If a panel already exists, only keep it when it was built for the contact
+	// currently on screen. The Contacts SPA frequently reuses the same detail
+	// container element and just swaps the inner contact when navigating A -> B,
+	// which would otherwise leave contact A's notes (and its "Open in CRM Notes"
+	// link) showing for contact B. On a UID mismatch, tear the stale panel down so
+	// it is rebuilt below for the new contact.
+	const existing = detailEl.querySelector('.crm-contacts-notes-panel')
+	if (existing) {
+		if (existing.dataset.crmContactUid === uid) return
+		existing.remove()
+	}
 
 	// Build the panel
 	const panel = document.createElement('div')
 	panel.className = 'crm-contacts-notes-panel'
+	// Record which contact this panel was built for so findAndInject() can detect
+	// an in-place A -> B contact switch and rebuild instead of showing stale notes.
+	panel.dataset.crmContactUid = uid
 	// Signal the new-tab context change in the accessible name and tooltip
 	// (WCAG 3.2.5): the link is icon-only, so neither sighted nor AT users
 	// otherwise get a cue that activation spawns a new tab.
@@ -602,13 +617,21 @@ let lastInjectedDetailEl = null
 
 function findAndInject() {
 	// Steady-state fast path: if the detail container we already injected into is
-	// still connected and still carries our panel, there is nothing to do and we
-	// perform zero querySelector calls — this is the common case while the
-	// Contacts SPA mutates (typing, scrolling) without swapping the open contact.
-	if (lastInjectedDetailEl
-		&& lastInjectedDetailEl.isConnected
-		&& lastInjectedDetailEl.querySelector('.crm-contacts-notes-panel')) {
-		return
+	// still connected and still carries our panel for the contact currently on
+	// screen, there is nothing to do and we perform almost no DOM work — this is
+	// the common case while the Contacts SPA mutates (typing, scrolling) without
+	// swapping the open contact.
+	//
+	// Crucially we re-consult getContactUid() against the stamped panel UID: the
+	// Contacts SPA commonly keeps the same detail container mounted and only swaps
+	// the inner contact's props when navigating A -> B, so a panel can still be
+	// present while now belonging to the wrong contact. In that case we must fall
+	// through to injectNotesPanel(), which rebuilds the panel for the new UID.
+	if (lastInjectedDetailEl && lastInjectedDetailEl.isConnected) {
+		const panel = lastInjectedDetailEl.querySelector('.crm-contacts-notes-panel')
+		if (panel && panel.dataset.crmContactUid === getContactUid(lastInjectedDetailEl)) {
+			return
+		}
 	}
 
 	// The contacts app detail panel can have different selectors depending on version
@@ -621,6 +644,8 @@ function findAndInject() {
 	for (const sel of selectors) {
 		const el = document.querySelector(sel)
 		if (el) {
+			// injectNotesPanel() is idempotent for the current contact and rebuilds
+			// on a UID mismatch, so this also covers the in-place A -> B switch.
 			injectNotesPanel(el)
 			lastInjectedDetailEl = el
 			return

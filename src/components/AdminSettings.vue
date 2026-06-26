@@ -116,4 +116,13 @@ async function save(value) {
 .crm-fade-leave-to {
 	opacity: 0;
 }
+
+/* Honour reduced-motion: show/hide the "Settings saved" status without the
+   opacity fade. Matches the spinner/chevron treatment in contacts-integration.js. */
+@media (prefers-reduced-motion: reduce) {
+	.crm-fade-enter-active,
+	.crm-fade-leave-active {
+		transition: none;
+	}
+}
 </style>
