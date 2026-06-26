@@ -325,4 +325,45 @@ class NoteMapper extends QBMapper {
 
         return $this->findEntities($qb);
     }
+
+    /**
+     * Return the ids of notes whose PRIMARY contact (the scalar contact_uid
+     * column) is this contact, without materialising any full Note rows.
+     *
+     * Note that contact_uid is still written for every newly-created note (it is
+     * the canonical primary-contact pointer the unordered junction set cannot
+     * express — see NoteService::create()). This lookup is therefore NOT limited
+     * to pre-junction-era rows; it exists so the contact panel folds primary-only
+     * links into its visible-set even for notes that, for whatever reason, lack a
+     * matching crm_note_contacts junction row (e.g. rows created before the
+     * junction table existed, or where the primary uid was never mirrored into
+     * the junction). NoteService::findByContact() unions these ids with the
+     * junction-table ids and de-duplicates.
+     *
+     * This mirrors findSortKeysByIds()'s id-only approach: the contact panel
+     * only needs these ids to fold direct links into its visible-set
+     * computation, so a SELECT * (hydrating every linked note across all users)
+     * would defeat the page's own pagination design. The lookup is deliberately
+     * unscoped (no owner filter) so notes owned by another user but shared with
+     * the caller — and linked to this contact only via contact_uid — are still
+     * discovered for the downstream visibility filtering.
+     *
+     * @return int[]
+     */
+    public function findIdsByContact(string $contactUid): array {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select('id')
+            ->from($this->getTableName())
+            ->where(
+                $qb->expr()->eq('contact_uid', $qb->createNamedParameter($contactUid, IQueryBuilder::PARAM_STR))
+            );
+
+        $result = $qb->executeQuery();
+        $ids = [];
+        while ($row = $result->fetch()) {
+            $ids[] = (int)$row['id'];
+        }
+        $result->closeCursor();
+        return $ids;
+    }
 }

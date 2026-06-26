@@ -3,19 +3,6 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /**
- * Generate a deterministic HSL color from a string (contact UID or name).
- */
-export function stringToColor(str) {
-	let hash = 0
-	for (let i = 0; i < str.length; i++) {
-		hash = str.charCodeAt(i) + ((hash << 5) - hash)
-		hash |= 0
-	}
-	const hue = Math.abs(hash) % 360
-	return `hsl(${hue}, 55%, 45%)`
-}
-
-/**
  * Pick a readable foreground (black or white) for a given background color so
  * badge text stays legible on user-chosen colors. Handles #rgb / #rrggbb and
  * hsl()/hsla(); anything unparseable falls back to the NC main-text token.
@@ -66,19 +53,4 @@ function hslToRgb(h, s, l) {
 	const q = l < 0.5 ? l * (1 + s) : l + s - l * s
 	const p = 2 * l - q
 	return [hue2rgb(p, q, h + 1 / 3), hue2rgb(p, q, h), hue2rgb(p, q, h - 1 / 3)]
-}
-
-/**
- * Get initials from a display name (up to 2 chars).
- */
-export function getInitials(name) {
-	// Guard null/undefined/empty AND whitespace-only names: a string like '   '
-	// is truthy but trim().split() yields [''], which would render a blank avatar
-	// placeholder instead of the intended '?' fallback.
-	if (!name || !name.trim()) return '?'
-	const parts = name.trim().split(/\s+/)
-	if (parts.length >= 2) {
-		return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-	}
-	return name.slice(0, 2).toUpperCase()
 }

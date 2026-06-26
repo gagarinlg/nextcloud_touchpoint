@@ -31,7 +31,8 @@
 						type="search"
 						:label="t('crm_notes', 'Search contacts')"
 						:placeholder="t('crm_notes', 'Search contacts\u2026')"
-						:show-trailing-button="false"
+						:trailing-button-label="t('crm_notes', 'Clear search')"
+						@trailing-button-click="contactsStore.searchQuery = ''"
 						@update:model-value="contactsStore.searchQuery = $event" />
 				</div>
 				<NcLoadingIcon v-if="contactsStore.loading" :size="32" class="crm-loading" />

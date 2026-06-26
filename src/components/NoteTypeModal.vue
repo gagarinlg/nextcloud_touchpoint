@@ -31,11 +31,12 @@
 				<NcColorPicker v-model="form.color">
 					<NcButton id="type-color"
 						class="crm-color-trigger"
+						:title="form.color"
 						:aria-label="t('crm_notes', 'Choose color')">
 						<template #icon>
 							<span class="crm-color-swatch" :style="{ background: form.color }" />
 						</template>
-						{{ form.color }}
+						{{ t('crm_notes', 'Choose color') }}
 					</NcButton>
 				</NcColorPicker>
 			</div>

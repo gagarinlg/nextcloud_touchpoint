@@ -31,6 +31,9 @@ const MDI_PATHS = {
 	note: 'M14,17H7V15H14M17,13H7V11H17M17,9H7V7H17M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3Z',
 	openInNew: 'M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z',
 	file: 'M13,9H18.5L13,3.5V9M6,2H14L20,8V20A2,2 0 0,1 18,22H6C4.89,22 4,21.1 4,20V4C4,2.89 4.89,2 6,2M15,18V16H6V18H15M18,14V12H6V14H18Z',
+	// MDI pin — mirrors NoteItem.vue's IconPin so a pinned note reads as pinned
+	// on the Contacts tab too.
+	pin: 'M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z',
 	// MDI chevron-down — the standard NC collapsible-section affordance. Rotated
 	// via CSS to point up when the panel is collapsed.
 	chevronDown: 'M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z',
@@ -134,6 +137,14 @@ function formatDate(dateStr) {
 	return isNaN(d.getTime()) ? '' : _dateFormatter.format(d)
 }
 
+// Mirror NoteItem.vue's fileLabel(): prefer the stored name, else the basename
+// of the file path, else a translated fallback.
+function fileLabel(f) {
+	if (f.name) return f.name
+	if (f.filePath) return f.filePath.split('/').pop()
+	return t('crm_notes', 'Attachment')
+}
+
 // ---- Render -----------------------------------------------------------------
 
 // Markdown rendering (marked -> demoteHeadings -> DOMPurify) is the shared
@@ -176,6 +187,17 @@ function renderNoteItem(note, noteTypeMap = {}) {
 	titleEl.className = 'crm-contacts-note-title'
 	titleEl.textContent = note.title || ''
 	header.appendChild(titleEl)
+	// Pin indicator, mirroring NoteItem.vue so a pinned note reads as pinned on
+	// the Contacts tab too. The SVG path comes from the fixed MDI_PATHS map, not
+	// user input.
+	if (note.isPinned) {
+		const pin = document.createElement('span')
+		pin.className = 'crm-contacts-pin-indicator'
+		pin.setAttribute('role', 'img')
+		pin.setAttribute('aria-label', t('crm_notes', 'Pinned'))
+		pin.innerHTML = mdiIcon('pin', 16)
+		header.appendChild(pin)
+	}
 	div.appendChild(header)
 
 	if (note.content) {
@@ -184,6 +206,28 @@ function renderNoteItem(note, noteTypeMap = {}) {
 		// DOMPurify-sanitized HTML; safe to assign as innerHTML.
 		p.innerHTML = renderMarkdown(note.content)
 		div.appendChild(p)
+	}
+
+	// File attachments, mirroring NoteItem.vue's file-chip row so an attached
+	// note doesn't read as having no files on this surface. Labels are set via
+	// textContent (never innerHTML) so a crafted filename can't inject markup.
+	if (Array.isArray(note.files) && note.files.length) {
+		const filesEl = document.createElement('div')
+		filesEl.className = 'crm-contacts-note-files'
+		for (const f of note.files) {
+			const chip = document.createElement('span')
+			chip.className = 'crm-contacts-file-chip'
+			const icon = document.createElement('span')
+			icon.className = 'crm-contacts-file-chip-icon'
+			icon.innerHTML = mdiIcon('file', 12)
+			const label = document.createElement('span')
+			label.className = 'crm-contacts-file-chip-label'
+			label.textContent = fileLabel(f)
+			chip.appendChild(icon)
+			chip.appendChild(label)
+			filesEl.appendChild(chip)
+		}
+		div.appendChild(filesEl)
 	}
 
 	const date = document.createElement('span')
@@ -359,6 +403,42 @@ async function injectNotesPanel(detailEl) {
 			.crm-contacts-type-badge-icon {
 				display: inline-flex;
 				align-items: center;
+			}
+			.crm-contacts-pin-indicator {
+				/* Push the pin to the trailing edge of the header and tint it the
+				   primary element colour, matching NoteItem.vue's .crm-pin-indicator. */
+				margin-left: auto;
+				display: inline-flex;
+				align-items: center;
+				color: var(--color-primary-element);
+			}
+			.crm-contacts-note-files {
+				display: flex;
+				flex-wrap: wrap;
+				gap: calc(var(--default-grid-baseline, 4px) * 1.5);
+				margin: calc(var(--default-grid-baseline, 4px) * 1.5) 0;
+			}
+			.crm-contacts-file-chip {
+				display: inline-flex;
+				align-items: center;
+				gap: calc(var(--default-grid-baseline, 4px) * 1);
+				background: var(--color-background-dark);
+				border-radius: var(--border-radius);
+				padding: 2px calc(var(--default-grid-baseline, 4px) * 2);
+				font-size: var(--font-size-small, 13px);
+				max-width: 100%;
+				min-width: 0;
+			}
+			.crm-contacts-file-chip-icon {
+				flex: 0 0 auto;
+				display: inline-flex;
+				align-items: center;
+			}
+			.crm-contacts-file-chip-label {
+				min-width: 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
 			}
 			.crm-contacts-note-content {
 				/* Primary note substance — full reading contrast, matching

@@ -344,16 +344,16 @@ class NoteService {
         $noteContacts = $this->noteContactMapper->findByContactUid($contactUid);
         $noteIds = array_map(fn (NoteContact $nc) => $nc->getNoteId(), $noteContacts);
 
-        // Also collect IDs from the legacy contact_uid column (direct link).
-        // Do NOT owner-scope this lookup: a note created by another user, shared
-        // with the caller, and linked to this contact ONLY via the legacy
-        // contact_uid column (no junction row) would otherwise never enter
+        // Also collect IDs by the primary-contact column (contact_uid) so a note
+        // whose primary contact is this contact is found even if it has no
+        // matching junction row. Do NOT owner-scope this lookup: a note created
+        // by another user, shared with the caller, and linked to this contact
+        // ONLY via the contact_uid column (no junction row) would otherwise never enter
         // $noteIds, so the shared-notes filtering below could never recover it.
         // Collect all candidate IDs regardless of owner and let the
         // owned/shared/public filtering decide visibility.
-        $legacyNotes = $this->mapper->findByContact($contactUid, null);
-        foreach ($legacyNotes as $note) {
-            $noteIds[] = $note->getId();
+        foreach ($this->mapper->findIdsByContact($contactUid) as $legacyId) {
+            $noteIds[] = $legacyId;
         }
         $noteIds = array_values(array_unique($noteIds));
 
@@ -466,6 +466,14 @@ class NoteService {
         $now = new DateTime();
 
         $note = new Note();
+        // crm_notes.contact_uid is NOT dead/redundant duplication of the junction
+        // table: it is the canonical pointer to the note's PRIMARY contact. The
+        // crm_note_contacts junction set is unordered and has no "primary" marker,
+        // so the scalar contact_uid is the only place that records which of the
+        // linked contacts is the primary one. The frontend relies on it (NoteItem
+        // renders this contact's name, links to it, and excludes it from the
+        // "also linked" list), so newly-created notes must keep writing it. The
+        // junction row(s) below additionally model the full many-to-many set.
         $note->setContactUid($contactUid);
         $note->setAddressbookId($addressbookId);
         $note->setNoteTypeId($noteTypeId);

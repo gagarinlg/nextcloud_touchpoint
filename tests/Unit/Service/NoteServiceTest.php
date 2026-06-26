@@ -1,5 +1,8 @@
 <?php
 
+// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 declare(strict_types=1);
 
 namespace OCA\CrmNotes\Tests\Unit\Service;
@@ -201,12 +204,13 @@ class NoteServiceTest extends TestCase {
             ->with('contact-123')
             ->willReturn([$nc]);
 
-        // The legacy contact_uid lookup is intentionally un-owner-scoped (null)
-        // so notes shared with the caller but linked only via the legacy column
-        // are still collected as candidates.
-        $this->mapper->method('findByContact')
-            ->with('contact-123', null)
-            ->willReturn([$note2]);
+        // The primary-contact (contact_uid) lookup is intentionally un-owner-scoped
+        // and id-only so notes whose primary contact is this contact — including
+        // ones shared with the caller but lacking a junction row — are still
+        // collected as candidates. Production folds these ids into the candidate set.
+        $this->mapper->method('findIdsByContact')
+            ->with('contact-123')
+            ->willReturn([2]);
 
         // Visibility is decided on the id set BEFORE loading full rows: the
         // owner-scoped sort-key lookup confirms the caller owns both candidates.
@@ -249,7 +253,7 @@ class NoteServiceTest extends TestCase {
         $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
         $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
         $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2]);
-        $this->mapper->method('findByContact')->willReturn([]);
+        $this->mapper->method('findIdsByContact')->willReturn([]);
 
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
@@ -282,7 +286,7 @@ class NoteServiceTest extends TestCase {
         $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
         $nc3 = new NoteContact(); $nc3->setNoteId(3); $nc3->setContactUid('c');
         $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2, $nc3]);
-        $this->mapper->method('findByContact')->willReturn([]);
+        $this->mapper->method('findIdsByContact')->willReturn([]);
 
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
@@ -319,7 +323,7 @@ class NoteServiceTest extends TestCase {
         $nc1 = new NoteContact(); $nc1->setNoteId(1); $nc1->setContactUid('c');
         $nc2 = new NoteContact(); $nc2->setNoteId(2); $nc2->setContactUid('c');
         $this->noteContactMapper->method('findByContactUid')->willReturn([$nc1, $nc2]);
-        $this->mapper->method('findByContact')->willReturn([]);
+        $this->mapper->method('findIdsByContact')->willReturn([]);
 
         $this->mapper->method('findSortKeysByIds')->willReturnCallback(
             function (array $ids) {
@@ -379,11 +383,13 @@ class NoteServiceTest extends TestCase {
         $shared->setId(42);
         $shared->setUserId('owner');
 
-        // The legacy lookup MUST be called un-owner-scoped (null) to find it.
+        // The primary-contact (contact_uid) lookup MUST be id-only and
+        // un-owner-scoped to discover a note whose primary contact is this one
+        // but which the caller does not own (only has shared with them).
         $mapper->expects($this->once())
-            ->method('findByContact')
-            ->with('contact-x', null)
-            ->willReturn([$shared]);
+            ->method('findIdsByContact')
+            ->with('contact-x')
+            ->willReturn([42]);
 
         // The owner-scoped sort-key lookup finds nothing (caller does not own
         // note 42); the unscoped one (after the shared intersection) returns it.
@@ -455,7 +461,7 @@ class NoteServiceTest extends TestCase {
         $noteContactMapper->method('findByNoteIds')->willReturn([]);
         $noteFileMapper->method('findByNoteIds')->willReturn([]);
         $noteSharingMapper->method('findByNoteIds')->willReturn([]);
-        $mapper->method('findByContact')->willReturn([]);
+        $mapper->method('findIdsByContact')->willReturn([]);
 
         // Note 42 is shared with the caller.
         $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([42]);
@@ -506,7 +512,7 @@ class NoteServiceTest extends TestCase {
 
     public function testFindByContactEmpty(): void {
         $this->noteContactMapper->method('findByContactUid')->willReturn([]);
-        $this->mapper->method('findByContact')->willReturn([]);
+        $this->mapper->method('findIdsByContact')->willReturn([]);
 
         $result = $this->service->findByContact('no-contact', 'user1');
         $this->assertEmpty($result);

@@ -115,8 +115,8 @@
 			     announces the files region to assistive tech instead. -->
 			<div class="crm-form-row"
 				role="group"
-				:aria-label="t('crm_notes', 'Linked files')">
-				<span class="crm-group-label">{{ t('crm_notes', 'Linked files') }}</span>
+				aria-labelledby="note-files-label">
+				<span id="note-files-label" class="crm-group-label">{{ t('crm_notes', 'Linked files') }}</span>
 				<div class="crm-files-list">
 					<div v-for="(f, i) in notesStore.pendingFiles" :key="i" class="crm-file-item">
 						<IconFile :size="14" />
@@ -491,8 +491,8 @@ async function onSave() {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
-	gap: 2px;
-	padding: 4px 6px;
+	gap: var(--default-grid-baseline, 4px);
+	padding: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 1.5);
 	background: var(--color-background-dark);
 	border: 1px solid var(--color-border-dark);
 	border-bottom: none;
@@ -504,13 +504,15 @@ async function onSave() {
 	align-items: center;
 	justify-content: center;
 	min-width: 16px;
-	font-size: 13px;
+	font-size: var(--font-size-small, 13px);
 	line-height: 1;
 }
 
+/* 1px hairline width is conventional and intentionally left literal; the height
+   follows the spacing scale. */
 .crm-md-sep {
 	width: 1px;
-	height: 18px;
+	height: calc(var(--default-grid-baseline, 4px) * 4.5);
 	background: var(--color-border);
 	margin: 0 var(--default-grid-baseline, 4px);
 }

@@ -29,6 +29,17 @@ class ContactController extends Controller {
     private const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
     /**
+     * Server-side cap on the number of contact entries index() will ever
+     * materialise (photo-check, flatten) and return. IManager::search() with an
+     * empty term returns every contact the caller can read across all their
+     * address books — including the system address book of every user account —
+     * so an empty/short term must not be allowed to flatten, photo-check and sort
+     * the entire instance directory on every keystroke or panel open. Mirrors the
+     * defensive bounding searchPrincipals() applies for the same enumeration risk.
+     */
+    private const MAX_SEARCH_RESULTS = 200;
+
+    /**
      * The only Content-Types we will ever serve for a contact photo. The MIME
      * is derived solely from the decoded bytes (magic-byte sniffing); anything
      * we cannot positively identify as one of these raster image formats is
@@ -100,14 +111,23 @@ class ContactController extends Controller {
         // own address books. This lets contacts living in shared/group address
         // books (which search() returns) get photos too. Searching these extra
         // fields also matches the Contacts app, which searches name/org/email/etc.
+        // Bound the result set server-side. We pass a 'limit' so the contacts
+        // backend can cap at the source where supported, and additionally enforce
+        // the cap ourselves while materialising (below) so an empty/short term can
+        // never make us flatten + photo-check the entire readable directory.
         $results = $this->contactsManager->search(
             $term,
             ['FN', 'EMAIL', 'TEL', 'ORG'],
-            ['types' => true]
+            ['types' => true, 'limit' => self::MAX_SEARCH_RESULTS]
         );
 
         $contacts = [];
         foreach ($results as $entry) {
+            // Stop materialising once we hit the cap: never flatten, photo-check
+            // and sort an unbounded set even if the backend ignored 'limit'.
+            if (count($contacts) >= self::MAX_SEARCH_RESULTS) {
+                break;
+            }
             $uid = $entry['UID'] ?? '';
             if ($uid === '') {
                 continue;
@@ -127,9 +147,15 @@ class ContactController extends Controller {
             $org   = $this->firstContactValue($entry['ORG'] ?? '');
 
             // Use a photo URL only if this contact actually carries a PHOTO in any
-            // address book the user can read (own or shared).
+            // address book the user can read (own or shared) AND that photo is
+            // retrievable by the photo endpoint. extractPhotoForUid() reads the
+            // stored vCard only from address books whose key is_numeric() (it
+            // cannot read the system book, key 'system'), so a photo URL emitted
+            // for a system/non-numeric-key entry would 404 — a broken avatar.
+            // Keep availability (this URL) and retrievability in lockstep by
+            // refusing to advertise a photo we know the endpoint cannot serve.
             $photoUrl = '';
-            if ($this->entryHasPhoto($entry)) {
+            if ($this->entryHasPhoto($entry) && $this->entryPhotoIsServable($entry)) {
                 $photoUrl = $this->urlGenerator->linkToRoute(
                     'crm_notes.contact.photo',
                     ['uid' => $uid]
@@ -202,6 +228,25 @@ class ContactController extends Controller {
             return true;
         }
         return ($entry['addressbook-key'] ?? '') === 'system';
+    }
+
+    /**
+     * Whether the photo endpoint would actually be able to serve this entry's
+     * PHOTO. extractPhotoForUid() reads the stored vCard only from address books
+     * whose getKey() is_numeric() (the dav 'cards' table is keyed by a numeric
+     * addressbookid), so an entry living in a non-numeric-key book — notably the
+     * system address book, key 'system' — is NOT retrievable even if it carries a
+     * PHOTO. index() must mirror that serving-side constraint so it never
+     * advertises a photo URL the endpoint then 404s on.
+     *
+     * @param array<string, mixed> $entry
+     */
+    private function entryPhotoIsServable(array $entry): bool {
+        if ($this->entryIsSystemUser($entry)) {
+            return false;
+        }
+        $key = $entry['addressbook-key'] ?? '';
+        return is_numeric($key);
     }
 
     /**

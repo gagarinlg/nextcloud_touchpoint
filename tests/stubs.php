@@ -1,5 +1,8 @@
 <?php
 
+// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Minimal stubs for Nextcloud framework classes.
  * These allow unit tests to run without the full Nextcloud environment.
@@ -483,6 +486,20 @@ namespace OCP\Contacts {
         public function delete(int $id, string $addressBookKey): bool;
         public function createOrUpdate(array $properties, string $addressBookKey);
         public function isEnabled(): bool;
+        public function getUserAddressBooks(): array;
+    }
+}
+
+// --- OCP\IAddressBook ---
+namespace OCP {
+    interface IAddressBook {
+        public function getKey();
+        public function getUri(): string;
+        public function getDisplayName();
+        public function search($pattern, $searchProperties, $options);
+        public function createOrUpdate($properties);
+        public function getPermissions();
+        public function delete($id);
     }
 }
 

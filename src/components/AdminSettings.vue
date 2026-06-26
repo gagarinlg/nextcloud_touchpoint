@@ -3,9 +3,9 @@
 <template>
 	<div class="crm-admin-settings">
 		<div class="crm-admin-section">
-			<h3 class="crm-admin-section-title">
+			<h2 class="crm-admin-section-title">
 				{{ t('crm_notes', 'Note visibility') }}
-			</h3>
+			</h2>
 
 			<div class="crm-admin-row">
 				<NcCheckboxRadioSwitch
