@@ -3,7 +3,7 @@
 <template>
 	<div class="crm-all-notes-view">
 		<div class="crm-view-header">
-			<h2>{{ t('crm_notes', 'All notes') }}</h2>
+			<h1>{{ t('crm_notes', 'All notes') }}</h1>
 		</div>
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.allNotes.length" :size="32" />
 		<NcEmptyContent v-else-if="notesStore.allNotesError && !notesStore.allNotes.length"
@@ -117,6 +117,15 @@ function onContactClick(uid) {
 	display: flex;
 	align-items: center;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 4);
+}
+
+/* Promoted to h1 so the page has a level-1 heading for AT; keep the established
+   section-title size (the app styles these as section titles, not browser-default
+   h1) rather than the larger user-agent h1 size. */
+.crm-view-header h1 {
+	margin: 0;
+	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-weight: bold;
 }
 
 .crm-load-more {

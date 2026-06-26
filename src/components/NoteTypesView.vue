@@ -3,7 +3,7 @@
 <template>
 	<div class="crm-note-types-view">
 		<div class="crm-view-header">
-			<h2>{{ t('crm_notes', 'Note types') }}</h2>
+			<h1>{{ t('crm_notes', 'Note types') }}</h1>
 			<NcButton type="primary" @click="noteTypesStore.openModal()">
 				<template #icon><IconPlus :size="20" /></template>
 				{{ t('crm_notes', 'Add type') }}
@@ -119,6 +119,14 @@ async function onDelete(type) {
 	align-items: center;
 	justify-content: space-between;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 4);
+}
+
+/* Promoted to h1 so the page has a level-1 heading for AT; keep the established
+   section-title size rather than the larger user-agent h1 default. */
+.crm-view-header h1 {
+	margin: 0;
+	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-weight: bold;
 }
 
 .crm-type-list {

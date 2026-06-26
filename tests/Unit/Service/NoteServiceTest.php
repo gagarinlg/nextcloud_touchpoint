@@ -1140,6 +1140,52 @@ class NoteServiceTest extends TestCase {
         $this->assertSame(['reader', 'staff'], $ids);
     }
 
+    public function testSingleNoteNonOwnerResolvesGroupsOncePerEnrich(): void {
+        // GRUMPY DEV #4.2: enrichNote() must resolve the caller's group
+        // memberships itself and hand them to applyAuditVisibility(), mirroring
+        // the batch path, rather than letting applyAuditVisibility() re-query
+        // getUserGroupIds() a second time. A non-owner find() therefore performs
+        // exactly two lookups for the whole request — one for the share
+        // access-control check, and exactly one inside enrichNote() that is
+        // reused for the recipient-aware sharing filter (not two: the relocated
+        // resolution must not be duplicated inside applyAuditVisibility()).
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('owner');
+
+        $this->mapper->method('findById')->willThrowException(new DoesNotExistException('nope'));
+        $this->mapper->method('findByIdPublic')->with(1)->willReturn($note);
+
+        $own = new \OCA\CrmNotes\Db\NoteSharing();
+        $own->setNoteId(1);
+        $own->setSharedWithType('user');
+        $own->setSharedWithId('reader');
+        $own->setCanEdit(false);
+
+        $settings = $this->createMock(SettingsService::class);
+        $settings->method('isNotesPublic')->willReturn(false);
+        $settings->expects($this->exactly(2))
+            ->method('getUserGroupIds')
+            ->with('reader')
+            ->willReturn(['staff']);
+        $this->settingsService = $settings;
+
+        $sharing = $this->createMock(NoteSharingMapper::class);
+        $sharing->method('findAccessibleNoteIds')->willReturn([1]);
+        $sharing->method('findWritableNoteIds')->willReturn([]);
+        $sharing->method('findByNoteId')->willReturn([$own]);
+        $sharing->method('findByNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $sharing;
+
+        $result = $this->makeService()->find(1, 'reader');
+        $json = $result->jsonSerialize();
+
+        // Sanity: the recipient-aware filter still produced the viewer's own entry,
+        // proving applyAuditVisibility() received valid group memberships.
+        $ids = array_map(fn ($s) => $s['sharedWithId'], $json['sharing']);
+        $this->assertSame(['reader'], $ids);
+    }
+
     public function testOwnerSeesFullShareList(): void {
         // GRUMPY DEV #2 (control): the owner still sees the complete ACL.
         $note = new Note();

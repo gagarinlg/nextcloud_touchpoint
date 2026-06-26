@@ -32,6 +32,11 @@ stay dormant when it is not.
         <nextcloud min-version="32" max-version="34" />
     </dependencies>
 
+    <settings>
+        <admin>OCA\CrmNotes\Settings\Admin</admin>
+        <admin-section>OCA\CrmNotes\Settings\AdminSection</admin-section>
+    </settings>
+
     <navigations>
         <navigation>
             <name>CRM Notes</name>
@@ -44,9 +49,4 @@ stay dormant when it is not.
     <contactsmenu>
         <provider>OCA\CrmNotes\ContactsMenu\Provider</provider>
     </contactsmenu>
-
-    <settings>
-        <admin>OCA\CrmNotes\Settings\Admin</admin>
-        <admin-section>OCA\CrmNotes\Settings\AdminSection</admin-section>
-    </settings>
 </info>

@@ -55,7 +55,7 @@ import{g as b,a as L,t as s,s as k,c as v}from"./index-CwIPLMrY.chunk.mjs";impor
 				color: var(--color-text-maxcontrast, #888);
 				transition: transform 0.15s ease-in-out;
 			}
-			/* Collapsed: chevron points up (rotated 180deg from chevron-down). */
+			/* Collapsed: chevron rotated -90deg so the down-chevron points right (closed affordance). */
 			.crm-contacts-notes-chevron--collapsed {
 				transform: rotate(-90deg);
 			}

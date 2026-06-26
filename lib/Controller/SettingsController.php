@@ -73,15 +73,15 @@ class SettingsController extends Controller {
 
     #[NoAdminRequired]
     public function searchPrincipals(string $q = ''): JSONResponse {
-        // Require a non-trivial query length: a single-character query would let
-        // the autocomplete be walked to enumerate the directory even on
-        // instances where enumeration is allowed. The service additionally
-        // honours the core enumeration-privacy settings, scoped to the caller.
-        if (mb_strlen(trim($q)) < 2) {
-            return new JSONResponse([]);
-        }
-        return new JSONResponse(
-            $this->settingsService->searchPrincipals($q, 10, $this->getUserId())
-        );
+        return $this->handleNotFound(function () use ($q) {
+            // Require a non-trivial query length: a single-character query would
+            // let the autocomplete be walked to enumerate the directory even on
+            // instances where enumeration is allowed. The service additionally
+            // honours the core enumeration-privacy settings, scoped to the caller.
+            if (mb_strlen(trim($q)) < 2) {
+                return [];
+            }
+            return $this->settingsService->searchPrincipals($q, 10, $this->getUserId());
+        });
     }
 }

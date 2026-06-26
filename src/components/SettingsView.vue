@@ -2,7 +2,7 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-settings-view">
-		<h2>{{ t('crm_notes', 'Settings') }}</h2>
+		<h1>{{ t('crm_notes', 'Settings') }}</h1>
 
 		<NcLoadingIcon v-if="settingsStore.loading" :size="32" />
 		<NcEmptyContent v-else-if="settingsStore.error && !settingsStore.shareTargets.length"
@@ -210,8 +210,12 @@ async function save() {
 	max-width: 600px;
 }
 
-.crm-settings-view h2 {
+/* Promoted to h1 so the page has a level-1 heading for AT; keep the established
+   section-title size rather than the larger user-agent h1 default. */
+.crm-settings-view h1 {
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 6);
+	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-weight: bold;
 }
 
 .crm-settings-section {

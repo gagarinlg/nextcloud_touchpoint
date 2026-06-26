@@ -6,6 +6,7 @@ namespace OCA\CrmNotes\Tests\Unit\Controller;
 
 use OCA\CrmNotes\Controller\SettingsController;
 use OCA\CrmNotes\Service\SettingsService;
+use OCP\AppFramework\Http;
 use OCP\IGroupManager;
 use OCP\IRequest;
 use OCP\IUser;
@@ -82,5 +83,28 @@ class SettingsControllerTest extends TestCase {
             ->willReturn($expected);
 
         $this->assertSame($expected, $this->controller->searchPrincipals('bob')->getData());
+    }
+
+    public function testSearchPrincipalsReturns401WhenUnauthenticated(): void {
+        // GRUMPY DEV #4.1: searchPrincipals() resolves the caller's UID via the
+        // RequiresUser trait, which throws UnauthenticatedException when the
+        // session has no user. That exception must be funneled through
+        // handleNotFound() to a clean 401, exactly like get()/save(), not escape
+        // to the generic 500 handler.
+        $session = $this->createMock(IUserSession::class);
+        $session->method('getUser')->willReturn(null);
+        $service = $this->createMock(SettingsService::class);
+        // The query is long enough to pass the length guard and reach getUserId().
+        $service->expects($this->never())->method('searchPrincipals');
+
+        $controller = new SettingsController(
+            $this->request,
+            $service,
+            $session,
+            $this->groupManager,
+        );
+
+        $response = $controller->searchPrincipals('bob');
+        $this->assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
     }
 }

@@ -141,7 +141,13 @@ class NoteService {
     private function enrichNote(Note $note, ?string $callerUserId = null): Note {
         $contacts = $this->noteContactMapper->findByNoteId($note->getId());
         $note->setContacts(array_map(fn (NoteContact $nc) => $nc->jsonSerialize(), $contacts));
-        $this->applyAuditVisibility($note, $callerUserId);
+        // Resolve the caller's group memberships once and hand them to
+        // applyAuditVisibility(), mirroring enrichNotes(), so a non-owner viewer
+        // does not trigger a second group-membership lookup.
+        $callerGroupIds = $callerUserId !== null
+            ? $this->settingsService->getUserGroupIds($callerUserId)
+            : null;
+        $this->applyAuditVisibility($note, $callerUserId, $callerGroupIds);
         $files = $this->noteFileMapper->findByNoteId($note->getId());
         $note->setFiles($this->serializeFiles($files, $note->getExposeAudit()));
         $sharing = $this->noteSharingMapper->findByNoteId($note->getId());

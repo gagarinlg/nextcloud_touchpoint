@@ -6,7 +6,7 @@
 			<div class="crm-contact-info">
 				<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" :size="48" />
 				<div class="crm-contact-meta">
-					<h2>{{ contact.name }}</h2>
+					<h1>{{ contact.name }}</h1>
 					<span v-if="contact.email" class="crm-contact-email">{{ contact.email }}</span>
 				</div>
 			</div>
@@ -113,9 +113,12 @@ async function onDelete(note) {
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
 }
 
-.crm-contact-meta h2 {
+/* Promoted to h1 so the page has a level-1 heading for AT; keep the established
+   section-title size rather than the larger user-agent h1 default. */
+.crm-contact-meta h1 {
 	margin: 0;
 	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-weight: bold;
 }
 
 .crm-contact-email {

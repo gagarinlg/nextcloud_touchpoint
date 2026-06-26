@@ -512,15 +512,15 @@ async function onSave() {
 	width: 1px;
 	height: 18px;
 	background: var(--color-border);
-	margin: 0 4px;
+	margin: 0 var(--default-grid-baseline, 4px);
 }
 
 .crm-markdown-editor {
 	width: 100%;
 	border: 1px solid var(--color-border-dark);
 	border-radius: 0 0 var(--border-radius) var(--border-radius);
-	padding: 8px;
-	font-size: 14px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
+	font-size: var(--default-font-size, 14px);
 	font-family: var(--font-face-monospace, monospace);
 	background: var(--color-main-background);
 	color: var(--color-main-text);
@@ -544,14 +544,14 @@ async function onSave() {
 }
 
 .crm-markdown-preview {
-	min-height: 120px;
+	min-height: calc(var(--default-grid-baseline, 4px) * 30);
 	border: 1px solid var(--color-border);
 	border-radius: var(--border-radius);
-	padding: 8px 12px;
-	font-size: 14px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2) calc(var(--default-grid-baseline, 4px) * 3);
+	font-size: var(--default-font-size, 14px);
 	background: var(--color-background-hover);
 	color: var(--color-main-text);
-	line-height: 1.6;
+	line-height: var(--default-line-height, 1.6);
 	/* Break long unbroken strings (pasted URLs/tokens) so the preview wraps inside
 	   the modal instead of overflowing horizontally. */
 	overflow-wrap: anywhere;
@@ -563,29 +563,29 @@ async function onSave() {
 .crm-markdown-preview :deep(h5),
 .crm-markdown-preview :deep(h6) {
 	font-weight: 600;
-	margin: 8px 0 4px;
+	margin: calc(var(--default-grid-baseline, 4px) * 2) 0 var(--default-grid-baseline, 4px);
 }
 
 .crm-markdown-preview :deep(p) {
-	margin: 0 0 8px;
+	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .crm-markdown-preview :deep(ul),
 .crm-markdown-preview :deep(ol) {
-	padding-left: 20px;
-	margin: 0 0 8px;
+	padding-left: calc(var(--default-grid-baseline, 4px) * 5);
+	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .crm-markdown-preview :deep(code) {
 	font-family: var(--font-face-monospace, monospace);
 	background: var(--color-background-dark);
-	padding: 1px 4px;
-	border-radius: 3px;
+	padding: 1px calc(var(--default-grid-baseline, 4px) * 1);
+	border-radius: var(--border-radius-small, 4px);
 }
 
 .crm-markdown-preview :deep(pre) {
 	background: var(--color-background-dark);
-	padding: 8px;
+	padding: calc(var(--default-grid-baseline, 4px) * 2);
 	border-radius: var(--border-radius);
 	overflow-x: auto;
 }
@@ -597,21 +597,21 @@ async function onSave() {
 .crm-files-list {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: var(--default-grid-baseline, 4px);
 }
 
 .crm-file-item {
 	display: flex;
 	align-items: center;
-	gap: 6px;
+	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
 	background: var(--color-background-dark);
 	border-radius: var(--border-radius);
-	padding: 4px 8px;
+	padding: var(--default-grid-baseline, 4px) calc(var(--default-grid-baseline, 4px) * 2);
 }
 
 .crm-file-name {
 	flex: 1;
-	font-size: 13px;
+	font-size: var(--font-size-small, 13px);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
