@@ -103,7 +103,8 @@
       "Bash(echo \"EXIT_CODE: $?\")",
       "Bash(grep -rn \"SELECT \\\\|INSERT \\\\|WHERE .*\\\\$\\\\|\\\\. \\\\$\" lib/Db/)",
       "Bash(sudo tail -n 3 /var/www/html/data/nextcloud.log)",
-      "Bash(awk 'NR==8' appinfo/info.xml)"
+      "Bash(awk 'NR==8' appinfo/info.xml)",
+      "Bash(grep -iE \"select.*\\\\.\\\\s*\\\\\\\\\\\\$|where.*=.*\\\\\\\\\\\\$[a-z]\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",
