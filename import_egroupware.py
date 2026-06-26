@@ -526,10 +526,16 @@ class EgroupwareBackup:
         #    (bucket = first two digits of fs_id, EGroupware convention).
         if self._zip is not None:
             names = self._zip_sqlfs_names()
-            bucket = fs_id_str[:2] if len(fs_id_str) >= 2 else fs_id_str
+            # EGroupware shards sqlfs content files one directory deep, bucketed by
+            # fs_id // 100 (e.g. fs_id 1706 -> sqlfs/17/1706, fs_id 47 -> sqlfs/0/47).
+            try:
+                bucket = str(int(fs_id) // 100)
+            except (TypeError, ValueError):
+                bucket = fs_id_str[:2]
             entry = f'sqlfs/{bucket}/{fs_id_str}'
             if entry in names:
                 return self._zip.read(entry)
+            # Fallback: match by fs_id leaf regardless of bucketing/path prefix.
             suffix = f'/{fs_id_str}'
             for name in names:
                 if name.endswith(suffix):
