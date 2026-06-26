@@ -451,11 +451,29 @@ namespace OCP\EventDispatcher {
     interface IEventListener {
         public function handle(Event $event): void;
     }
+
+    interface IEventDispatcher {
+        public function dispatchTyped(Event $event): void;
+    }
 }
 
 // --- OCA\Contacts\Event (the Contacts app, an optional dependency) ---
 namespace OCA\Contacts\Event {
     class LoadContactsOcaApiEvent implements \OCP\EventDispatcher\Event {
+    }
+}
+
+// --- OCP\App\IAppManager (used by PageController to detect the Contacts app) ---
+namespace OCP\App {
+    interface IAppManager {
+        public function isEnabledForUser(string $appId, ?\OCP\IUser $user = null): bool;
+    }
+}
+
+// --- OCP\AppFramework\Services\IInitialState ---
+namespace OCP\AppFramework\Services {
+    interface IInitialState {
+        public function provideInitialState(string $key, mixed $data): void;
     }
 }
 

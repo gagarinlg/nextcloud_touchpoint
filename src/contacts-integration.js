@@ -297,7 +297,9 @@ async function injectNotesPanel(detailEl) {
 	// The header is a flex row of two independent, properly-roled controls: a real
 	// <button> that toggles the body, and a separate <a> link. Avoid nesting the
 	// link inside a role=button element (invalid ARIA / ambiguous a11y tree).
-	const bodyId = `crm-contacts-notes-body-${Math.random().toString(36).slice(2, 10)}`
+	const suffix = Math.random().toString(36).slice(2, 10)
+	const bodyId = `crm-contacts-notes-body-${suffix}`
+	const addFormId = `crm-contacts-addform-${suffix}`
 	panel.innerHTML = `
 		<div class="crm-contacts-notes-header">
 			<button type="button" class="crm-contacts-notes-toggle" aria-expanded="true" aria-controls="${bodyId}">
@@ -305,7 +307,7 @@ async function injectNotesPanel(detailEl) {
 				<span class="crm-contacts-notes-icon" aria-hidden="true">${mdiIcon('note', 18)}</span>
 				<span>${t('crm_notes', 'CRM Notes')}</span>
 			</button>
-			<button type="button" class="crm-contacts-notes-add" title="${addLabel}" aria-label="${addLabel}" aria-expanded="false">${mdiIcon('plus', 16)}</button>
+			<button type="button" class="crm-contacts-notes-add" title="${addLabel}" aria-label="${addLabel}" aria-expanded="false" aria-controls="${addFormId}">${mdiIcon('plus', 16)}</button>
 			<a class="crm-contacts-open-app"
 				href="${generateUrl('/apps/crm_notes')}#contact/${encodeURIComponent(uid)}"
 				title="${openLabel}"
@@ -313,10 +315,10 @@ async function injectNotesPanel(detailEl) {
 				target="_blank"
 				rel="noopener">${mdiIcon('openInNew', 14)}</a>
 		</div>
-		<form class="crm-contacts-notes-addform" hidden>
-			<input type="text" class="crm-contacts-addform-title" maxlength="255" placeholder="${t('crm_notes', 'Title')}" />
+		<form id="${addFormId}" class="crm-contacts-notes-addform" hidden>
+			<input type="text" class="crm-contacts-addform-title" maxlength="255" placeholder="${t('crm_notes', 'Title')}" aria-label="${t('crm_notes', 'Title')}" />
 			<select class="crm-contacts-addform-type" aria-label="${t('crm_notes', 'Note type')}"></select>
-			<textarea class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}"></textarea>
+			<textarea class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}" aria-label="${t('crm_notes', 'Note content')}"></textarea>
 			<div class="crm-contacts-addform-actions">
 				<button type="button" class="crm-contacts-addform-cancel">${t('crm_notes', 'Cancel')}</button>
 				<button type="submit" class="crm-contacts-addform-save">${t('crm_notes', 'Save')}</button>
@@ -571,26 +573,92 @@ async function injectNotesPanel(detailEl) {
 				background: var(--color-background-hover, rgba(0,0,0,.04));
 				color: var(--color-main-text);
 			}
+			.crm-contacts-notes-add:focus-visible {
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
+			}
 			.crm-contacts-notes-addform {
 				display: flex;
 				flex-direction: column;
 				gap: calc(var(--default-grid-baseline, 4px) * 2);
 				padding: 0 calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2);
 			}
+			/* Mirror NoteModal.vue's .crm-markdown-editor: a 1px NC-token border,
+			   NC radius and NC background/text tokens, so these native controls
+			   read as part of the design system rather than raw UA widgets. */
 			.crm-contacts-addform-title,
 			.crm-contacts-addform-type,
 			.crm-contacts-addform-content {
 				width: 100%;
 				box-sizing: border-box;
+				border: 1px solid var(--color-border-dark, #ccc);
+				border-radius: var(--border-radius, 4px);
+				padding: calc(var(--default-grid-baseline, 4px) * 2);
+				font: inherit;
+				font-size: var(--font-size-small, 13px);
+				background: var(--color-main-background);
+				color: var(--color-main-text);
+			}
+			.crm-contacts-addform-title:hover,
+			.crm-contacts-addform-type:hover,
+			.crm-contacts-addform-content:hover {
+				border-color: var(--color-primary-element);
+			}
+			.crm-contacts-addform-title:focus,
+			.crm-contacts-addform-title:focus-visible,
+			.crm-contacts-addform-type:focus,
+			.crm-contacts-addform-type:focus-visible,
+			.crm-contacts-addform-content:focus,
+			.crm-contacts-addform-content:focus-visible {
+				outline: none;
+				border-color: var(--color-primary-element);
+				box-shadow: 0 0 0 2px var(--color-primary-element);
 			}
 			.crm-contacts-addform-content {
 				resize: vertical;
 				min-height: 56px;
+				font-family: var(--font-face-monospace, monospace);
 			}
 			.crm-contacts-addform-actions {
 				display: flex;
 				justify-content: flex-end;
 				gap: calc(var(--default-grid-baseline, 4px) * 2);
+			}
+			/* Themed action buttons matching the NcButton styling used everywhere
+			   else: Cancel is a neutral/secondary control, Save is the primary
+			   action tinted with --color-primary-element. */
+			.crm-contacts-addform-cancel,
+			.crm-contacts-addform-save {
+				border: none;
+				border-radius: var(--border-radius-element, var(--border-radius, 4px));
+				padding: calc(var(--default-grid-baseline, 4px) * 1.5) calc(var(--default-grid-baseline, 4px) * 3);
+				font: inherit;
+				font-size: var(--font-size-small, 13px);
+				font-weight: 600;
+				cursor: pointer;
+			}
+			.crm-contacts-addform-cancel {
+				background: var(--color-background-dark);
+				color: var(--color-main-text);
+			}
+			.crm-contacts-addform-cancel:hover {
+				background: var(--color-background-hover, rgba(0,0,0,.04));
+			}
+			.crm-contacts-addform-save {
+				background: var(--color-primary-element);
+				color: var(--color-primary-element-text);
+			}
+			.crm-contacts-addform-save:hover {
+				background: var(--color-primary-element-hover, var(--color-primary-element));
+			}
+			.crm-contacts-addform-save:disabled {
+				opacity: 0.5;
+				cursor: default;
+			}
+			.crm-contacts-addform-cancel:focus-visible,
+			.crm-contacts-addform-save:focus-visible {
+				outline: 2px solid var(--color-primary-element);
+				outline-offset: 1px;
 			}
 		`
 		document.head.appendChild(style)

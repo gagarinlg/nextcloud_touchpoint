@@ -122,7 +122,7 @@ class ContactControllerTest extends TestCase {
 
         $this->contactsManager->expects($this->once())
             ->method('search')
-            ->with('', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 200])
+            ->with('', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 10000])
             ->willReturn([
                 ['UID' => 'uid-1', 'FN' => 'Alice Smith', 'EMAIL' => 'alice@example.com', 'addressbook-key' => '1'],
                 ['UID' => 'uid-2', 'FN' => 'Bob Jones', 'EMAIL' => 'bob@example.com', 'addressbook-key' => '2'],
@@ -238,7 +238,7 @@ class ContactControllerTest extends TestCase {
 
         $this->contactsManager->expects($this->once())
             ->method('search')
-            ->with('alice', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 200])
+            ->with('alice', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 10000])
             ->willReturn([]);
 
         $this->controller->index();
@@ -316,7 +316,7 @@ class ContactControllerTest extends TestCase {
 
         $this->contactsManager->expects($this->once())
             ->method('search')
-            ->with('', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 200])
+            ->with('', ['FN', 'EMAIL', 'TEL', 'ORG'], ['types' => true, 'limit' => 10000])
             ->willReturn([]);
 
         $this->controller->index();
@@ -328,14 +328,16 @@ class ContactControllerTest extends TestCase {
         // so an empty term can never flatten + photo-check the whole directory.
         $this->request->method('getParam')->willReturn('');
 
+        // Hand back more rows than the cap (MAX_SEARCH_RESULTS = 10000) so the
+        // test exercises the materialise ceiling, not just a smaller backend set.
         $big = [];
-        for ($i = 0; $i < 500; $i++) {
+        for ($i = 0; $i < 10050; $i++) {
             $big[] = ['UID' => 'uid-' . $i, 'FN' => 'User ' . $i, 'EMAIL' => '', 'addressbook-key' => '1'];
         }
         $this->contactsManager->method('search')->willReturn($big);
 
         $data = $this->controller->index()->getData();
-        $this->assertCount(200, $data);
+        $this->assertCount(10000, $data);
     }
 
     public function testIndexReturnsEmptyPhotoWhenContactHasNoStoredPhoto(): void {
