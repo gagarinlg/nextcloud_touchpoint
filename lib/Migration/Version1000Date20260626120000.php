@@ -33,7 +33,11 @@ class Version1000Date20260626120000 extends SimpleMigrationStep {
             $t = $schema->createTable('crm_notes');
             $t->addColumn('id', Types::INTEGER, ['autoincrement' => true, 'notnull' => true]);
             $t->addColumn('contact_uid', Types::STRING, ['notnull' => true, 'length' => 255]);
-            $t->addColumn('addressbook_id', Types::INTEGER, ['notnull' => true]);
+            // Default 0: Nextcloud's Entity setter skips marking a field dirty
+            // when the value equals the property default (0 for int), so a note
+            // created with addressbook_id 0 would otherwise omit the column and
+            // hit the NOT NULL constraint. A DB default keeps that path safe.
+            $t->addColumn('addressbook_id', Types::INTEGER, ['notnull' => true, 'default' => 0]);
             $t->addColumn('note_type_id', Types::INTEGER, ['notnull' => true]);
             $t->addColumn('title', Types::STRING, ['notnull' => true, 'length' => 255]);
             $t->addColumn('content', Types::TEXT, ['notnull' => false]);
@@ -77,7 +81,11 @@ class Version1000Date20260626120000 extends SimpleMigrationStep {
             $t->addColumn('id', Types::INTEGER, ['autoincrement' => true, 'notnull' => true]);
             $t->addColumn('note_id', Types::INTEGER, ['notnull' => true]);
             $t->addColumn('contact_uid', Types::STRING, ['notnull' => true, 'length' => 255]);
-            $t->addColumn('addressbook_id', Types::INTEGER, ['notnull' => true]);
+            // Default 0: Nextcloud's Entity setter skips marking a field dirty
+            // when the value equals the property default (0 for int), so a note
+            // created with addressbook_id 0 would otherwise omit the column and
+            // hit the NOT NULL constraint. A DB default keeps that path safe.
+            $t->addColumn('addressbook_id', Types::INTEGER, ['notnull' => true, 'default' => 0]);
             $t->setPrimaryKey(['id']);
             $t->addIndex(['note_id'], 'crm_nc_note_idx');
             $t->addIndex(['contact_uid'], 'crm_nc_contact_idx');

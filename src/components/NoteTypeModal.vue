@@ -138,6 +138,9 @@ async function onSave() {
 		} else {
 			await noteTypesStore.create(form.value)
 		}
+		// Close only after a successful save (NoteModal behaves the same); on
+		// error keep the modal open so the user can correct and retry.
+		noteTypesStore.closeModal()
 	} catch {
 		showError(t('crm_notes', 'Failed to save note type.'))
 	}
