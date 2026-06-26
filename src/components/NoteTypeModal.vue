@@ -27,12 +27,16 @@
 			</div>
 
 			<div class="crm-form-row">
-				<label for="type-color">{{ t('crm_notes', 'Color') }}</label>
+				<!-- A non-labelling caption (a plain styled span, like the files
+				     group in NoteModal): the control here is an NcButton whose own
+				     visible text "Choose color" is its accessible name. A <label
+				     for> would not override a button's name, so associating one
+				     would make the visible caption ("Color") and the programmatic
+				     name ("Choose color") diverge (WCAG 2.5.3 Label in Name). -->
+				<span class="crm-group-label">{{ t('crm_notes', 'Color') }}</span>
 				<NcColorPicker v-model="form.color">
-					<NcButton id="type-color"
-						class="crm-color-trigger"
-						:title="form.color"
-						:aria-label="t('crm_notes', 'Choose color')">
+					<NcButton class="crm-color-trigger"
+						:title="form.color">
 						<template #icon>
 							<span class="crm-color-swatch" :style="{ background: form.color }" />
 						</template>
@@ -168,7 +172,8 @@ async function onSave() {
 	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
 }
 
-.crm-form-row label {
+.crm-form-row label,
+.crm-form-row .crm-group-label {
 	font-weight: 600;
 	font-size: var(--default-font-size, 14px);
 }

@@ -212,7 +212,13 @@ class NoteMapper extends QBMapper {
             while ($row = $result->fetch()) {
                 $map[(int)$row['id']] = [
                     'created_at' => $row['created_at'] ?? null,
-                    'is_pinned' => (bool)$row['is_pinned'],
+                    // Normalise defensively rather than relying on the DB driver
+                    // surfacing a real PHP bool: MySQL returns TINYINT 0/1, pgsql
+                    // can surface native 't'/'f' strings under some portability
+                    // configs, and (bool)'f' === true would silently corrupt the
+                    // pinned-first ordering. Mirror how a QBMapper-hydrated entity
+                    // (Types::BOOLEAN) would resolve the value to a guaranteed bool.
+                    'is_pinned' => in_array($row['is_pinned'], [true, 1, '1', 't'], true),
                 ];
             }
             $result->closeCursor();

@@ -201,9 +201,16 @@ class NoteMapperTest extends TestCase {
         $this->expr->method('in')->willReturn('in_expr');
 
         $result = $this->createMock(IResult::class);
+        // Mix of driver-shaped is_pinned values: MySQL TINYINT 1/0, and the pgsql
+        // native 't'/'f' strings that some portability configs surface. The mapper
+        // must normalise all of them to real PHP bools — in particular (bool)'f'
+        // would be true, which would silently corrupt the pinned-first ordering,
+        // so 'f' must resolve to false.
         $rows = [
             ['id' => 1, 'created_at' => '2026-05-01 00:00:00', 'is_pinned' => 1],
             ['id' => 2, 'created_at' => '2026-05-02 00:00:00', 'is_pinned' => 0],
+            ['id' => 3, 'created_at' => '2026-05-03 00:00:00', 'is_pinned' => 't'],
+            ['id' => 4, 'created_at' => '2026-05-04 00:00:00', 'is_pinned' => 'f'],
             false,
         ];
         $i = 0;
@@ -212,10 +219,12 @@ class NoteMapperTest extends TestCase {
         });
         $this->qb->method('executeQuery')->willReturn($result);
 
-        $map = $this->mapper->findSortKeysByIds([1, 2], 'user1');
+        $map = $this->mapper->findSortKeysByIds([1, 2, 3, 4], 'user1');
 
         $this->assertTrue($map[1]['is_pinned']);
         $this->assertFalse($map[2]['is_pinned']);
+        $this->assertTrue($map[3]['is_pinned']);
+        $this->assertFalse($map[4]['is_pinned']);
         $this->assertSame('2026-05-01 00:00:00', $map[1]['created_at']);
         $this->assertSame('2026-05-02 00:00:00', $map[2]['created_at']);
         // updated_at must no longer be selected or surfaced.

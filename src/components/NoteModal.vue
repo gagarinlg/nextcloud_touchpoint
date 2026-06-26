@@ -571,8 +571,9 @@ async function onSave() {
 	overflow-wrap: anywhere;
 }
 
-/* renderMarkdown() demotes every user heading by three (largest becomes <h4>),
-   so the preview can never contain h1–h3. Style only the emitted levels. */
+/* renderMarkdown() demotes every user heading by two (largest becomes <h3>),
+   so the preview can never contain h1–h2. Style only the emitted levels. */
+.crm-markdown-preview :deep(h3),
 .crm-markdown-preview :deep(h4),
 .crm-markdown-preview :deep(h5),
 .crm-markdown-preview :deep(h6) {

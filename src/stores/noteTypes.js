@@ -13,7 +13,9 @@ export const useNoteTypesStore = defineStore('noteTypes', {
 		// True while a create/update/remove POST/PUT/DELETE is in flight, so the
 		// modal's confirm button can disable itself and a rapid double-click can
 		// not fire two createNoteType() calls. A UNIQUE(user_id, name) index
-		// (migration 1009) is the server-side guard against duplicate names —
+		// (defined in the consolidated baseline migration
+		// Version1000Date20260626120000) is the server-side guard against
+		// duplicate names —
 		// the backend now returns a clean 400 on a collision — but disabling the
 		// button still avoids a needless second request. Mirrors notes.js save().
 		saving: false,

@@ -78,7 +78,7 @@ class ContactController extends Controller {
         if (!is_array($value)) {
             return '';
         }
-        foreach ($value as $key => $item) {
+        foreach ($value as $item) {
             if (is_string($item) && $item !== '') {
                 return $item;
             }
@@ -92,11 +92,11 @@ class ContactController extends Controller {
                     }
                 }
             }
-            // Some shapes key the entry by the value itself (e.g. 'a@b.com' => [...]).
-            if (is_string($key) && $key !== '' && !ctype_digit($key)) {
-                return $key;
-            }
         }
+        // Only ever emit real property values: never fall back to an array key,
+        // which for an unexpected map shape could surface a structural key (a
+        // type label, 'addressbook-key', …) as the contact's name/email/phone.
+        // The client tolerates an empty field.
         return '';
     }
 

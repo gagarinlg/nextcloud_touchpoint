@@ -161,8 +161,9 @@ const editedByline = computed(() => {
 // Note content is rendered inside a card that sits under the view's <h2>, so any
 // h1–h3 a user writes (e.g. "# Title") would corrupt the document heading
 // outline for screen-reader navigation. The shared renderMarkdown() pipeline
-// demotes heading levels by three (largest user heading becomes an <h4>) before
-// sanitising, identical to the modal preview and the Contacts tab.
+// demotes heading levels by two (largest user heading becomes an <h3>, directly
+// under this card's <h2> title) before sanitising, identical to the modal
+// preview and the Contacts tab.
 const renderedContent = computed(() => renderMarkdown(props.note.content))
 </script>
 
@@ -269,9 +270,11 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 1.5);
 }
 
-/* renderMarkdown() demotes every user heading by three (largest becomes <h4>),
-   so rendered note content can never contain h1–h3. Style only the levels the
-   pipeline can actually emit, matching the Contacts-tab stylesheet. */
+/* renderMarkdown() demotes every user heading by two (largest becomes <h3>, sitting
+   directly under the <h2> note title), so rendered note content can never contain
+   h1–h2. Style only the levels the pipeline can actually emit, matching the
+   Contacts-tab stylesheet. */
+.crm-note-content :deep(h3),
 .crm-note-content :deep(h4),
 .crm-note-content :deep(h5),
 .crm-note-content :deep(h6) {

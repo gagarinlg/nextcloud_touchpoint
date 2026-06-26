@@ -16,7 +16,7 @@
 		<template v-else>
 			<!-- Per-user: default share targets -->
 			<section class="crm-settings-section">
-				<h3>{{ t('crm_notes', 'Default sharing') }}</h3>
+				<h2>{{ t('crm_notes', 'Default sharing') }}</h2>
 				<p class="crm-settings-hint">
 					{{ t('crm_notes', 'New notes are automatically shared with the following users and groups:') }}
 				</p>
@@ -222,7 +222,10 @@ async function save() {
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 8);
 }
 
-.crm-settings-section h3 {
+/* The single sub-section heading is an <h2> (directly under the page <h1>) so
+   the document outline has no skipped level; keep the established section-title
+   size rather than the larger user-agent h2 default. */
+.crm-settings-section h2 {
 	font-size: calc(var(--default-font-size, 15px) * 1.07);
 	font-weight: 600;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 3);

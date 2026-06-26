@@ -19,18 +19,19 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
 })
 
 /**
- * Demote user heading levels by three so a "# Title" written in a note body
- * cannot inject an <h1>/<h2> that corrupts the surrounding document heading
- * outline for screen-reader navigation. The largest user heading becomes an
- * <h4>, keeping it below the surrounding structure while preserving relative
- * hierarchy. Runs before sanitisation.
+ * Demote user heading levels by two so a "# Title" written in a note body cannot
+ * inject an <h1>/<h2> that corrupts the surrounding document heading outline for
+ * screen-reader navigation. A note title renders as an <h2>, so demoting the
+ * largest user heading to an <h3> places it directly under that <h2> with no
+ * skipped level (demoting by three would jump h2 -> h4). Relative hierarchy
+ * between the user's own headings is preserved. Runs before sanitisation.
  *
  * @param {string} html parsed (but not yet sanitised) HTML
  * @return {string} HTML with heading levels demoted
  */
 export function demoteHeadings(html) {
 	return html.replace(/<(\/?)h([1-6])\b/gi, (match, slash, level) => {
-		const newLevel = Math.min(6, Number(level) + 3)
+		const newLevel = Math.min(6, Number(level) + 2)
 		return `<${slash}h${newLevel}`
 	})
 }

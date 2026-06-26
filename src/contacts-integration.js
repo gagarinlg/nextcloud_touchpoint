@@ -71,16 +71,27 @@ function safeColor(color) {
 
 // ---- Helpers ----------------------------------------------------------------
 
-// Decode a possibly-URL-encoded, standard- or URL-safe base64 string, or null.
+// Decode a possibly-URL-encoded, standard- or URL-safe base64 string to a
+// proper UTF-8 string, or null. atob() yields a *binary* (Latin-1) string, so a
+// UID with non-ASCII characters would be byte-corrupted if returned as-is; we
+// run the byte string through TextDecoder so multibyte UIDs survive intact.
+const _utf8Decoder = new TextDecoder('utf-8', { fatal: true })
+
 function decodeBase64Maybe(value) {
 	try {
 		const decoded = decodeURIComponent(value)
+		let binary
 		try {
-			return atob(decoded)
+			binary = atob(decoded)
 		} catch {
 			// URL-safe base64 variant (- and _ instead of + and /).
-			return atob(decoded.replace(/-/g, '+').replace(/_/g, '/'))
+			binary = atob(decoded.replace(/-/g, '+').replace(/_/g, '/'))
 		}
+		// Re-interpret the binary string's bytes as UTF-8. fatal:true makes an
+		// invalid byte sequence throw rather than yield replacement characters,
+		// so a non-base64 path segment falls through to null instead of guessing.
+		const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0))
+		return _utf8Decoder.decode(bytes)
 	} catch {
 		return null
 	}
@@ -88,19 +99,26 @@ function decodeBase64Maybe(value) {
 
 function getContactUid(detailEl) {
 	// 1) Some Contacts versions expose the UID directly as a data attribute.
+	//    This is the authoritative, separator-free source — prefer it whenever
+	//    present so a UID containing a literal '~' is never mis-split below.
 	const uid = detailEl.dataset?.contactUid
 		|| detailEl.closest('[data-contact-uid]')?.dataset?.contactUid
 	if (uid) return uid
 
 	// 2) Contacts 8.x routes a contact as
 	//    /apps/contacts/<group>/<base64(`${uid}~${addressbookUri}`)>
-	//    The last path segment base64-decodes to "uid~addressbook"; the UID is
-	//    everything before the final '~' (the address-book uri carries none).
+	//    The last path segment base64-decodes to "uid~addressbook". The address
+	//    book uri is appended after the final '~', so the UID is everything
+	//    before it. vCard UIDs are effectively always '~'-free, but a UID that
+	//    did contain '~' cannot be unambiguously recovered from this packed
+	//    segment — so if the decoded value has no '~' at all it is malformed and
+	//    we bail (return null) rather than emit the wrong contact's notes.
 	const segment = window.location.pathname.split('/').filter(Boolean).pop()
 	if (segment) {
 		const decoded = decodeBase64Maybe(segment)
-		if (decoded && decoded.includes('~')) {
-			return decoded.substring(0, decoded.lastIndexOf('~'))
+		if (decoded !== null && decoded.includes('~')) {
+			const candidate = decoded.substring(0, decoded.lastIndexOf('~'))
+			if (candidate) return candidate
 		}
 	}
 
@@ -179,7 +197,8 @@ function fileLabel(f) {
 // Markdown rendering (marked -> demoteHeadings -> DOMPurify) is the shared
 // renderMarkdown() pipeline imported above, identical to NoteItem.vue and the
 // modal preview, so the Contacts tab shows formatted markdown with the same
-// heading-demotion accessibility guard and sanitisation.
+// heading-demotion accessibility guard (largest user heading becomes an <h3>,
+// under the <h2> note title) and sanitisation.
 
 function renderNoteItem(note, noteTypeMap = {}) {
 	const div = document.createElement('div')
@@ -520,6 +539,7 @@ async function injectNotesPanel(detailEl) {
 			.crm-contacts-note-content p:last-child { margin-bottom: 0; }
 			.crm-contacts-note-content ul,
 			.crm-contacts-note-content ol { padding-left: calc(var(--default-grid-baseline, 4px) * 4.5); margin: 0 0 calc(var(--default-grid-baseline, 4px) * 1.5); }
+			.crm-contacts-note-content h3,
 			.crm-contacts-note-content h4,
 			.crm-contacts-note-content h5,
 			.crm-contacts-note-content h6 {

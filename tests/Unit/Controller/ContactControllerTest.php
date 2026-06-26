@@ -687,4 +687,28 @@ class ContactControllerTest extends TestCase {
         $this->assertSame('Acme Inc', $data[0]['org']);
         $this->assertSame('+1 555 0100', $data[0]['phone']);
     }
+
+    /**
+     * firstContactValue() must only ever emit real property *values*: for an
+     * unexpected map shape that carries no usable string value it returns '' and
+     * never falls back to a structural array key (a type label, etc.). Here ORG
+     * is an associative map with no scalar value and no nested 'value', so the
+     * flattened org must be empty rather than the map's key.
+     */
+    public function testIndexNeverEmitsStructuralKeyAsValue(): void {
+        $this->request->method('getParam')->willReturn('');
+        $this->contactsManager->method('search')
+            ->willReturn([
+                [
+                    'UID' => 'uid-1',
+                    'FN' => 'Carol',
+                    'EMAIL' => '',
+                    'ORG' => ['WORK' => []],
+                    'addressbook-key' => '1',
+                ],
+            ]);
+
+        $data = $this->controller->index()->getData();
+        $this->assertSame('', $data[0]['org']);
+    }
 }

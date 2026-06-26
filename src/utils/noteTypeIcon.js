@@ -31,7 +31,7 @@ const ICON_COMPONENTS = {
 	'icon-link': IconLink,
 	'icon-category-office': IconNote,
 	// Legacy aliases for tokens that older rows / the column default
-	// ('icon-note') and pre-1009 data may still carry, so those badges keep
+	// ('icon-note') may still carry, so those badges keep
 	// rendering an icon instead of silently showing none. Kept in sync with
 	// NoteTypeService::ALLOWED_ICONS.
 	'icon-calendar': IconCalendar,

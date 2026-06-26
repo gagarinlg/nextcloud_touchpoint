@@ -34,7 +34,7 @@ class NoteTypeService {
      *
      * Keep in sync with src/utils/noteTypeIcon.js and NoteTypeModal.vue's
      * iconOptions. `icon-note`/`icon-calendar` are legacy tokens that older
-     * rows (and the pre-1009 column default) may still carry; they are mapped
+     * rows (and the column default) may still carry; they are mapped
      * to a real glyph in noteTypeIcon.js's legacy aliases, so they render
      * rather than disappear, and stay valid here so existing data never fails
      * validation on update.
@@ -156,9 +156,10 @@ class NoteTypeService {
     }
 
     /**
-     * Translate a UNIQUE(user_id, name) constraint violation (added in
-     * Version1009) into a clean NoteValidationException so ErrorHandler returns
-     * a 400 instead of letting the DBException escape as an opaque 500. Any
+     * Translate a UNIQUE(user_id, name) constraint violation (defined in the
+     * consolidated baseline migration Version1000Date20260626120000) into a
+     * clean NoteValidationException so ErrorHandler returns a 400 instead of
+     * letting the DBException escape as an opaque 500. Any
      * other DB failure is re-thrown unchanged.
      */
     private function mapDuplicateName(DBException $e): \Throwable {
@@ -261,7 +262,8 @@ class NoteTypeService {
      *
      * Seeding is idempotent against concurrency: the check-then-insert below is
      * a fast-path optimisation, but the race-free guard is the UNIQUE index on
-     * (user_id, name) (Version1009). Two concurrent first requests can both pass
+     * (user_id, name) (defined in the consolidated baseline migration
+     * Version1000Date20260626120000). Two concurrent first requests can both pass
      * the count check, but the second's duplicate INSERT then hits the unique
      * constraint, which we catch and ignore — mirroring how create()/addFile()
      * tolerate junction-table dupes — so the instance never ends up with a
