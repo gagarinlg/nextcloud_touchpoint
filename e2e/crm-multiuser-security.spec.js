@@ -79,13 +79,10 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 		await userCtx.close();
 	});
 
-	// SECURITY REGRESSION (current build): a recipient with a READ-ONLY share
-	// (canEdit:false) is NOT prevented from editing or deleting the note. Probed
-	// directly against the API: PUT and DELETE both return 200 instead of 403.
-	// This is the historically weak authorization area called out in CLAUDE.md;
-	// the "recent authorization fix" is not effective in this build. Re-enable this
-	// test once the NoteService enforces canEdit on update()/delete() for non-owners.
-	test.fixme('a read-only recipient is BLOCKED (403) from editing or deleting', async ({ browser }) => {
+	// A read-only recipient (canEdit:false) must be forbidden from mutating the
+	// note. Verified against the rebuilt private-mode build: PUT and DELETE both
+	// return 403 (the earlier 200/200 authorization regression is fixed).
+	test('a read-only recipient is BLOCKED (403) from editing or deleting', async ({ browser }) => {
 		const { ctx: adminCtx, page: admin, created } = await adminCreateSharedNote(browser, false);
 		expect(created.status).toBeLessThan(300);
 
@@ -111,12 +108,10 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 		await userCtx.close();
 	});
 
-	// SECURITY REGRESSION (current build): horizontal IDOR — GET /api/notes/{id}
-	// for a note that is NOT shared with the caller returns 200 with the full note
-	// body instead of 403/404. Probed: crmtestuser can read admin's private note.
-	// Re-enable once NoteService::find()/show authorizes the caller against
-	// ownership + an explicit share. (Pairs with the edit/delete-enforcement bug.)
-	test.fixme('a recipient does NOT see the owner\'s other (unshared) notes', async ({ browser }) => {
+	// Horizontal-IDOR guard: GET /api/notes/{id} for a note that is NOT shared with
+	// the caller must NOT return its body. Verified against the rebuilt private-mode
+	// build: crmtestuser gets 404 for admin's private note (earlier 200 IDOR fixed).
+	test('a recipient does NOT see the owner\'s other (unshared) notes', async ({ browser }) => {
 		// Create two notes as admin: one shared with crmtestuser, one private.
 		const { ctx: adminCtx, page: admin, created: shared } = await adminCreateSharedNote(browser, false);
 		const priv = await admin.evaluate(async () => {

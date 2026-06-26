@@ -17,9 +17,12 @@ export const useContactsStore = defineStore('contacts', {
 		filtered: (state) => {
 			const q = state.searchQuery.toLowerCase()
 			if (!q) return state.contacts
+			// Coerce to string defensively: the API should always send strings,
+			// but a non-string name/email must never throw here (which would
+			// crash the whole list render as the user types).
 			return state.contacts.filter(c =>
-				c.name.toLowerCase().includes(q)
-				|| (c.email || '').toLowerCase().includes(q),
+				String(c.name ?? '').toLowerCase().includes(q)
+				|| String(c.email ?? '').toLowerCase().includes(q),
 			)
 		},
 		byUid: (state) => (uid) => state.contacts.find(c => c.uid === uid),

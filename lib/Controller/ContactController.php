@@ -47,6 +47,43 @@ class ContactController extends Controller {
         parent::__construct(Application::APP_ID, $request);
     }
 
+    /**
+     * Flatten a value returned by IManager::search() into a scalar string.
+     *
+     * With the ['types' => true] option, properties come back as typed
+     * structures — e.g. [['type' => ['WORK'], 'value' => 'a@b.com']] — rather
+     * than plain strings. This returns the first usable string value (or '' if
+     * none), guaranteeing the API never emits an array/object for name/email.
+     */
+    private function firstContactValue(mixed $value): string {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (!is_array($value)) {
+            return '';
+        }
+        foreach ($value as $key => $item) {
+            if (is_string($item) && $item !== '') {
+                return $item;
+            }
+            if (is_array($item)) {
+                if (isset($item['value']) && is_string($item['value']) && $item['value'] !== '') {
+                    return $item['value'];
+                }
+                foreach ($item as $sub) {
+                    if (is_string($sub) && $sub !== '') {
+                        return $sub;
+                    }
+                }
+            }
+            // Some shapes key the entry by the value itself (e.g. 'a@b.com' => [...]).
+            if (is_string($key) && $key !== '' && !ctype_digit($key)) {
+                return $key;
+            }
+        }
+        return '';
+    }
+
     #[NoAdminRequired]
     public function index(): JSONResponse {
         $term = (string) $this->request->getParam('term', '');
@@ -63,10 +100,12 @@ class ContactController extends Controller {
                 continue;
             }
 
-            $email = '';
-            if (!empty($entry['EMAIL'])) {
-                $email = is_array($entry['EMAIL']) ? $entry['EMAIL'][0] : $entry['EMAIL'];
-            }
+            // With the ['types' => true] search option, FN/EMAIL come back as
+            // typed structures (arrays of ['type' => ..., 'value' => ...]), not
+            // plain strings. Flatten to a scalar so the API always returns a
+            // string — otherwise the client renders the raw object ("JSON" under
+            // the name) and the contact filter throws calling .toLowerCase() on it.
+            $email = $this->firstContactValue($entry['EMAIL'] ?? '');
 
             // Use a photo URL only if this contact actually carries a PHOTO in any
             // address book the user can read (own or shared).
@@ -80,7 +119,7 @@ class ContactController extends Controller {
 
             $contacts[] = [
                 'uid' => $uid,
-                'name' => $entry['FN'] ?? '',
+                'name' => $this->firstContactValue($entry['FN'] ?? ''),
                 'email' => $email,
                 'photo' => $photoUrl,
                 'addressbookKey' => $entry['addressbook-key'] ?? '',

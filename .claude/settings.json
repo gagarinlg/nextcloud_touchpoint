@@ -107,7 +107,9 @@
       "Bash(grep -rn \"SELECT \\\\|INSERT \\\\|WHERE .*\\\\$\\\\|\\\\. \\\\$\" lib/Db/)",
       "Bash(sudo tail -n 3 /var/www/html/data/nextcloud.log)",
       "Bash(awk 'NR==8' appinfo/info.xml)",
-      "Bash(grep -iE \"select.*\\\\.\\\\s*\\\\\\\\\\\\$|where.*=.*\\\\\\\\\\\\$[a-z]\")"
+      "Bash(grep -iE \"select.*\\\\.\\\\s*\\\\\\\\\\\\$|where.*=.*\\\\\\\\\\\\$[a-z]\")",
+      "Bash(break)",
+      "Bash(chmod 644 /tmp/emailcheck.php)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

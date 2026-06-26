@@ -6,19 +6,17 @@ const { login, openApp, gotoSection, RX, unique } = require('./helpers');
 test.setTimeout(90000);
 
 /*
- * KNOWN ISSUES in the current build (documented here, referenced elsewhere):
+ * KNOWN ISSUE still present in the current build:
  *
- *  - addressbook_id default-omission: Entity::insert() drops any field left at
- *    its initialized default, and the NOT NULL crm_notes.addressbook_id column has
- *    no DB default. The UI NoteModal omits addressbookId (controller default 0),
- *    so creating a note THROUGH THE UI returns 500. API creates work only with a
- *    non-zero addressbookId, which our setup helpers use.
- *  - confirmDestructive() / getDialogBuilder() crashes with
- *    "Cannot read properties of undefined (reading '_c')", so the in-app delete
- *    confirmation dialog never renders (affects note + note-type deletion).
+ *  - confirmDestructive() / getDialogBuilder() crashes at runtime with
+ *    "TypeError: Cannot read properties of undefined (reading '_c')" (Vue
+ *    createElement), so the in-app delete confirmation dialog never renders
+ *    (affects note + note-type deletion via the UI). The delete-via-UI tests stay
+ *    as test.fixme() until this is fixed.
  *
- * Therefore UI create and UI delete are kept as test.fixme(); editing (which
- * works end-to-end) and rendering are asserted live.
+ * FIXED since the rebuild (now asserted live): addressbook_id has a DB default of
+ * 0, so UI/API note creation no longer 500s; the note modal closes on save.
+ * API setup helpers pass addressbookId:0 to exercise the fixed path.
  */
 
 /** Seed a note for the first contact via the API. Returns {id, uid, title}. */
@@ -123,17 +121,30 @@ test.describe('CRM Notes — notes CRUD', () => {
 		await expect(page.locator('.crm-modal-body')).toHaveCount(0, { timeout: 8000 });
 	});
 
-	// KNOWN ISSUE: UI create returns 500 because the modal omits addressbookId and
-	// the Entity drops the default-0 value (NOT NULL column). Re-enable once the
-	// note create path persists addressbook_id (or the column gets a default).
-	test.fixme('create a note end-to-end through the UI', async ({ page }) => {
+	// Full UI create: the modal omits addressbookId (controller default 0). With the
+	// addressbook_id DB default now in place this persists instead of 500-ing.
+	test('create a note end-to-end through the UI', async ({ page }) => {
 		const title = unique('E2E-UICreate');
-		await gotoSection(page, RX.contacts);
-		await page.locator('.crm-contacts-list li').first().click();
-		await page.getByRole('button', { name: RX.addNote }).first().click();
-		await page.getByPlaceholder(/Note title|Notiztitel/i).fill(title);
-		await page.getByRole('button', { name: RX.save }).last().click();
-		await expect(page.locator('.crm-note-item').filter({ hasText: title }).first()).toBeVisible({ timeout: 10000 });
+		try {
+			await gotoSection(page, RX.contacts);
+			await page.locator('.crm-contacts-list li').first().click();
+			await page.getByRole('button', { name: RX.addNote }).first().click();
+			await page.getByPlaceholder(/Note title|Notiztitel/i).fill(title);
+			await page.getByRole('button', { name: RX.save }).last().click();
+			// Modal closes and the new note card appears.
+			await expect(page.locator('.crm-modal-body')).toHaveCount(0, { timeout: 10000 });
+			await expect(page.locator('.crm-note-item').filter({ hasText: title }).first()).toBeVisible({ timeout: 10000 });
+		} finally {
+			// Clean up by title via the API (the UI gives us no id).
+			await page.evaluate(async (title) => {
+				const token = document.querySelector('head')?.getAttribute('data-requesttoken');
+				const list = await (await fetch('/index.php/apps/crm_notes/api/notes?limit=200', { headers: { requesttoken: token } })).json();
+				const notes = Array.isArray(list) ? list : (list.notes || list.data || []);
+				for (const n of notes.filter(x => x.title === title)) {
+					await fetch('/index.php/apps/crm_notes/api/notes/' + n.id, { method: 'DELETE', headers: { requesttoken: token } });
+				}
+			}, title).catch(() => {});
+		}
 	});
 
 	// KNOWN ISSUE: the in-app delete confirmation dialog never renders because
