@@ -29,15 +29,15 @@ class ContactController extends Controller {
     private const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
     /**
-     * Server-side cap on the number of contact entries index() will ever
-     * materialise (photo-check, flatten) and return. IManager::search() with an
-     * empty term returns every contact the caller can read across all their
-     * address books — including the system address book of every user account —
-     * so an empty/short term must not be allowed to flatten, photo-check and sort
-     * the entire instance directory on every keystroke or panel open. Mirrors the
-     * defensive bounding searchPrincipals() applies for the same enumeration risk.
+     * Upper sanity bound on the number of contact entries index() will ever
+     * materialise (photo-check, flatten) and return in one response. The frontend
+     * loads the list ONCE and filters it client-side (it does not re-query the
+     * backend per keystroke), and mirrors the Contacts app by showing the whole
+     * address book — so this is a generous ceiling that comfortably covers a real
+     * directory while still guarding against a pathologically huge instance from
+     * being flattened and sorted in a single request.
      */
-    private const MAX_SEARCH_RESULTS = 200;
+    private const MAX_SEARCH_RESULTS = 10000;
 
     /**
      * The only Content-Types we will ever serve for a contact photo. The MIME

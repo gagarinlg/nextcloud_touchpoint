@@ -59,6 +59,7 @@
 				<ul v-else class="crm-contacts-list">
 					<NcListItem v-for="contact in displayedContacts"
 						:key="contact.uid"
+						class="crm-contact-row"
 						:name="contact.name"
 						:active="isSelected(contact)"
 						@click="contactsStore.select(contact)">
@@ -70,9 +71,6 @@
 						<template #subname>{{ contactSubline(contact) }}</template>
 					</NcListItem>
 				</ul>
-				<p v-if="hiddenContactCount > 0" class="crm-contacts-hint">
-					{{ n('crm_notes', '%n more contact — type to search', '%n more contacts — type to search', hiddenContactCount) }}
-				</p>
 			</template>
 			<ContactNotesView v-if="contactsStore.currentContact" />
 			<AllNotesView v-else @go-to-contacts="focusContactSearch" />
@@ -94,7 +92,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import { translate as t, translatePlural as n } from '@nextcloud/l10n'
+import { translate as t } from '@nextcloud/l10n'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
@@ -119,15 +117,15 @@ import { useContactsStore } from './stores/contacts.js'
 import { useNoteTypesStore } from './stores/noteTypes.js'
 import { useSettingsStore } from './stores/settings.js'
 
-const MAX_CONTACTS = 100
-
 const contactsStore = useContactsStore()
 const noteTypesStore = useNoteTypesStore()
 const settingsStore = useSettingsStore()
 const activeSection = ref('contacts')
 
-const displayedContacts = computed(() => contactsStore.filtered.slice(0, MAX_CONTACTS))
-const hiddenContactCount = computed(() => Math.max(0, contactsStore.filtered.length - MAX_CONTACTS))
+// Mirror the Contacts app: show the entire (client-side filtered) address book,
+// not a truncated window. The list virtualises its paint via CSS
+// content-visibility so even a few thousand rows scroll smoothly.
+const displayedContacts = computed(() => contactsStore.filtered)
 
 function setSection(section) {
 	activeSection.value = section
@@ -243,12 +241,12 @@ onBeforeUnmount(() => {
 	margin: 0;
 }
 
-.crm-contacts-hint {
-	/* Fixed footer hint below the scroll region. */
-	flex: 0 0 auto;
-	padding: calc(var(--default-grid-baseline, 4px) * 1) calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2);
-	font-size: var(--font-size-small, 13px);
-	color: var(--color-text-maxcontrast);
-	text-align: center;
+/* Virtualise paint: the browser skips layout/paint for off-screen rows, so
+   the full address book scrolls smoothly even at a few thousand contacts.
+   contain-intrinsic-size keeps the scrollbar proportional before a row has
+   ever been rendered. */
+.crm-contacts-list :deep(.crm-contact-row) {
+	content-visibility: auto;
+	contain-intrinsic-size: auto 56px;
 }
 </style>

@@ -169,7 +169,8 @@
       "Bash(cat lib/Event/LoadContactsOcaApiEvent.php)",
       "Bash(cat lib/Listener/LoadContactsOcaApi.php)",
       "Bash(cat lib/Listener/LoadContactsFilesActions.php)",
-      "Bash(grep -oE \"OCA\\\\.Contacts ?= ?\\\\{[^}]*\\\\}|Contacts: ?\\\\{[^}]{0,200}\" js/contacts-main.mjs js/contacts-oca.mjs)"
+      "Bash(grep -oE \"OCA\\\\.Contacts ?= ?\\\\{[^}]*\\\\}|Contacts: ?\\\\{[^}]{0,200}\" js/contacts-main.mjs js/contacts-oca.mjs)",
+      "Bash(awk '/private function entryHasPhoto|private function entryPhotoIsServable/{f=1} f{print} /^ }$/{if\\(f\\){c++; if\\(c>=2 && /entryPhotoIsServable/\\) {} }}' lib/Controller/ContactController.php)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",
