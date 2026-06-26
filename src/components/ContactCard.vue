@@ -7,6 +7,9 @@
 			:name="t('crm_notes', 'Contact details unavailable')"
 			:description="t('crm_notes', 'The Contacts app could not render this card.')">
 			<template #icon><IconAccountOff :size="48" /></template>
+			<template #action>
+				<NcButton @click="mount">{{ t('crm_notes', 'Retry') }}</NcButton>
+			</template>
 		</NcEmptyContent>
 		<!-- v-show (not v-if): the mount target must exist in the DOM before we
 		     mount the embedded card into it, even while it is still hidden. -->
@@ -19,6 +22,7 @@ import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
 import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
 import NcEmptyContent from '@nextcloud/vue/components/NcEmptyContent'
+import NcButton from '@nextcloud/vue/components/NcButton'
 import IconAccountOff from 'vue-material-design-icons/AccountOff.vue'
 
 const props = defineProps({

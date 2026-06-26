@@ -316,9 +316,19 @@ async function injectNotesPanel(detailEl) {
 				rel="noopener">${mdiIcon('openInNew', 14)}</a>
 		</div>
 		<form id="${addFormId}" class="crm-contacts-notes-addform" hidden>
-			<input type="text" class="crm-contacts-addform-title" maxlength="255" placeholder="${t('crm_notes', 'Title')}" aria-label="${t('crm_notes', 'Title')}" />
-			<select class="crm-contacts-addform-type" aria-label="${t('crm_notes', 'Note type')}"></select>
-			<textarea class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}" aria-label="${t('crm_notes', 'Note content')}"></textarea>
+			<div class="crm-contacts-addform-row">
+				<label class="crm-contacts-addform-label" for="${addFormId}-title">${t('crm_notes', 'Title')}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<input id="${addFormId}-title" type="text" class="crm-contacts-addform-title" maxlength="255" required placeholder="${t('crm_notes', 'Note title')}" />
+			</div>
+			<div class="crm-contacts-addform-row">
+				<label class="crm-contacts-addform-label" for="${addFormId}-type">${t('crm_notes', 'Type')}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<select id="${addFormId}-type" class="crm-contacts-addform-type" required></select>
+			</div>
+			<div class="crm-contacts-addform-row">
+				<label class="crm-contacts-addform-label" for="${addFormId}-content">${t('crm_notes', 'Content')}</label>
+				<textarea id="${addFormId}-content" class="crm-contacts-addform-content" rows="3" placeholder="${t('crm_notes', 'Write a note…')}"></textarea>
+			</div>
+			<p class="crm-contacts-addform-hint" role="status" aria-live="polite" hidden></p>
 			<div class="crm-contacts-addform-actions">
 				<button type="button" class="crm-contacts-addform-cancel">${t('crm_notes', 'Cancel')}</button>
 				<button type="submit" class="crm-contacts-addform-save">${t('crm_notes', 'Save')}</button>
@@ -583,6 +593,30 @@ async function injectNotesPanel(detailEl) {
 				gap: calc(var(--default-grid-baseline, 4px) * 2);
 				padding: 0 calc(var(--default-grid-baseline, 4px) * 4) calc(var(--default-grid-baseline, 4px) * 2);
 			}
+			/* Stacked label + control, mirroring NoteModal.vue's .crm-form-row so the
+			   inline form reads as part of the design system: a visible bold caption
+			   above each control (placeholders alone fail WCAG 3.3.2). */
+			.crm-contacts-addform-row {
+				display: flex;
+				flex-direction: column;
+				gap: calc(var(--default-grid-baseline, 4px) * 1);
+			}
+			.crm-contacts-addform-label {
+				font-weight: 600;
+				font-size: var(--font-size-small, 13px);
+				color: var(--color-main-text);
+			}
+			.crm-contacts-addform-required {
+				color: var(--color-error);
+				margin-inline-start: 2px;
+			}
+			/* Missing-required-fields hint, matching NoteModal.vue's .crm-save-hint. */
+			.crm-contacts-addform-hint {
+				margin: 0;
+				font-size: var(--font-size-small, 13px);
+				color: var(--color-text-maxcontrast);
+				text-align: end;
+			}
 			/* Mirror NoteModal.vue's .crm-markdown-editor: a 1px NC-token border,
 			   NC radius and NC background/text tokens, so these native controls
 			   read as part of the design system rather than raw UA widgets. */
@@ -694,6 +728,7 @@ function setupAddNote(panel, bodyEl, uid) {
 	const titleEl = form.querySelector('.crm-contacts-addform-title')
 	const typeEl = form.querySelector('.crm-contacts-addform-type')
 	const contentEl = form.querySelector('.crm-contacts-addform-content')
+	const hintEl = form.querySelector('.crm-contacts-addform-hint')
 	const cancelBtn = form.querySelector('.crm-contacts-addform-cancel')
 	const saveBtn = form.querySelector('.crm-contacts-addform-save')
 	const toggleBtn = panel.querySelector('.crm-contacts-notes-toggle')
@@ -709,9 +744,25 @@ function setupAddNote(panel, bodyEl, uid) {
 			typeEl.appendChild(opt)
 		}
 	})
+	// Surface the still-missing required fields in form order, mirroring
+	// NoteModal.vue's missingFieldsHint, instead of silently focusing the title.
+	function showMissingFieldsHint() {
+		const missing = []
+		if (!titleEl.value.trim()) missing.push(t('crm_notes', 'Title'))
+		if (!typeEl.value) missing.push(t('crm_notes', 'Type'))
+		if (!missing.length) {
+			hintEl.hidden = true
+			hintEl.textContent = ''
+			return
+		}
+		hintEl.textContent = t('crm_notes', 'Required: {fields}', { fields: missing.join(', ') })
+		hintEl.hidden = false
+	}
 	function closeForm() {
 		form.hidden = true
 		addBtn.setAttribute('aria-expanded', 'false')
+		hintEl.hidden = true
+		hintEl.textContent = ''
 		form.reset()
 	}
 	addBtn.addEventListener('click', () => {
@@ -724,11 +775,24 @@ function setupAddNote(panel, bodyEl, uid) {
 		}
 	})
 	cancelBtn.addEventListener('click', closeForm)
+	// Once a hint is showing, re-validate as the user fills the fields in so it
+	// clears the moment the requirements are met.
+	const refreshHintIfShown = () => { if (!hintEl.hidden) showMissingFieldsHint() }
+	titleEl.addEventListener('input', refreshHintIfShown)
+	typeEl.addEventListener('change', refreshHintIfShown)
 	form.addEventListener('submit', async (e) => {
 		e.preventDefault()
 		const title = titleEl.value.trim()
-		if (!title) { titleEl.focus(); return }
-		if (!typeEl.value) { showError(t('crm_notes', 'Please pick a note type first.')); return }
+		if (!title || !typeEl.value) {
+			showMissingFieldsHint()
+			// Move focus to the first missing required field so keyboard users
+			// land on what needs filling in.
+			if (!title) titleEl.focus()
+			else typeEl.focus()
+			return
+		}
+		hintEl.hidden = true
+		hintEl.textContent = ''
 		saveBtn.disabled = true
 		const prevLabel = saveBtn.textContent
 		saveBtn.textContent = t('crm_notes', 'Saving\u2026')
