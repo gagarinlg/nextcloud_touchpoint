@@ -73,7 +73,7 @@ async function save(value) {
 }
 
 .crm-admin-section-title {
-	font-size: var(--default-font-size, 15px);
+	font-size: var(--default-font-size, 14px);
 	font-weight: 600;
 	margin: 0 0 calc(var(--default-grid-baseline, 4px) * 3) 0;
 	padding-bottom: calc(var(--default-grid-baseline, 4px) * 2);

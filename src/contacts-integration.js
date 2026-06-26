@@ -360,6 +360,12 @@ async function injectNotesPanel(detailEl) {
 			</div>
 			<div class="crm-contacts-addform-row">
 				<label class="crm-contacts-addform-label" for="${addFormId}-type">${escapeHtml(t('crm_notes', 'Type'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<!-- Native <select> is an intentional exception to the "prefer
+				     NcSelect" rule: this is a non-Vue DOM island injected into the
+				     Contacts app, so an NcSelect cannot be hosted here without
+				     standing up a whole Vue runtime for one control. It is fully
+				     accessible (visible <label for>, required, keyboard-operable)
+				     and themed with NC tokens to approximate the design system. -->
 				<select id="${addFormId}-type" class="crm-contacts-addform-type" required></select>
 			</div>
 			<div class="crm-contacts-addform-row">

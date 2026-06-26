@@ -99,7 +99,15 @@ class Version1000Date20260626120000 extends SimpleMigrationStep {
             $t->addColumn('id', Types::INTEGER, ['autoincrement' => true, 'notnull' => true]);
             $t->addColumn('note_id', Types::INTEGER, ['notnull' => true]);
             $t->addColumn('file_id', Types::INTEGER, ['notnull' => false, 'default' => 0]);
-            $t->addColumn('file_path', Types::STRING, ['notnull' => true, 'length' => 1024]);
+            // VARCHAR(512), not 1024: file_path is part of the composite UNIQUE
+            // index crm_nf_path_unique (note_id, file_path). On MySQL/MariaDB
+            // with the Nextcloud-default utf8mb4 charset (4 bytes/char) a 1024
+            // column would make the indexed key ~1024*4 + 4 ≈ 4100 bytes, over
+            // InnoDB's hard 3072-byte key limit, so a fresh install would fail
+            // the CREATE TABLE with "Specified key was too long". At 512 the
+            // worst case is 512*4 + 4 = 2052 bytes, comfortably under 3072. A
+            // user-folder-relative path never approaches even 512 characters.
+            $t->addColumn('file_path', Types::STRING, ['notnull' => true, 'length' => 512]);
             $t->addColumn('user_id', Types::STRING, ['notnull' => true, 'length' => 64]);
             $t->setPrimaryKey(['id']);
             $t->addIndex(['note_id'], 'crm_nf_note_idx');

@@ -14,21 +14,26 @@ use OCP\Migration\IOutput;
 use OCP\Migration\SimpleMigrationStep;
 
 /**
- * Bring crm_note_files.file_path into a portable, index-safe shape.
+ * Bring crm_note_files.file_path into a portable, index-safe shape on any
+ * instance that ran an earlier baseline.
  *
- * The consolidated baseline (Version1000Date20260626120000) declared
- * file_path as VARCHAR(1024) and made it part of the composite UNIQUE index
- * crm_nf_path_unique on (note_id, file_path). On MySQL/MariaDB with the
- * Nextcloud-default utf8mb4 charset every character can take up to 4 bytes, so
- * the indexed key length is ~1024*4 + 4 (the INT note_id) ≈ 4100 bytes —
- * over InnoDB's hard 3072-byte index key-length limit. A fresh install against
- * MySQL/MariaDB can therefore fail the CREATE TABLE with "Specified key was too
- * long" (SQLite/Postgres are unaffected, which is why it went unnoticed).
+ * An earlier revision of the consolidated baseline
+ * (Version1000Date20260626120000) declared file_path as VARCHAR(1024) and made
+ * it part of the composite UNIQUE index crm_nf_path_unique on
+ * (note_id, file_path). On MySQL/MariaDB with the Nextcloud-default utf8mb4
+ * charset every character can take up to 4 bytes, so the indexed key length is
+ * ~1024*4 + 4 (the INT note_id) ≈ 4100 bytes — over InnoDB's hard 3072-byte
+ * index key-length limit, so a fresh MySQL/MariaDB install would fail the
+ * CREATE TABLE with "Specified key was too long" (SQLite/Postgres were
+ * unaffected, which is why it went unnoticed). The baseline now creates the
+ * column at VARCHAR(512) directly, so fresh installs are safe at create time.
  *
- * This step shortens file_path to VARCHAR(512). Worst case under utf8mb4 the
- * composite key is 512*4 + 4 = 2052 bytes, comfortably under 3072. A user
+ * This step still repairs instances that were created against the old 1024
+ * baseline by shortening file_path to VARCHAR(512). Worst case under utf8mb4
+ * the composite key is 512*4 + 4 = 2052 bytes, comfortably under 3072. A user
  * folder-relative path (the only thing ever stored here) never approaches even
- * 512 characters, so no real data is at risk of truncation.
+ * 512 characters, so no real data is at risk of truncation. On a fresh install
+ * (column already 512, index already in place) this step is a no-op.
  *
  * The step is fully guarded/idempotent: it only touches an existing table,
  * drops the unique index before changing the column length (some DB platforms

@@ -219,7 +219,7 @@ async function onDelete(note) {
    section-title size rather than the larger user-agent h1 default. */
 .crm-contact-meta h1 {
 	margin: 0;
-	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-size: calc(var(--default-font-size, 14px) * 1.3);
 	font-weight: bold;
 	overflow-wrap: anywhere;
 }

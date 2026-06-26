@@ -160,7 +160,7 @@ function onContactClick(uid) {
    h1) rather than the larger user-agent h1 size. */
 .crm-view-header h1 {
 	margin: 0;
-	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-size: calc(var(--default-font-size, 14px) * 1.3);
 	font-weight: bold;
 }
 

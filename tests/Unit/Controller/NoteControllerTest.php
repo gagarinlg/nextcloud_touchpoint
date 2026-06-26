@@ -278,6 +278,25 @@ class NoteControllerTest extends TestCase {
         $this->assertSame(200, $result->getStatus());
     }
 
+    public function testCreateWithoutContactUidDefaultsToEmpty(): void {
+        // A request that omits contactUid entirely must NOT raise a TypeError
+        // (which would escape handleNotFound() as an opaque 500). contactUid now
+        // defaults to '' so an absent primary contact flows through the normal
+        // create() path; the service decides what an empty primary contact means.
+        $note = new Note();
+        $note->setId(1);
+
+        $this->service->expects($this->once())
+            ->method('create')
+            ->with('', 0, 1, 'No primary contact', null, 'testuser', false, [], null)
+            ->willReturn($note);
+
+        // Call create() the way the AppFramework would when contactUid is absent:
+        // every later param supplied, contactUid relying on its default.
+        $result = $this->controller->create(noteTypeId: 1, title: 'No primary contact');
+        $this->assertSame(200, $result->getStatus());
+    }
+
     public function testUpdate(): void {
         $note = new Note();
         $note->setId(1);

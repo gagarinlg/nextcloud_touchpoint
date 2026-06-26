@@ -214,7 +214,7 @@ async function save() {
    section-title size rather than the larger user-agent h1 default. */
 .crm-settings-view h1 {
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 6);
-	font-size: calc(var(--default-font-size, 15px) * 1.3);
+	font-size: calc(var(--default-font-size, 14px) * 1.3);
 	font-weight: bold;
 }
 
@@ -226,7 +226,7 @@ async function save() {
    the document outline has no skipped level; keep the established section-title
    size rather than the larger user-agent h2 default. */
 .crm-settings-section h2 {
-	font-size: calc(var(--default-font-size, 15px) * 1.07);
+	font-size: calc(var(--default-font-size, 14px) * 1.07);
 	font-weight: 600;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 3);
 	color: var(--color-main-text);

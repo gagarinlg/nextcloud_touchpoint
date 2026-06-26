@@ -95,7 +95,14 @@ class NoteController extends Controller {
 
     #[NoAdminRequired]
     public function create(
-        string $contactUid,
+        // Default '' (like the other optional params) so a request that omits
+        // contactUid entirely does NOT feed null into a non-nullable string
+        // parameter during AppFramework dispatch — that TypeError is raised
+        // outside handleNotFound() and escapes as an opaque 500. An absent
+        // primary contact is a normal client case (NoteService::create() only
+        // links a junction row when contactUid !== ''), so it flows through the
+        // ordinary validation path instead.
+        string $contactUid = '',
         // Nullable with a null default so an omitted noteTypeId arrives here as
         // null instead of letting the AppFramework feed null into a non-nullable
         // int parameter (which raises a TypeError caught only by ErrorHandler's
