@@ -218,6 +218,10 @@ function fileLabel(f) {
 function renderNoteItem(note, noteTypeMap = {}) {
 	const div = document.createElement('div')
 	div.className = 'crm-contacts-note-item'
+	// Stamp the note id so paginated appends can dedupe against rows already on
+	// screen (e.g. a note added inline shifts the server's offset-based page
+	// boundary, which would otherwise re-show an already-visible note).
+	if (note.id != null) div.dataset.noteId = String(note.id)
 	const resolvedType = noteTypeMap[note.noteTypeId] || note.noteType || {}
 	const badge = document.createElement('span')
 	badge.className = 'crm-contacts-type-badge'
@@ -954,8 +958,15 @@ function appendShowMore(bodyEl, uid, noteTypeMap, loadedCount) {
 		more.textContent = t('crm_notes', 'Loading…')
 		try {
 			const next = await fetchNotes(uid, NOTES_PAGE_SIZE, offset)
-			next.forEach(note => bodyEl.insertBefore(renderNoteItem(note, noteTypeMap), more))
+			// Advance the offset by the full fetched page regardless of dedupe, so
+			// the window keeps moving and we don't re-request the same slice.
 			offset += next.length
+			// Skip any note already rendered (e.g. one added inline after the first
+			// page loaded, which shifts the server's offset-based page boundary).
+			next.forEach(note => {
+				if (note.id != null && bodyEl.querySelector(`.crm-contacts-note-item[data-note-id="${note.id}"]`)) return
+				bodyEl.insertBefore(renderNoteItem(note, noteTypeMap), more)
+			})
 			if (next.length === NOTES_PAGE_SIZE) {
 				more.disabled = false
 				more.textContent = t('crm_notes', 'Show more')

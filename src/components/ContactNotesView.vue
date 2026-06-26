@@ -191,6 +191,7 @@ async function onDelete(note) {
 
 .crm-view-header {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
 	margin-bottom: calc(var(--default-grid-baseline, 4px) * 5);
@@ -200,7 +201,12 @@ async function onDelete(note) {
 .crm-contact-info {
 	display: flex;
 	align-items: center;
+	min-width: 0;
 	gap: calc(var(--default-grid-baseline, 4px) * 3);
+}
+
+.crm-contact-meta {
+	min-width: 0;
 }
 
 .crm-header-actions {
@@ -215,11 +221,13 @@ async function onDelete(note) {
 	margin: 0;
 	font-size: calc(var(--default-font-size, 15px) * 1.3);
 	font-weight: bold;
+	overflow-wrap: anywhere;
 }
 
 .crm-contact-email {
 	font-size: var(--font-size-small, 13px);
 	color: var(--color-text-maxcontrast);
+	overflow-wrap: anywhere;
 }
 
 .crm-load-more {
