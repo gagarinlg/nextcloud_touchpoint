@@ -3,9 +3,10 @@
 
 name: Release
 
-# Build a clean app tarball and attach it to a GitHub release when a version
-# tag is pushed. NOTE: this does NOT sign the app for the Nextcloud App Store —
-# that requires the app's signing certificate (see the App Store docs).
+# On a version tag (vX.Y.Z): build the clean app tarball, attach it to a GitHub
+# release, and — if the signing secrets are configured — sign it and publish to
+# the Nextcloud App Store. Without the secrets it just produces the GitHub
+# release (the signing/publish step is skipped).
 on:
   push:
     tags:
@@ -15,8 +16,11 @@ permissions:
   contents: write
 
 jobs:
-  package:
+  release:
     runs-on: ubuntu-latest
+    env:
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node
@@ -28,8 +32,23 @@ jobs:
         run: |
           npm ci
           make appstore
-      - name: Attach tarball to the release
+
+      - name: Create GitHub release with the tarball
         uses: softprops/action-gh-release@v2
         with:
           files: build/appstore/touchpoint.tar.gz
           generate_release_notes: true
+
+      - name: Publish to the Nextcloud App Store
+        if: env.APP_PRIVATE_KEY != '' && env.APPSTORE_TOKEN != ''
+        run: |
+          set -euo pipefail
+          TARBALL=build/appstore/touchpoint.tar.gz
+          URL="https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/touchpoint.tar.gz"
+          printf '%s' "$APP_PRIVATE_KEY" > /tmp/touchpoint.key
+          SIGNATURE=$(openssl dgst -sha512 -sign /tmp/touchpoint.key "$TARBALL" | openssl base64 -A)
+          rm -f /tmp/touchpoint.key
+          curl -sS --fail -X POST https://apps.nextcloud.com/api/v1/apps/releases \
+            -H "Authorization: Token $APPSTORE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(printf '{"download":"%s","signature":"%s","nightly":false}' "$URL" "$SIGNATURE")"

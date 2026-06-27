@@ -189,7 +189,12 @@
       "Bash(sudo cp lib/Migration/Version1000Date20260627000000.php /var/www/html/apps/touchpoint/lib/Migration/)",
       "Bash(sudo chown www-data:www-data /var/www/html/apps/touchpoint/lib/Migration/Version1000Date20260627000000.php)",
       "Bash(sudo systemctl reload php8.3-fpm)",
-      "Bash(curl -s -u tpdemo:'TpDemo!2026' -X PROPFIND -H \"Depth: 1\" \"http://localhost/remote.php/dav/addressbooks/users/tpdemo/\" -o /dev/null -w \"  propfind: %{http_code}\\\\n\")"
+      "Bash(curl -s -u tpdemo:'TpDemo!2026' -X PROPFIND -H \"Depth: 1\" \"http://localhost/remote.php/dav/addressbooks/users/tpdemo/\" -o /dev/null -w \"  propfind: %{http_code}\\\\n\")",
+      "Bash(echo \"  package-lock root: $\\(python3 -c \"import json;d=json.load\\(open\\('package-lock.json'\\)\\);print\\(d.get\\('version'\\),'| name:',d.get\\('name'\\)\\)\"\\)\")",
+      "Bash(gh run *)",
+      "Bash(echo \"  package-lock version now: $\\(python3 -c \"import json;print\\(json.load\\(open\\('package-lock.json'\\)\\)['version']\\)\"\\)\")",
+      "Bash(npm ci *)",
+      "Bash(echo \"  lock version: $\\(python3 -c \"import json;print\\(json.load\\(open\\('package-lock.json'\\)\\)['version']\\)\"\\)\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

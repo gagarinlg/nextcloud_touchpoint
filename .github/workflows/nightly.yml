@@ -1,0 +1,59 @@
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Nightly
+
+# Build a fresh app package every night from the default branch and publish it
+# as a rolling "nightly" pre-release. If the signing secrets are configured it
+# also pushes to the Nextcloud App Store's nightly channel.
+on:
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC daily
+  workflow_dispatch:        # allow manual runs
+
+permissions:
+  contents: write
+
+jobs:
+  nightly:
+    runs-on: ubuntu-latest
+    env:
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+      APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Build & package
+        run: |
+          npm ci
+          make appstore
+          mv build/appstore/touchpoint.tar.gz build/appstore/touchpoint-nightly.tar.gz
+
+      - name: Publish rolling "nightly" pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete nightly --repo "${{ github.repository }}" --cleanup-tag --yes || true
+          gh release create nightly build/appstore/touchpoint-nightly.tar.gz \
+            --repo "${{ github.repository }}" \
+            --prerelease --title "Nightly build" \
+            --notes "Automated nightly build of \`${{ github.sha }}\`. Not for production use."
+
+      - name: Publish to the Nextcloud App Store (nightly channel)
+        if: env.APP_PRIVATE_KEY != '' && env.APPSTORE_TOKEN != ''
+        run: |
+          set -euo pipefail
+          TARBALL=build/appstore/touchpoint-nightly.tar.gz
+          URL="https://github.com/${{ github.repository }}/releases/download/nightly/touchpoint-nightly.tar.gz"
+          printf '%s' "$APP_PRIVATE_KEY" > /tmp/touchpoint.key
+          SIGNATURE=$(openssl dgst -sha512 -sign /tmp/touchpoint.key "$TARBALL" | openssl base64 -A)
+          rm -f /tmp/touchpoint.key
+          curl -sS --fail -X POST https://apps.nextcloud.com/api/v1/apps/releases \
+            -H "Authorization: Token $APPSTORE_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$(printf '{"download":"%s","signature":"%s","nightly":true}' "$URL" "$SIGNATURE")"
