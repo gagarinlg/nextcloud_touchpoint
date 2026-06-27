@@ -122,10 +122,9 @@ PDF and a simple CSV endpoint.
   small PR to the Contacts app adding a `registerSection`/`registerTab` API
   (mirroring Files/Mail). Then this app drops the MutationObserver and integrates
   natively. *Engage Contacts maintainers in a GitHub discussion first.*
-- **OCS / public REST API** (M): a stable, documented API so other apps and
-  external tools can read/write notes; enables automation.
-- **Webhooks** (S–M): fire on note create/update (NC has `webhook_listeners`)
-  for integration with external systems.
+- **Outward-facing APIs** (events, OCS/REST, webhooks, Flow, JS embedding): see
+  the dedicated *"Public API surface"* section below — these are how *other* apps
+  integrate with Touchpoint.
 - **Talk integration** (M): "create a note from this conversation", or surface a
   contact's notes in a Talk sidebar.
 - **Mobile / responsive audit** (S): verify the standalone app and the Contacts
@@ -133,6 +132,115 @@ PDF and a simple CSV endpoint.
 - **App Store release** (S): the app is already shaped for it (SPDX/REUSE,
   info.xml metadata). Finish the submission process (signing cert,
   `signature.json`, screenshots, ToS) and publish.
+
+---
+
+## Nextcloud 33/34 integration surfaces
+
+Integration points worth targeting, grounded in the NC 34 (Hub 26 "Spring")
+release notes + developer manual. Items 1–3 are the high-leverage ones and work
+on **NC 32–34** (not 34-only); items 4–6 are 34-specific notes.
+
+### 1. Reference provider + Smart Picker  ·  **M**
+Implement `OCP\Collaboration\Reference\ADiscoverableReferenceProvider` (+
+`ISearchableReferenceProvider`, wired to the note Unified Search provider from
+P0 #1 via `getSupportedSearchProviderIds`). Two wins:
+- Pasting a note link into **Text / Talk / Deck / Notes** renders a rich
+  preview card instead of a bare URL.
+- Users `/`-pick a Touchpoint note inline via the Smart Picker.
+Backend: listen to `OCP\Collaboration\Reference\RenderReferenceEvent` in
+`Application.php` and register the picker component. *The single most
+"Nextcloud-native" surface we're currently missing; composes directly with
+full-text search (#1).*
+
+### 2. Related Resources  ·  **S–M**
+Implement an `OCP\RelatedResources` provider so a contact's notes show up as
+"related" items in other apps' sidebars (and ours surfaces related
+calendar/Talk/Deck resources for a contact). Reinforces the contact-as-hub model.
+
+### 3. Teams (formerly Circles) sharing  ·  **M**
+NC 34 adds **team-based contact filtering** in Contacts. Mirror it by allowing a
+note to be shared with a **Team**, not just a user/group — "the notes about this
+account, shared with the account's team." Extends `touchpoint_note_sharing`
+with a team principal type; gate on the Teams/Circles app being enabled.
+
+### 4. Calendar hardening for the Tasks integration (NC 34)  ·  *note*
+NC 34 hardened the `OCP\Calendar` surface the P0 #2 Tasks-via-VTODO plan relies
+on: configurable **default reminders**, delegation ACLs, base-component **UID
+validation**, and calendar read/write **federation**. No API churn for us —
+reminders/overdue come even more "for free." Build #2 against NC 34 confidently.
+
+### 5. Federated address books (NC 34)  ·  *robustness*
+Contacts now sync across federated instances. Notes are keyed by contact UID, so
+**foreign/federated UIDs must round-trip cleanly** through the contact list,
+photo endpoint, and `touchpoint_note_contacts`. Mostly a test/robustness task,
+not a feature. *Verify before claiming NC 34 support in earnest.*
+
+### 6. Still missing in 34: a Contacts detail-view extension API
+NC 34 did **not** add a third-party tab/section API for the Contacts app detail
+view, so our panel is still injected via `BeforeTemplateRenderedEvent` + DOM +
+base64-UID parsing. The "upstream a `registerSection` API" item above remains the
+real fix. *Re-check each Contacts-app release.*
+
+---
+
+## Public API surface — let other apps integrate *with* Touchpoint
+
+Today Touchpoint is a closed app: no documented way for another app, script, or
+external system to read/write notes or react to changes. To become a platform
+others build on, expose these (roughly in dependency order):
+
+### A. Emit app events on note lifecycle  ·  **S**  *(foundational)*
+Dispatch typed events via `OCP\EventDispatcher\IEventDispatcher` on note
+**created / updated / deleted / shared / pinned** (e.g.
+`OCA\Touchpoint\Event\NoteCreatedEvent`, carrying note id, owner, contact UIDs,
+type). This is the cheapest, most idiomatic hook — every other integration
+(Activity, Notifications, Webhooks, Flow) consumes these, and third-party apps
+can `IEventListener` against them. Keep the event classes in a stable,
+documented `OCA\Touchpoint\Event\` namespace (treat as public API).
+
+### B. OCS / public REST API  ·  **M**
+A versioned, documented OCS API (`/ocs/v2.php/apps/touchpoint/api/v1/...`) so
+other apps and external tools can list/create/update/delete notes and note types
+and query notes-by-contact. Reuse the service layer + the same ownership/sharing
+access checks as the web controllers. App-password + OCS auth; document with
+real examples. *(Supersedes the bare "OCS/REST" bullet above.)*
+
+### C. Webhooks  ·  **S–M**
+Register with NC's `webhook_listeners` so admins can fire outbound HTTP calls on
+the note events from (A) — integrate with external CRM/marketing systems with no
+code. Cheap once (A) exists.
+
+### D. Reference provider (inbound links)  ·  **M**
+The Smart-Picker/Reference provider (integration surface #1 above) is *also* an
+outward API: it gives every other app a first-class way to **link to and embed**
+a Touchpoint note. Cross-listed deliberately.
+
+### E. Search provider  ·  **M**
+The Unified Search `OCP\Search\IProvider` (P0 #1) makes notes discoverable to the
+whole platform, including as a search source other reference providers can pick
+from (`getSupportedSearchProviderIds`).
+
+### F. Flow / WorkflowEngine operations  ·  **M**
+Expose the note events from (A) as **Flow** triggers and/or a custom
+`OCP\WorkflowEngine` operation (e.g. "when a note of type X is created, notify
+/ tag / create a task"), so admins automate without code.
+
+### G. Capabilities endpoint  ·  **S**
+Advertise Touchpoint + its API version via `OCP\Capabilities\ICapability` so
+clients can feature-detect (presence, version, enabled sub-features) before
+calling the OCS API.
+
+### H. Documented JS embedding API  ·  **S–M**
+Promote the existing Contacts-tab island into a small, documented
+`window.OCA.Touchpoint` surface (e.g. `mountNotesFor(el, contactUid)`,
+`createNote(...)`) so other front-ends can embed the notes panel the way we embed
+the Contacts card — the inverse of our current consumption of
+`window.OCA.Contacts`.
+
+> **Stability note:** anything published here (event class names, OCS routes,
+> JS entry points, capability keys) becomes a compatibility contract. Version it,
+> document it under `docs/`, and follow the deprecation policy NC apps use.
 
 ---
 
