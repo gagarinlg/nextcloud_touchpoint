@@ -244,6 +244,63 @@ the Contacts card — the inverse of our current consumption of
 
 ---
 
+## Ecosystem app integrations (App Store survey)
+
+Specific third-party / sibling Nextcloud apps Touchpoint could integrate with,
+beyond the platform hooks above. Most depend on the **lifecycle events + OCS
+API** from the *Public API surface* section, plus a graceful
+`IAppManager::isEnabledForUser()` gate so each degrades cleanly when the other
+app isn't installed. (Deliberately **excluded**: full external CRMs — CiviCRM,
+SuiteCRM — and overlapping NC CRM apps like Pipelinq/Shillinq; Touchpoint stays
+the lightweight notes-on-contacts layer rather than syncing with another CRM.)
+
+### Calendar — meeting notes from events  ·  **M**
+Sibling of the Tasks integration (P0 #2), same `OCP\Calendar` API: log a
+**meeting note** from a calendar event, and link note↔event via `RELATED-TO` (or
+an `X-TOUCHPOINT-NOTE` prop + deep link), so a contact's notes and meetings stay
+cross-referenced. Read a contact's upcoming/past events next to their notes.
+
+### Deck — note ↔ card  ·  **M**
+Turn a follow-up note into a **Deck card** (and link back), or attach an existing
+card to a note, so action items live on a board while the context stays in
+Touchpoint. Deck exposes an OCS API and a Smart Picker provider to build against.
+
+### Forms — lead intake  ·  **S–M**
+Auto-create a note (and optionally a contact) from a **Forms submission** — the
+classic "leads in the door" path and the cheapest CRM-shaped win. Drive it off
+Forms' submission event (via Flow/Webhooks or a direct listener).
+
+### Appointments — booking → note  ·  **S–M**
+When someone books via the **Appointments** app, automatically log a meeting note
+on the booker's contact, turning scheduling into interaction history with no
+manual entry.
+
+### Zammad — helpdesk tickets ↔ contact timeline  ·  **M**
+Surface a contact's **Zammad** support tickets alongside their notes (and/or log
+a note when a ticket is opened/closed), so support history is part of the
+relationship record. Integrate via the Zammad integration app / Zammad's REST API
++ token, gated on the app being enabled. Read-only ticket surfacing is enough for
+v1.
+
+### iTop — ITSM cases ↔ contact  ·  **M**
+Same shape as Zammad for **iTop** (IT service management): link a contact to
+their open cases. Niche/B2B; lower priority than Zammad.
+
+### Project trackers — link a note to a task  ·  **M** (each)
+For account-management / B2B use, link a note to an external task in
+**OpenProject**, **Jira**, **GitLab**, or **GitHub** (all have NC integration
+apps). Lower fit than the PIM apps; do only on demand. Prefer the generic
+reference-provider / Smart Picker route so one mechanism covers all four.
+
+### AI assistance (speculative, later)  ·  **M**
+Via `OCP\TaskProcessing` (so it works with **Assistant**, **OpenAI/LocalAI**,
+etc.): summarise a contact's note history ("catch me up on X"), suggest a
+follow-up, or auto-tag a note's type. Translation of notes via
+**DeepL/LibreTranslate**. Off the critical path — revisit once search + tasks
+land.
+
+---
+
 ## Technical debt & hardening backlog
 
 - **Contact-list virtualization** (M): the list now renders the *whole* address
