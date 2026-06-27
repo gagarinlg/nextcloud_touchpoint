@@ -22,7 +22,7 @@ than pinning a number here.
 
 ## Tech stack
 
-- **Backend:** PHP 8.2+, Nextcloud App Framework. PSR-4 `OCA\Touchpoint\` → `lib/`.
+- **Backend:** PHP 8.1+, Nextcloud App Framework. PSR-4 `OCA\Touchpoint\` → `lib/`.
 - **Frontend:** Vue 3 + Pinia, built with Vite (`@nextcloud/vite-config`),
   using `@nextcloud/vue` 9.x components.
 - **Tests:** PHPUnit 10.5 (unit) + Playwright (e2e, German locale, against
@@ -34,7 +34,7 @@ than pinning a number here.
   (`<nextcloud min-version="32" max-version="34" />`). All server APIs used exist
   since NC ≤32; the app uses no NC-33-introduced API. When touching backend code,
   do not introduce APIs newer than NC 32 without bumping `min-version`.
-- **PHP:** 8.2–8.5.
+- **PHP:** 8.1–8.5.
 - **`@nextcloud/vue`:** 9.x line targets NC 33/34 styling and is fine on 32. There
   is no v10 yet.
 - The controllers still use **legacy PHPDoc annotations** (`@NoAdminRequired`,

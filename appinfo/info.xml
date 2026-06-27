@@ -34,7 +34,7 @@ stay dormant when it is not.
     <screenshot>https://raw.githubusercontent.com/gagarinlg/nextcloud_touchpoint/master/screenshots/04-add-note-in-contacts.png</screenshot>
 
     <dependencies>
-        <php min-version="8.2" max-version="8.5" />
+        <php min-version="8.1" max-version="8.5" />
         <nextcloud min-version="32" max-version="34" />
     </dependencies>
 

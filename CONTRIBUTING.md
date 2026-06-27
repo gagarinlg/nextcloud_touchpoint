@@ -29,7 +29,7 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
 
 ## Conventions
 
-- Backend: PHP 8.2+, only public `OCP\` APIs, parameterized QueryBuilder, and
+- Backend: PHP 8.1+, only public `OCP\` APIs, parameterized QueryBuilder, and
   schema changes via a **new** `lib/Migration/VersionXXXXDate*.php` step (never
   edit a shipped migration).
 - Frontend: Vue 3 + Pinia, `@nextcloud/vue` components and NC CSS variables,
@@ -44,7 +44,7 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
 
 Three GitHub Actions workflows (`.github/workflows/`):
 
-- **CI** (`ci.yml`) — on every push/PR: phpstan + phpunit across PHP 8.2/8.3/8.4,
+- **CI** (`ci.yml`) — on every push/PR: phpstan + phpunit across PHP 8.1/8.2/8.3/8.4,
   plus eslint + the production build.
 - **Nightly** (`nightly.yml`) — daily (and on demand): builds the app and
   publishes a rolling `nightly` pre-release on GitHub.

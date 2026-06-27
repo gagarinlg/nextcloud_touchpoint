@@ -3,6 +3,8 @@
 
 parameters:
     level: 5
+    # Analyse against the supported floor (PHP 8.1) so 8.2+ syntax is caught.
+    phpVersion: 80100
     paths:
         - lib
     excludePaths:

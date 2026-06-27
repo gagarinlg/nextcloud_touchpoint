@@ -28,7 +28,7 @@ can be **pinned**, carry **file attachments**, render **Markdown**, and can be
 ## Requirements
 
 - Nextcloud **32, 33 or 34**
-- PHP **8.2–8.5**
+- PHP **8.1–8.5**
 - Recommended companion app: **Contacts** (enables the in-Contacts panel,
   embedded card, and hover-menu entry; the standalone view works without it)
 
