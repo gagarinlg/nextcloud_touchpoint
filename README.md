@@ -79,6 +79,9 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
 (or `npm run build`) after changing anything in `src/`. After changing the app,
 run `make deploy` to push it to your local Nextcloud.
 
+See [`docs/API.md`](docs/API.md) for the HTTP API and integration surfaces, and
+[`docs/ROADMAP.md`](docs/ROADMAP.md) for the feature/API roadmap.
+
 ### Layout
 
 ```

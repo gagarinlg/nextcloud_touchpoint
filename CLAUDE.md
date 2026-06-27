@@ -128,13 +128,14 @@ same commit/PR** as the code:
   tech stack, compatibility (NC/PHP versions), the DB schema/tables, or any of
   the gotchas above. If a rule here becomes wrong, fix it; don't leave it stale.
 - **API changes are non-negotiable.** Whenever you add, change, remove, or
-  deprecate anything in the **public API surface** — OCS/REST routes, dispatched
-  `OCA\Touchpoint\Event\*` events, the `window.OCA.Touchpoint` JS API,
-  capability keys, webhook payloads, or migration-affecting DB columns — update
-  every place that documents it: the API docs under `docs/`, `CHANGELOG.md`,
-  `docs/ROADMAP.md` (mark items shipped / adjust status), and `CLAUDE.md` if the
-  contract or conventions shift. A published API contract is a compatibility
-  promise; document version and deprecation, never silently change it.
+  deprecate anything in the **API** — the internal HTTP routes
+  (`/apps/touchpoint/api/...` in `appinfo/routes.php`), OCS/REST routes,
+  dispatched `OCA\Touchpoint\Event\*` events, the `window.OCA.Touchpoint` JS API,
+  capability keys, webhook payloads, or request/response shapes — update
+  **`docs/API.md`** in the same commit, plus `CHANGELOG.md`, `docs/ROADMAP.md`
+  (mark items shipped / adjust status), and `CLAUDE.md` if the contract or
+  conventions shift. A published public-API contract is a compatibility promise;
+  document version and deprecation, never silently change it.
 - **User-facing or admin-facing changes** — update `README.md` (and screenshots
   if the UI moved meaningfully) and `CHANGELOG.md` under the unreleased section.
 - **New routes / controllers / services / migrations** — keep the **Layout** and

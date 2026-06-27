@@ -40,12 +40,13 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
 - Every source file carries an SPDX header; the project is
   [REUSE](https://reuse.software/)-compliant (`reuse lint` must pass).
 - **Update docs in the same change.** Behaviour, structure, or contract changes
-  must update the relevant docs (`README.md`, `CHANGELOG.md`, `docs/`,
+  must update the relevant docs (`README.md`, `CHANGELOG.md`, `docs/API.md`,
   `docs/ROADMAP.md`, `CLAUDE.md`) alongside the code — never as a follow-up.
-  **API changes** (OCS/REST routes, `OCA\Touchpoint\Event\*` events, the
-  `window.OCA.Touchpoint` JS API, capability keys, webhook payloads) are a
-  compatibility contract: document and version them, don't change them silently.
-  See the "Keep documentation in sync" section in `CLAUDE.md`.
+  **API changes** (HTTP routes in `appinfo/routes.php`, OCS/REST routes,
+  `OCA\Touchpoint\Event\*` events, the `window.OCA.Touchpoint` JS API, capability
+  keys, webhook payloads, request/response shapes) must be reflected in
+  [`docs/API.md`](docs/API.md); public-API contracts are versioned, never changed
+  silently. See the "Keep documentation in sync" section in `CLAUDE.md`.
 
 ## Continuous integration
 
