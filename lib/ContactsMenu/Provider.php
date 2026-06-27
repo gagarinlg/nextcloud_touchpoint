@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\ContactsMenu;
+namespace OCA\Touchpoint\ContactsMenu;
 
 use OCP\Contacts\ContactsMenu\IActionFactory;
 use OCP\Contacts\ContactsMenu\IEntry;
@@ -33,16 +33,16 @@ class Provider implements IProvider {
         }
 
         $iconUrl = $this->urlGenerator->getAbsoluteURL(
-            $this->urlGenerator->imagePath('crm_notes', 'app.svg')
+            $this->urlGenerator->imagePath('touchpoint', 'app.svg')
         );
 
         $notesUrl = $this->urlGenerator->getAbsoluteURL(
-            $this->urlGenerator->linkToRoute('crm_notes.page.index') . '#contact/' . urlencode($uid)
+            $this->urlGenerator->linkToRoute('touchpoint.page.index') . '#contact/' . urlencode($uid)
         );
 
         $action = $this->actionFactory->newLinkAction(
             $iconUrl,
-            $this->l10n->t('CRM Notes'),
+            $this->l10n->t('Touchpoint'),
             $notesUrl,
         );
         $action->setPriority(10);

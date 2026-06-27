@@ -1,5 +1,5 @@
 OC.L10N.register(
-    "crm_notes",
+    "touchpoint",
     {
     "Add note" : "添加笔记",
     "Add type" : "添加类型",

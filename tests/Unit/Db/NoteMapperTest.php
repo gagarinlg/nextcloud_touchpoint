@@ -1,14 +1,14 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Db;
+namespace OCA\Touchpoint\Tests\Unit\Db;
 
-use OCA\CrmNotes\Db\Note;
-use OCA\CrmNotes\Db\NoteMapper;
+use OCA\Touchpoint\Db\Note;
+use OCA\Touchpoint\Db\NoteMapper;
 use OCP\DB\IResult;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -44,12 +44,12 @@ class NoteMapperTest extends TestCase {
     }
 
     public function testTableName(): void {
-        $this->assertSame('crm_notes', $this->mapper->getTableName());
+        $this->assertSame('touchpoint_notes', $this->mapper->getTableName());
     }
 
     public function testFindAllBuildsQuery(): void {
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
-        $this->qb->expects($this->once())->method('from')->with('crm_notes')->willReturnSelf();
+        $this->qb->expects($this->once())->method('from')->with('touchpoint_notes')->willReturnSelf();
         // Default sort: created_at is the primary key, descending (newest first),
         // followed by the stable id tiebreaker so LIMIT/OFFSET paging is
         // deterministic.

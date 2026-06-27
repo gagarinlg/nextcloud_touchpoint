@@ -1,11 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 
-const baseUrl = generateUrl('/apps/crm_notes/api/notes')
+const baseUrl = generateUrl('/apps/touchpoint/api/notes')
 
 export async function getAllNotes(limit, offset, sort) {
 	const params = {}

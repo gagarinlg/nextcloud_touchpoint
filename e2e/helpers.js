@@ -1,15 +1,15 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /*
- * Shared helpers for the CRM Notes e2e suite.
+ * Shared helpers for the Touchpoint e2e suite.
  *
  * The live instance is German-locale but the app is only partially translated,
  * so visible strings are a mix of German and English. Every text matcher here is
  * an English|German regex so the selectors survive either rendering.
  */
 
-const APP_URL = '/apps/crm_notes/';
+const APP_URL = '/apps/touchpoint/';
 
 /**
  * Form-login against the running Nextcloud. Idempotent: a no-op when a session
@@ -31,7 +31,7 @@ async function login(page, user = 'admin', pass = 'admin') {
 	}
 }
 
-/** Open the CRM Notes app page and wait for the Vue app to mount. */
+/** Open the Touchpoint app page and wait for the Vue app to mount. */
 async function openApp(page) {
 	await page.goto(APP_URL);
 	await page.waitForLoadState('networkidle');

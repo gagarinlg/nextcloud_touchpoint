@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test } = require('@playwright/test');
@@ -12,13 +12,13 @@ test('Check avatar API data', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
     
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(2000);
     
     // Call contacts API
     const result = await page.evaluate(async () => {
         const token = OC.requestToken;
-        const resp = await fetch(OC.generateUrl('/apps/crm_notes') + '/api/contacts', {
+        const resp = await fetch(OC.generateUrl('/apps/touchpoint') + '/api/contacts', {
             headers: { requesttoken: token }
         });
         const contacts = await resp.json();

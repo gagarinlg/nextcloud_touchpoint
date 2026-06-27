@@ -1,5 +1,5 @@
 {
-    "name": "nextcloud/crm_notes",
+    "name": "nextcloud/touchpoint",
     "description": "CRM-style notes for Nextcloud contacts",
     "type": "project",
     "license": "AGPL-3.0-or-later",
@@ -17,12 +17,12 @@
     },
     "autoload": {
         "psr-4": {
-            "OCA\\CrmNotes\\": "lib/"
+            "OCA\\Touchpoint\\": "lib/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "OCA\\CrmNotes\\Tests\\": "tests/"
+            "OCA\\Touchpoint\\Tests\\": "tests/"
         }
     }
 }

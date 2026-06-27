@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Settings;
+namespace OCA\Touchpoint\Settings;
 
 use OCP\IL10N;
 use OCP\IURLGenerator;
@@ -20,11 +20,11 @@ class AdminSection implements IIconSection {
     }
 
     public function getID(): string {
-        return 'crm_notes';
+        return 'touchpoint';
     }
 
     public function getName(): string {
-        return $this->l->t('CRM Notes');
+        return $this->l->t('Touchpoint');
     }
 
     public function getPriority(): int {
@@ -32,6 +32,6 @@ class AdminSection implements IIconSection {
     }
 
     public function getIcon(): string {
-        return $this->urlGenerator->imagePath('crm_notes', 'app-dark.svg');
+        return $this->urlGenerator->imagePath('touchpoint', 'app-dark.svg');
     }
 }

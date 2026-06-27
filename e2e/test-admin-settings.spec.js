@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -14,11 +14,11 @@ async function login(page) {
     await page.waitForURL('**/apps/**');
 }
 
-test.describe('CRM Notes admin settings', () => {
+test.describe('Touchpoint admin settings', () => {
 
     test('admin settings entry visible in NC admin sidebar', async ({ page }) => {
         await login(page);
-        await page.goto('http://localhost/index.php/settings/admin/crm_notes');
+        await page.goto('http://localhost/index.php/settings/admin/touchpoint');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
         await page.screenshot({ path: 'e2e/screenshots/admin-settings-page.png', fullPage: true });
@@ -34,7 +34,7 @@ test.describe('CRM Notes admin settings', () => {
 
     test('notes-public toggle saves correctly', async ({ page }) => {
         await login(page);
-        await page.goto('http://localhost/index.php/settings/admin/crm_notes');
+        await page.goto('http://localhost/index.php/settings/admin/touchpoint');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
 
@@ -59,11 +59,11 @@ test.describe('CRM Notes admin settings', () => {
 
 });
 
-test.describe('CRM Notes main app', () => {
+test.describe('Touchpoint main app', () => {
 
     test('app loads with contacts list', async ({ page }) => {
         await login(page);
-        await page.goto('http://localhost/index.php/apps/crm_notes');
+        await page.goto('http://localhost/index.php/apps/touchpoint');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
         await page.screenshot({ path: 'e2e/screenshots/app-main-check.png', fullPage: true });
@@ -76,7 +76,7 @@ test.describe('CRM Notes main app', () => {
 
     test('user settings view shows default sharing section', async ({ page }) => {
         await login(page);
-        await page.goto('http://localhost/index.php/apps/crm_notes');
+        await page.goto('http://localhost/index.php/apps/touchpoint');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(2000);
 

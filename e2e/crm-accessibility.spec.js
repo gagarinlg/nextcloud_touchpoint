@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 const { test, expect } = require('@playwright/test');
 const { login, openApp, gotoSection, RX, unique } = require('./helpers');
@@ -10,10 +10,10 @@ async function seedNote(page, title) {
 	return page.evaluate(async (title) => {
 		const token = document.querySelector('head')?.getAttribute('data-requesttoken');
 		const H = { 'Content-Type': 'application/json', requesttoken: token };
-		const types = await (await fetch('/index.php/apps/crm_notes/api/note-types', { headers: { requesttoken: token } })).json();
-		const contacts = await (await fetch('/index.php/apps/crm_notes/api/contacts', { headers: { requesttoken: token } })).json();
+		const types = await (await fetch('/index.php/apps/touchpoint/api/note-types', { headers: { requesttoken: token } })).json();
+		const contacts = await (await fetch('/index.php/apps/touchpoint/api/contacts', { headers: { requesttoken: token } })).json();
 		const uid = contacts[0].uid;
-		const res = await fetch('/index.php/apps/crm_notes/api/notes', {
+		const res = await fetch('/index.php/apps/touchpoint/api/notes', {
 			method: 'POST', headers: H,
 			body: JSON.stringify({ contactUid: uid, noteTypeId: types[0].id, title, content: 'a11y', addressbookId: 1, contactUids: [uid] }),
 		});
@@ -21,7 +21,7 @@ async function seedNote(page, title) {
 	}, title);
 }
 
-test.describe('CRM Notes — accessibility smoke', () => {
+test.describe('Touchpoint — accessibility smoke', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page);
 		await openApp(page);
@@ -83,7 +83,7 @@ test.describe('CRM Notes — accessibility smoke', () => {
 		} finally {
 			await page.evaluate(async (id) => {
 				const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-				await fetch('/index.php/apps/crm_notes/api/notes/' + id, { method: 'DELETE', headers: { requesttoken: token } });
+				await fetch('/index.php/apps/touchpoint/api/notes/' + id, { method: 'DELETE', headers: { requesttoken: token } });
 			}, seed.id).catch(() => {});
 		}
 	});

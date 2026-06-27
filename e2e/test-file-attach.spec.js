@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -15,7 +15,7 @@ test('Test file attachment', async ({ page }) => {
     await page.waitForURL('**/apps/**');
     
     // Go to CRM notes
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(2000);
     
     // Click Leon Green contact
@@ -43,7 +43,7 @@ test('Test file attachment', async ({ page }) => {
     await page.screenshot({ path: '/tmp/after-save-note.png' });
     
     // Check notes in API
-    const notesResp = await page.request.get('http://localhost/index.php/apps/crm_notes/api/notes');
+    const notesResp = await page.request.get('http://localhost/index.php/apps/touchpoint/api/notes');
     const notes = await notesResp.json();
     console.log('Notes after save:', notes.map(n => ({id: n.id, title: n.title, files: n.files})));
     
@@ -56,7 +56,7 @@ test('Test file attachment', async ({ page }) => {
         const csrfToken = await page.evaluate(() => OC.requestToken);
         
         const attachResp = await page.request.post(
-            `http://localhost/index.php/apps/crm_notes/api/notes/${newNote.id}/files`,
+            `http://localhost/index.php/apps/touchpoint/api/notes/${newNote.id}/files`,
             {
                 headers: { 
                     'Content-Type': 'application/json',
@@ -69,13 +69,13 @@ test('Test file attachment', async ({ page }) => {
         console.log('Attach result:', JSON.stringify(attachResult));
         
         // Now reload notes and check
-        const notesResp2 = await page.request.get('http://localhost/index.php/apps/crm_notes/api/notes');
+        const notesResp2 = await page.request.get('http://localhost/index.php/apps/touchpoint/api/notes');
         const notes2 = await notesResp2.json();
         const noteWithFile = notes2.find(n => n.id === newNote.id);
         console.log('Note after file attach:', JSON.stringify(noteWithFile));
         
         // Reload the page and open the note
-        await page.goto('http://localhost/index.php/apps/crm_notes');
+        await page.goto('http://localhost/index.php/apps/touchpoint');
         await page.waitForTimeout(2000);
         await page.locator('.crm-contact-item[data-name="Leon Green"]').click();
         await page.waitForTimeout(1000);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """
 EGroupware → Nextcloud import script
@@ -7,7 +7,7 @@ EGroupware → Nextcloud import script
 Reads a bzip2-compressed EGroupware backup and imports:
   - Contacts    → Nextcloud Cards (CardDAV / oc_cards)
   - Calendar    → Nextcloud Calendar (CalDAV / oc_calendarobjects)
-  - Infolog     → CRM Notes (oc_crm_notes + oc_crm_note_contacts)
+  - Infolog     → Touchpoint (oc_touchpoint_notes + oc_touchpoint_note_contacts)
 
 Before any write, the Nextcloud database is backed up to a timestamped
 pg_dump file so the state can always be restored.
@@ -2000,10 +2000,10 @@ def import_calendar(egw, cur, owner_to_cal_id=None, default_cal_id=None,
 
 
 # ---------------------------------------------------------------------------
-# Step 6: Import Infolog notes into CRM Notes
+# Step 6: Import Infolog notes into Touchpoint
 # ---------------------------------------------------------------------------
 
-# Map EGroupware infolog types to CRM note_type names (must match oc_crm_note_types)
+# Map EGroupware infolog types to CRM note_type names (must match oc_touchpoint_note_types)
 INFOLOG_TYPE_MAP = {
     'note':  'General',
     'phone': 'Call',
@@ -2083,21 +2083,21 @@ def _seed_global_note_types(cur):
     are immutable — and crucially they are NOT duplicated per user. Imported notes
     reference these global ids. Idempotent (only inserts missing names); booleans
     bound as params for cross-DB portability."""
-    cur.execute("SELECT name FROM oc_crm_note_types WHERE user_id=%s AND is_default=%s", ('', True))
+    cur.execute("SELECT name FROM oc_touchpoint_note_types WHERE user_id=%s AND is_default=%s", ('', True))
     existing = {r[0] for r in cur.fetchall()}
     for (name, icon, color) in DEFAULT_NOTE_TYPES:
         if name not in existing:
             cur.execute(
-                """INSERT INTO oc_crm_note_types (name, icon, color, user_id, is_default)
+                """INSERT INTO oc_touchpoint_note_types (name, icon, color, user_id, is_default)
                    VALUES (%s, %s, %s, %s, %s)""",
                 (name, icon, color, '', True)
             )
-    cur.execute("SELECT id, name FROM oc_crm_note_types WHERE user_id=%s AND is_default=%s", ('', True))
+    cur.execute("SELECT id, name FROM oc_touchpoint_note_types WHERE user_id=%s AND is_default=%s", ('', True))
     return {r[1]: r[0] for r in cur.fetchall()}
 
 
 def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_name=None):
-    log('[NOTES] Importing infolog entries into CRM Notes …')
+    log('[NOTES] Importing infolog entries into Touchpoint …')
 
     notes    = egw.get('egw_infolog')
     links    = egw.get('egw_links')
@@ -2126,11 +2126,11 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
             # Delete note_contacts for the affected users' notes first
             # (no DB-level FKs), then the notes themselves.
             cur.execute(
-                f'DELETE FROM oc_crm_note_contacts WHERE note_id IN '
-                f'(SELECT id FROM oc_crm_notes WHERE {frag})',
+                f'DELETE FROM oc_touchpoint_note_contacts WHERE note_id IN '
+                f'(SELECT id FROM oc_touchpoint_notes WHERE {frag})',
                 params
             )
-            cur.execute(f'DELETE FROM oc_crm_notes WHERE {frag}', params)
+            cur.execute(f'DELETE FROM oc_touchpoint_notes WHERE {frag}', params)
             log(f'[NOTES] Cleared existing CRM notes for {len(all_note_nc_users)} '
                 f'imported user(s): {sorted(all_note_nc_users)}')
 
@@ -2265,7 +2265,7 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
             # keyword `false`) so SQLite, which has no boolean literal, works.
             note_db_id = insert_returning_id(
                 cur,
-                '''INSERT INTO oc_crm_notes
+                '''INSERT INTO oc_touchpoint_notes
                    (contact_uid, addressbook_id, note_type_id, title, content,
                     user_id, is_pinned, created_at, updated_at, created_by, updated_by)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
@@ -2287,7 +2287,7 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
                 link_ab_id = row[0] if row else 0
                 insert_ignore(
                     cur,
-                    '''INSERT INTO oc_crm_note_contacts (note_id, contact_uid, addressbook_id)
+                    '''INSERT INTO oc_touchpoint_note_contacts (note_id, contact_uid, addressbook_id)
                        VALUES (%s, %s, %s)''',
                     (note_db_id, contact_uid, link_ab_id)
                 )
@@ -2322,10 +2322,10 @@ def import_notes(egw, cur, egw_to_nc=None, egw_account_email=None, egw_account_n
                     os.chown(nc_file_path, _nc_uid_int(), _nc_gid_int())
                 except Exception:
                     pass
-                # Register in oc_crm_note_files (file_id=0, updated by occ files:scan later)
+                # Register in oc_touchpoint_note_files (file_id=0, updated by occ files:scan later)
                 insert_ignore(
                     cur,
-                    '''INSERT INTO oc_crm_note_files (note_id, file_id, file_path, user_id)
+                    '''INSERT INTO oc_touchpoint_note_files (note_id, file_id, file_path, user_id)
                        VALUES (%s, 0, %s, %s)''',
                     (note_db_id, rel_path, nc_uid)
                 )
@@ -2365,7 +2365,7 @@ def _occ(args, description):
 
 
 def backfill_note_file_ids(users_needing_scan):
-    """Populate crm_note_files.file_id (left 0 at insert time) once `occ
+    """Populate touchpoint_note_files.file_id (left 0 at insert time) once `occ
     files:scan` has registered the imported attachments in the file cache, so
     the app can resolve attachments by id and not just display the filename.
 
@@ -2376,7 +2376,7 @@ def backfill_note_file_ids(users_needing_scan):
     if DRY_RUN or not users_needing_scan:
         return
     import unicodedata
-    log('[POST] Backfilling crm_note_files.file_id from the file cache …')
+    log('[POST] Backfilling touchpoint_note_files.file_id from the file cache …')
     try:
         conn = get_conn()
     except Exception as e:
@@ -2399,13 +2399,13 @@ def backfill_note_file_ids(users_needing_scan):
                 continue
             storage_id = row[0]
             cur.execute(
-                "SELECT note_id, file_path FROM oc_crm_note_files WHERE user_id=%s AND file_id=0",
+                "SELECT note_id, file_path FROM oc_touchpoint_note_files WHERE user_id=%s AND file_id=0",
                 (nc_uid,)
             )
             rows = cur.fetchall()
             expected += len(rows)
             for note_id, file_path in rows:
-                # crm_note_files stores a user-folder-relative path; the file
+                # touchpoint_note_files stores a user-folder-relative path; the file
                 # cache stores it under 'files/<path>' without a leading slash.
                 # Build it in Python and NFC-normalise (Nextcloud stores NFC) so
                 # the lookup needs only '=' — portable and umlaut-safe.
@@ -2418,7 +2418,7 @@ def backfill_note_file_ids(users_needing_scan):
                 if not fr:
                     continue
                 cur.execute(
-                    "UPDATE oc_crm_note_files SET file_id=%s WHERE note_id=%s AND file_path=%s",
+                    "UPDATE oc_touchpoint_note_files SET file_id=%s WHERE note_id=%s AND file_path=%s",
                     (fr[0], note_id, file_path)
                 )
                 updated += 1
@@ -2566,7 +2566,7 @@ def main():
         conn.close()
 
     # Post-import: rebuild Nextcloud caches via OCC, then link the scanned
-    # attachment files back to their crm_note_files rows.
+    # attachment files back to their touchpoint_note_files rows.
     _run_occ_post_import(users_needing_scan)
     backfill_note_file_ids(users_needing_scan)
 

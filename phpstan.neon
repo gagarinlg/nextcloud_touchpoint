@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 parameters:
@@ -11,7 +11,7 @@ parameters:
         # unresolved-Doctrine noise, so they're excluded (standard for NC apps).
         - lib/Migration
     # Index the real, complete OCP stubs from the nextcloud/ocp dev dependency
-    # so OCP\* symbols and signatures resolve accurately. OCA\CrmNotes\* comes
+    # so OCP\* symbols and signatures resolve accurately. OCA\Touchpoint\* comes
     # from this app's PSR-4 autoload. (The hand-rolled tests/stubs.php is only
     # the PHPUnit bootstrap and is intentionally NOT used here.)
     scanDirectories:

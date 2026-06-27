@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<NcModal :name="title" @close="notesStore.closeModal()">
@@ -6,7 +6,7 @@
 			<!-- Contacts multi-select -->
 			<div class="crm-form-row">
 				<label for="note-contacts">
-					{{ t('crm_notes', 'Contacts') }}
+					{{ t('touchpoint', 'Contacts') }}
 					<span class="crm-required" aria-hidden="true">*</span>
 				</label>
 				<NcSelect v-model="selectedContacts"
@@ -14,32 +14,32 @@
 					:options="contactOptions"
 					:multiple="true"
 					required
-					:aria-label-combobox="t('crm_notes', 'Contacts')"
+					:aria-label-combobox="t('touchpoint', 'Contacts')"
 					label="name"
 					track-by="uid"
-					:placeholder="t('crm_notes', 'Add contact…')" />
+					:placeholder="t('touchpoint', 'Add contact…')" />
 			</div>
 
 			<!-- Note type -->
 			<div class="crm-form-row">
 				<label for="note-type">
-					{{ t('crm_notes', 'Type') }}
+					{{ t('touchpoint', 'Type') }}
 					<span class="crm-required" aria-hidden="true">*</span>
 				</label>
 				<NcSelect v-model="form.noteTypeId"
 					input-id="note-type"
 					:options="typeOptions"
 					required
-					:aria-label-combobox="t('crm_notes', 'Type')"
+					:aria-label-combobox="t('touchpoint', 'Type')"
 					label="name"
 					:reduce="o => o.id"
-					:placeholder="t('crm_notes', 'Select type…')" />
+					:placeholder="t('touchpoint', 'Select type…')" />
 			</div>
 
 			<!-- Title -->
 			<div class="crm-form-row">
 				<label for="note-title">
-					{{ t('crm_notes', 'Title') }}
+					{{ t('touchpoint', 'Title') }}
 					<span class="crm-required" aria-hidden="true">*</span>
 				</label>
 				<NcTextField ref="titleRef"
@@ -47,14 +47,14 @@
 					v-model="form.title"
 					label-outside
 					required
-					:placeholder="t('crm_notes', 'Note title')"
+					:placeholder="t('touchpoint', 'Note title')"
 					maxlength="255" />
 			</div>
 
 			<!-- Content -->
 			<div class="crm-form-row">
 				<div class="crm-content-label-row">
-					<label id="note-content-label" :for="previewMode ? null : 'note-content'">{{ t('crm_notes', 'Content') }}</label>
+					<label id="note-content-label" :for="previewMode ? null : 'note-content'">{{ t('touchpoint', 'Content') }}</label>
 					<NcButton type="tertiary"
 						size="small"
 						:aria-pressed="previewMode"
@@ -63,7 +63,7 @@
 							<IconEye v-if="!previewMode" :size="16" />
 							<IconPencil v-else :size="16" />
 						</template>
-						{{ previewMode ? t('crm_notes', 'Edit') : t('crm_notes', 'Preview') }}
+						{{ previewMode ? t('touchpoint', 'Edit') : t('touchpoint', 'Preview') }}
 					</NcButton>
 				</div>
 				<!-- ARIA toolbar pattern: a single Tab stop into the group, with
@@ -73,7 +73,7 @@
 					ref="toolbarRef"
 					class="crm-md-toolbar"
 					role="toolbar"
-					:aria-label="t('crm_notes', 'Text formatting')"
+					:aria-label="t('touchpoint', 'Text formatting')"
 					@keydown="onToolbarKeydown">
 					<template v-for="(tool, idx) in mdTools" :key="tool.type">
 						<!-- Visual separators between the format groups (3 / 3 / 3). -->
@@ -100,7 +100,7 @@
 					v-model="form.content"
 					rows="8"
 					class="crm-markdown-editor"
-					:placeholder="t('crm_notes', 'Write your note here… (Markdown supported)')" />
+					:placeholder="t('touchpoint', 'Write your note here… (Markdown supported)')" />
 				<!-- eslint-disable-next-line vue/no-v-html -->
 				<div v-else
 					class="crm-markdown-preview"
@@ -116,13 +116,13 @@
 			<div class="crm-form-row"
 				role="group"
 				aria-labelledby="note-files-label">
-				<span id="note-files-label" class="crm-group-label">{{ t('crm_notes', 'Linked files') }}</span>
+				<span id="note-files-label" class="crm-group-label">{{ t('touchpoint', 'Linked files') }}</span>
 				<div class="crm-files-list">
 					<div v-for="(f, i) in notesStore.pendingFiles" :key="i" class="crm-file-item">
 						<IconFile :size="14" />
 						<span class="crm-file-name">{{ fileLabel(f) }}</span>
 						<NcButton type="tertiary"
-							:aria-label="t('crm_notes', 'Remove file')"
+							:aria-label="t('touchpoint', 'Remove file')"
 							@click="notesStore.removePendingFile(i)">
 							<template #icon><IconClose :size="14" /></template>
 						</NcButton>
@@ -130,13 +130,13 @@
 				</div>
 				<NcButton id="note-attach-file" @click="openFilePicker">
 					<template #icon><IconFolder :size="18" /></template>
-					{{ t('crm_notes', 'Attach file…') }}
+					{{ t('touchpoint', 'Attach file…') }}
 				</NcButton>
 			</div>
 
 			<!-- Pin -->
 			<NcCheckboxRadioSwitch v-model="form.isPinned">
-				{{ t('crm_notes', 'Pin this note') }}
+				{{ t('touchpoint', 'Pin this note') }}
 			</NcCheckboxRadioSwitch>
 
 			<p v-if="missingFieldsHint"
@@ -149,18 +149,18 @@
 			<!-- Legend explaining the red asterisk that marks required fields above. -->
 			<p class="crm-required-legend">
 				<span class="crm-required" aria-hidden="true">*</span>
-				{{ t('crm_notes', 'required') }}
+				{{ t('touchpoint', 'required') }}
 			</p>
 
 			<div class="crm-modal-actions">
-				<NcButton :disabled="notesStore.saving" @click="notesStore.closeModal()">{{ t('crm_notes', 'Cancel') }}</NcButton>
+				<NcButton :disabled="notesStore.saving" @click="notesStore.closeModal()">{{ t('touchpoint', 'Cancel') }}</NcButton>
 				<NcButton type="primary"
 					:disabled="!canSave || notesStore.saving"
 					@click="onSave">
 					<template v-if="notesStore.saving" #icon>
 						<NcLoadingIcon :size="16" />
 					</template>
-					{{ notesStore.saving ? t('crm_notes', 'Saving…') : t('crm_notes', 'Save') }}
+					{{ notesStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
 				</NcButton>
 			</div>
 		</div>
@@ -279,23 +279,23 @@ const previewContent = computed(() => renderMarkdown(form.value.content))
 // user input), rendered via NcButton's default slot so the toolbar inherits NC
 // theming and hover/focus behaviour instead of hand-rolled <button> styling.
 const mdTools = computed(() => [
-	{ type: 'bold', label: t('crm_notes', 'Bold'), glyph: '<b>B</b>' },
-	{ type: 'italic', label: t('crm_notes', 'Italic'), glyph: '<i>I</i>' },
-	{ type: 'strikethrough', label: t('crm_notes', 'Strikethrough'), glyph: '<s>S</s>' },
-	{ type: 'heading', label: t('crm_notes', 'Heading'), glyph: 'H' },
-	{ type: 'ul', label: t('crm_notes', 'Unordered list'), glyph: '&#8226;&#8212;' },
-	{ type: 'ol', label: t('crm_notes', 'Ordered list'), glyph: '1.' },
-	{ type: 'link', label: t('crm_notes', 'Link'), icon: IconLinkVariant },
-	{ type: 'code', label: t('crm_notes', 'Code'), glyph: '&#60;/&#62;' },
-	{ type: 'quote', label: t('crm_notes', 'Quote'), glyph: '&ldquo;&rdquo;' },
+	{ type: 'bold', label: t('touchpoint', 'Bold'), glyph: '<b>B</b>' },
+	{ type: 'italic', label: t('touchpoint', 'Italic'), glyph: '<i>I</i>' },
+	{ type: 'strikethrough', label: t('touchpoint', 'Strikethrough'), glyph: '<s>S</s>' },
+	{ type: 'heading', label: t('touchpoint', 'Heading'), glyph: 'H' },
+	{ type: 'ul', label: t('touchpoint', 'Unordered list'), glyph: '&#8226;&#8212;' },
+	{ type: 'ol', label: t('touchpoint', 'Ordered list'), glyph: '1.' },
+	{ type: 'link', label: t('touchpoint', 'Link'), icon: IconLinkVariant },
+	{ type: 'code', label: t('touchpoint', 'Code'), glyph: '&#60;/&#62;' },
+	{ type: 'quote', label: t('touchpoint', 'Quote'), glyph: '&ldquo;&rdquo;' },
 ])
 
 const selectedContacts = ref([])
 
 const title = computed(() =>
 	notesStore.editingNote
-		? t('crm_notes', 'Edit note')
-		: t('crm_notes', 'Add note'),
+		? t('touchpoint', 'Edit note')
+		: t('touchpoint', 'Add note'),
 )
 
 const typeOptions = computed(() => noteTypesStore.noteTypes)
@@ -312,10 +312,10 @@ const canSave = computed(() =>
 const missingFieldsHint = computed(() => {
 	if (canSave.value) return ''
 	const missing = []
-	if (selectedContacts.value.length === 0) missing.push(t('crm_notes', 'Contacts'))
-	if (!form.value.noteTypeId) missing.push(t('crm_notes', 'Type'))
-	if (!form.value.title.trim()) missing.push(t('crm_notes', 'Title'))
-	return t('crm_notes', 'Required: {fields}', { fields: missing.join(', ') })
+	if (selectedContacts.value.length === 0) missing.push(t('touchpoint', 'Contacts'))
+	if (!form.value.noteTypeId) missing.push(t('touchpoint', 'Type'))
+	if (!form.value.title.trim()) missing.push(t('touchpoint', 'Title'))
+	return t('touchpoint', 'Required: {fields}', { fields: missing.join(', ') })
 })
 
 onMounted(() => {
@@ -359,33 +359,33 @@ function insertFormat(type) {
 
 	switch (type) {
 	case 'bold':
-		before = '**'; after = '**'; placeholder = t('crm_notes', 'bold text')
+		before = '**'; after = '**'; placeholder = t('touchpoint', 'bold text')
 		break
 	case 'italic':
-		before = '_'; after = '_'; placeholder = t('crm_notes', 'italic text')
+		before = '_'; after = '_'; placeholder = t('touchpoint', 'italic text')
 		break
 	case 'strikethrough':
-		before = '~~'; after = '~~'; placeholder = t('crm_notes', 'text')
+		before = '~~'; after = '~~'; placeholder = t('touchpoint', 'text')
 		break
 	case 'heading':
-		before = '## '; after = ''; placeholder = t('crm_notes', 'Heading')
+		before = '## '; after = ''; placeholder = t('touchpoint', 'Heading')
 		break
 	case 'ul':
-		before = '- '; after = ''; placeholder = t('crm_notes', 'List item')
+		before = '- '; after = ''; placeholder = t('touchpoint', 'List item')
 		break
 	case 'ol':
-		before = '1. '; after = ''; placeholder = t('crm_notes', 'List item')
+		before = '1. '; after = ''; placeholder = t('touchpoint', 'List item')
 		break
 	case 'link':
-		before = '['; after = `](url)`; placeholder = sel || t('crm_notes', 'link text')
+		before = '['; after = `](url)`; placeholder = sel || t('touchpoint', 'link text')
 		break
 	case 'code':
 		before = sel.includes('\n') ? '```\n' : '`'
 		after = sel.includes('\n') ? '\n```' : '`'
-		placeholder = t('crm_notes', 'code')
+		placeholder = t('touchpoint', 'code')
 		break
 	case 'quote':
-		before = '> '; after = ''; placeholder = t('crm_notes', 'Quote')
+		before = '> '; after = ''; placeholder = t('touchpoint', 'Quote')
 		break
 	}
 
@@ -405,12 +405,12 @@ function insertFormat(type) {
 function fileLabel(f) {
 	if (f.name) return f.name
 	if (f.filePath) return f.filePath.split('/').pop()
-	return t('crm_notes', 'Attachment')
+	return t('touchpoint', 'Attachment')
 }
 
 async function openFilePicker() {
 	try {
-		const picker = getFilePickerBuilder(t('crm_notes', 'Select file'))
+		const picker = getFilePickerBuilder(t('touchpoint', 'Select file'))
 			.setMultiSelect(false)
 			.setType(FilePickerType.Choose)
 			.allowDirectories(false)
@@ -424,7 +424,7 @@ async function openFilePicker() {
 		// so swallow a cancellation but surface any real failure (e.g. the picker
 		// could not be opened) instead of silently doing nothing.
 		if (e && e.message && /cancel/i.test(e.message)) return
-		showError(t('crm_notes', 'Could not open the file picker.'))
+		showError(t('touchpoint', 'Could not open the file picker.'))
 	}
 }
 
@@ -446,7 +446,7 @@ async function onSave() {
 	try {
 		await notesStore.save(payload, contactsStore.currentContact?.uid)
 	} catch (e) {
-		const msg = e?.response?.data?.message || e?.message || t('crm_notes', 'Failed to save note.')
+		const msg = e?.response?.data?.message || e?.message || t('touchpoint', 'Failed to save note.')
 		showError(msg)
 	}
 }

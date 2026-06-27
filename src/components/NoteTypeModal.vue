@@ -1,27 +1,27 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<NcModal size="small" :name="title" @close="noteTypesStore.closeModal()">
 		<div class="crm-modal-body">
 			<div class="crm-form-row">
 				<label for="type-name">
-					{{ t('crm_notes', 'Name') }}
+					{{ t('touchpoint', 'Name') }}
 					<span class="crm-required" aria-hidden="true">*</span>
 				</label>
 				<NcTextField input-id="type-name"
 					v-model="form.name"
 					label-outside
 					required
-					:placeholder="t('crm_notes', 'Type name')"
+					:placeholder="t('touchpoint', 'Type name')"
 					maxlength="128" />
 			</div>
 
 			<div class="crm-form-row">
-				<label for="type-icon">{{ t('crm_notes', 'Icon') }}</label>
+				<label for="type-icon">{{ t('touchpoint', 'Icon') }}</label>
 				<NcSelect v-model="form.icon"
 					input-id="type-icon"
 					:options="iconOptions"
-					:aria-label-combobox="t('crm_notes', 'Icon')"
+					:aria-label-combobox="t('touchpoint', 'Icon')"
 					label="label"
 					:reduce="o => o.value" />
 			</div>
@@ -33,14 +33,14 @@
 				     for> would not override a button's name, so associating one
 				     would make the visible caption ("Color") and the programmatic
 				     name ("Choose color") diverge (WCAG 2.5.3 Label in Name). -->
-				<span class="crm-group-label">{{ t('crm_notes', 'Color') }}</span>
+				<span class="crm-group-label">{{ t('touchpoint', 'Color') }}</span>
 				<NcColorPicker v-model="form.color">
 					<NcButton class="crm-color-trigger"
 						:title="form.color">
 						<template #icon>
 							<span class="crm-color-swatch" :style="{ background: form.color }" />
 						</template>
-						{{ t('crm_notes', 'Choose color') }}
+						{{ t('touchpoint', 'Choose color') }}
 					</NcButton>
 				</NcColorPicker>
 			</div>
@@ -55,18 +55,18 @@
 			<!-- Legend explaining the red asterisk that marks required fields above. -->
 			<p class="crm-required-legend">
 				<span class="crm-required" aria-hidden="true">*</span>
-				{{ t('crm_notes', 'required') }}
+				{{ t('touchpoint', 'required') }}
 			</p>
 
 			<div class="crm-modal-actions">
-				<NcButton :disabled="noteTypesStore.saving" @click="noteTypesStore.closeModal()">{{ t('crm_notes', 'Cancel') }}</NcButton>
+				<NcButton :disabled="noteTypesStore.saving" @click="noteTypesStore.closeModal()">{{ t('touchpoint', 'Cancel') }}</NcButton>
 				<NcButton type="primary"
 					:disabled="!canSave || noteTypesStore.saving"
 					@click="onSave">
 					<template v-if="noteTypesStore.saving" #icon>
 						<NcLoadingIcon :size="16" />
 					</template>
-					{{ noteTypesStore.saving ? t('crm_notes', 'Saving…') : t('crm_notes', 'Save') }}
+					{{ noteTypesStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
 				</NcButton>
 			</div>
 		</div>
@@ -88,14 +88,14 @@ import { useNoteTypesStore } from '../stores/noteTypes.js'
 const noteTypesStore = useNoteTypesStore()
 
 const iconOptions = [
-	{ label: t('crm_notes', 'Comment'), value: 'icon-comment' },
-	{ label: t('crm_notes', 'Phone'), value: 'icon-phone' },
-	{ label: t('crm_notes', 'Calendar'), value: 'icon-calendar-dark' },
-	{ label: t('crm_notes', 'Mail'), value: 'icon-mail' },
-	{ label: t('crm_notes', 'Checkmark'), value: 'icon-checkmark' },
-	{ label: t('crm_notes', 'Star'), value: 'icon-star' },
-	{ label: t('crm_notes', 'Link'), value: 'icon-link' },
-	{ label: t('crm_notes', 'Note'), value: 'icon-category-office' },
+	{ label: t('touchpoint', 'Comment'), value: 'icon-comment' },
+	{ label: t('touchpoint', 'Phone'), value: 'icon-phone' },
+	{ label: t('touchpoint', 'Calendar'), value: 'icon-calendar-dark' },
+	{ label: t('touchpoint', 'Mail'), value: 'icon-mail' },
+	{ label: t('touchpoint', 'Checkmark'), value: 'icon-checkmark' },
+	{ label: t('touchpoint', 'Star'), value: 'icon-star' },
+	{ label: t('touchpoint', 'Link'), value: 'icon-link' },
+	{ label: t('touchpoint', 'Note'), value: 'icon-category-office' },
 ]
 
 // Seed the color from the instance's themed primary rather than a hardcoded
@@ -128,13 +128,13 @@ const canSave = computed(() => !!form.value.name.trim())
 // of leaving Save greyed out with no explanation.
 const missingFieldsHint = computed(() => {
 	if (canSave.value) return ''
-	return t('crm_notes', 'Required: {fields}', { fields: t('crm_notes', 'Name') })
+	return t('touchpoint', 'Required: {fields}', { fields: t('touchpoint', 'Name') })
 })
 
 const title = computed(() =>
 	noteTypesStore.editingType
-		? t('crm_notes', 'Edit note type')
-		: t('crm_notes', 'Add note type'),
+		? t('touchpoint', 'Edit note type')
+		: t('touchpoint', 'Add note type'),
 )
 
 onMounted(() => {
@@ -156,7 +156,7 @@ async function onSave() {
 		// error keep the modal open so the user can correct and retry.
 		noteTypesStore.closeModal()
 	} catch {
-		showError(t('crm_notes', 'Failed to save note type.'))
+		showError(t('touchpoint', 'Failed to save note type.'))
 	}
 }
 </script>

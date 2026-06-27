@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\AppInfo;
+namespace OCA\Touchpoint\AppInfo;
 
-use OCA\CrmNotes\Listener\LoadContactsTabListener;
+use OCA\Touchpoint\Listener\LoadContactsTabListener;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -16,7 +16,7 @@ use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 
 class Application extends App implements IBootstrap {
 
-    public const APP_ID = 'crm_notes';
+    public const APP_ID = 'touchpoint';
 
     public function __construct(array $params = []) {
         parent::__construct(self::APP_ID, $params);

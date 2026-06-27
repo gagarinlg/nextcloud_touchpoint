@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test } = require('@playwright/test');
@@ -12,12 +12,12 @@ test('Verify Leon Green photo loads', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
     
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(2000);
     
     // Check contacts API for photo
     const contacts = await page.evaluate(async () => {
-        const resp = await fetch(OC.generateUrl('/apps/crm_notes') + '/api/contacts', {
+        const resp = await fetch(OC.generateUrl('/apps/touchpoint') + '/api/contacts', {
             headers: { requesttoken: OC.requestToken }
         });
         const data = await resp.json();

@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Db;
+namespace OCA\Touchpoint\Db;
 
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -17,7 +17,7 @@ use OCP\IDBConnection;
 class NoteTypeMapper extends QBMapper {
 
     public function __construct(IDBConnection $db) {
-        parent::__construct($db, 'crm_note_types', NoteType::class);
+        parent::__construct($db, 'touchpoint_note_types', NoteType::class);
     }
 
     /**

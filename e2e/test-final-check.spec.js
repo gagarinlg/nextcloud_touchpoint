@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -13,7 +13,7 @@ test('Final verification of all fixed issues', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
     
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(3000);
     
     // Screenshot 1: Full app with all notes

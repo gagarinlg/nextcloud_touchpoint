@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Controller;
+namespace OCA\Touchpoint\Tests\Unit\Controller;
 
-use OCA\CrmNotes\Controller\ContactController;
+use OCA\Touchpoint\Controller\ContactController;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\Contacts\IManager;

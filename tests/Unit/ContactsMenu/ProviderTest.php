@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\ContactsMenu;
+namespace OCA\Touchpoint\Tests\Unit\ContactsMenu;
 
-use OCA\CrmNotes\ContactsMenu\Provider;
+use OCA\Touchpoint\ContactsMenu\Provider;
 use OCP\Contacts\ContactsMenu\IAction;
 use OCP\Contacts\ContactsMenu\IActionFactory;
 use OCP\Contacts\ContactsMenu\IEntry;
@@ -44,12 +44,12 @@ class ProviderTest extends TestCase {
             ]);
 
         $this->urlGenerator->method('imagePath')
-            ->with('crm_notes', 'app.svg')
-            ->willReturn('/apps/crm_notes/img/app.svg');
+            ->with('touchpoint', 'app.svg')
+            ->willReturn('/apps/touchpoint/img/app.svg');
 
         $this->urlGenerator->method('linkToRoute')
-            ->with('crm_notes.page.index')
-            ->willReturn('/apps/crm_notes/');
+            ->with('touchpoint.page.index')
+            ->willReturn('/apps/touchpoint/');
 
         $this->urlGenerator->method('getAbsoluteURL')
             ->willReturnCallback(fn (string $url) => 'https://cloud.example.com' . $url);
@@ -62,9 +62,9 @@ class ProviderTest extends TestCase {
         $this->actionFactory->expects($this->once())
             ->method('newLinkAction')
             ->with(
-                'https://cloud.example.com/apps/crm_notes/img/app.svg',
-                'CRM Notes',
-                'https://cloud.example.com/apps/crm_notes/#contact/contact-123',
+                'https://cloud.example.com/apps/touchpoint/img/app.svg',
+                'Touchpoint',
+                'https://cloud.example.com/apps/touchpoint/#contact/contact-123',
             )
             ->willReturn($action);
 
@@ -109,7 +109,7 @@ class ProviderTest extends TestCase {
             ]);
 
         $this->urlGenerator->method('imagePath')->willReturn('/img/app.svg');
-        $this->urlGenerator->method('linkToRoute')->willReturn('/apps/crm_notes/');
+        $this->urlGenerator->method('linkToRoute')->willReturn('/apps/touchpoint/');
         $this->urlGenerator->method('getAbsoluteURL')
             ->willReturnCallback(fn (string $url) => 'https://nc.test' . $url);
 
@@ -121,7 +121,7 @@ class ProviderTest extends TestCase {
             ->with(
                 $this->anything(),
                 $this->anything(),
-                'https://nc.test/apps/crm_notes/#contact/uid+with+spaces',
+                'https://nc.test/apps/touchpoint/#contact/uid+with+spaces',
             )
             ->willReturn($action);
 
@@ -133,7 +133,7 @@ class ProviderTest extends TestCase {
         $this->l10n = $this->createMock(IL10N::class);
         $this->l10n->expects($this->once())
             ->method('t')
-            ->with('CRM Notes')
+            ->with('Touchpoint')
             ->willReturn('CRM Notizen');
 
         $provider = new Provider($this->urlGenerator, $this->actionFactory, $this->l10n);

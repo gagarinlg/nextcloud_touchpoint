@@ -1,11 +1,11 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 const { test, expect } = require('@playwright/test');
 const { login, openApp, gotoSection, RX } = require('./helpers');
 
 test.setTimeout(60000);
 
-test.describe('CRM Notes — app page shell', () => {
+test.describe('Touchpoint — app page shell', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page);
 		await openApp(page);

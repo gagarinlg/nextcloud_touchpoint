@@ -1,16 +1,16 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Controller;
+namespace OCA\Touchpoint\Tests\Unit\Controller;
 
-use OCA\CrmNotes\Controller\NoteController;
-use OCA\CrmNotes\Db\Note;
-use OCA\CrmNotes\Service\NoteNotFoundException;
-use OCA\CrmNotes\Service\NoteService;
+use OCA\Touchpoint\Controller\NoteController;
+use OCA\Touchpoint\Db\Note;
+use OCA\Touchpoint\Service\NoteNotFoundException;
+use OCA\Touchpoint\Service\NoteService;
 use OCP\AppFramework\Http\Http;
 use OCP\IL10N;
 use OCP\IRequest;

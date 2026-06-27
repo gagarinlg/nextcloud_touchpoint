@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 name: Release
@@ -31,5 +31,5 @@ jobs:
       - name: Attach tarball to the release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/appstore/crm_notes.tar.gz
+          files: build/appstore/touchpoint.tar.gz
           generate_release_notes: true

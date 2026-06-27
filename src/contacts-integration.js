@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 /**
@@ -7,7 +7,7 @@
  *
  * This script is loaded on the Contacts app page via the LoadContactsOcaApiEvent
  * PHP listener. It uses a MutationObserver to detect when a contact detail panel
- * opens and injects a collapsible "CRM Notes" section.
+ * opens and injects a collapsible "Touchpoint" section.
  */
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
@@ -25,7 +25,7 @@ import { iconPathForType } from './utils/noteTypeIcon.js'
 // badge for the same stored color, including saturated hsl() values.
 import { readableTextColor } from './utils/color.js'
 
-const baseUrl = generateUrl('/apps/crm_notes/api')
+const baseUrl = generateUrl('/apps/touchpoint/api')
 
 // Material Design Icons path data (matches vue-material-design-icons used in the
 // Vue UI) so the injected, non-Vue panel uses real icons rather than emoji.
@@ -68,7 +68,7 @@ function escapeHtml(value) {
 function spinnerHtml() {
 	return `<span class="crm-contacts-notes-loading" role="status">
 		<span class="crm-contacts-spinner" aria-hidden="true"></span>
-		<span class="crm-visually-hidden">${escapeHtml(t('crm_notes', 'Loading…'))}</span>
+		<span class="crm-visually-hidden">${escapeHtml(t('touchpoint', 'Loading…'))}</span>
 	</span>`
 }
 
@@ -184,7 +184,7 @@ async function fetchNoteTypeMap() {
 }
 
 // Mirror the locale-aware formatter used in NoteItem.vue so a note's timestamp
-// renders identically in the Contacts tab and the CRM Notes app, and honours the
+// renders identically in the Contacts tab and the Touchpoint app, and honours the
 // configured Nextcloud UI language rather than the raw browser locale.
 const _dateFormatter = new Intl.DateTimeFormat(getLocale().replace('_', '-'), {
 	year: 'numeric', month: 'short', day: 'numeric',
@@ -204,7 +204,7 @@ function formatDate(dateStr) {
 function fileLabel(f) {
 	if (f.name) return f.name
 	if (f.filePath) return f.filePath.split('/').pop()
-	return t('crm_notes', 'Attachment')
+	return t('touchpoint', 'Attachment')
 }
 
 // ---- Render -----------------------------------------------------------------
@@ -261,7 +261,7 @@ function renderNoteItem(note, noteTypeMap = {}) {
 		const pin = document.createElement('span')
 		pin.className = 'crm-contacts-pin-indicator'
 		pin.setAttribute('role', 'img')
-		pin.setAttribute('aria-label', t('crm_notes', 'Pinned'))
+		pin.setAttribute('aria-label', t('touchpoint', 'Pinned'))
 		pin.innerHTML = mdiIcon('pin', 16)
 		header.appendChild(pin)
 	}
@@ -312,7 +312,7 @@ async function injectNotesPanel(detailEl) {
 	// If a panel already exists, only keep it when it was built for the contact
 	// currently on screen. The Contacts SPA frequently reuses the same detail
 	// container element and just swaps the inner contact when navigating A -> B,
-	// which would otherwise leave contact A's notes (and its "Open in CRM Notes"
+	// which would otherwise leave contact A's notes (and its "Open in Touchpoint"
 	// link) showing for contact B. On a UID mismatch, tear the stale panel down so
 	// it is rebuilt below for the new contact.
 	const existing = detailEl.querySelector('.crm-contacts-notes-panel')
@@ -330,8 +330,8 @@ async function injectNotesPanel(detailEl) {
 	// Signal the new-tab context change in the accessible name and tooltip
 	// (WCAG 3.2.5): the link is icon-only, so neither sighted nor AT users
 	// otherwise get a cue that activation spawns a new tab.
-	const openLabel = t('crm_notes', 'Open in CRM Notes (opens in a new tab)')
-	const addLabel = t('crm_notes', 'Add note')
+	const openLabel = t('touchpoint', 'Open in Touchpoint (opens in a new tab)')
+	const addLabel = t('touchpoint', 'Add note')
 	// The header is a flex row of two independent, properly-roled controls: a real
 	// <button> that toggles the body, and a separate <a> link. Avoid nesting the
 	// link inside a role=button element (invalid ARIA / ambiguous a11y tree).
@@ -343,11 +343,11 @@ async function injectNotesPanel(detailEl) {
 			<button type="button" class="crm-contacts-notes-toggle" aria-expanded="true" aria-controls="${bodyId}">
 				<span class="crm-contacts-notes-chevron" aria-hidden="true">${mdiIcon('chevronDown', 18)}</span>
 				<span class="crm-contacts-notes-icon" aria-hidden="true">${mdiIcon('note', 18)}</span>
-				<span>${escapeHtml(t('crm_notes', 'CRM Notes'))}</span>
+				<span>${escapeHtml(t('touchpoint', 'Touchpoint'))}</span>
 			</button>
 			<button type="button" class="crm-contacts-notes-add" title="${escapeHtml(addLabel)}" aria-label="${escapeHtml(addLabel)}" aria-expanded="false" aria-controls="${addFormId}">${mdiIcon('plus', 16)}</button>
 			<a class="crm-contacts-open-app"
-				href="${generateUrl('/apps/crm_notes')}#contact/${encodeURIComponent(uid)}"
+				href="${generateUrl('/apps/touchpoint')}#contact/${encodeURIComponent(uid)}"
 				title="${escapeHtml(openLabel)}"
 				aria-label="${escapeHtml(openLabel)}"
 				target="_blank"
@@ -355,11 +355,11 @@ async function injectNotesPanel(detailEl) {
 		</div>
 		<form id="${addFormId}" class="crm-contacts-notes-addform" hidden>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-title">${escapeHtml(t('crm_notes', 'Title'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
-				<input id="${addFormId}-title" type="text" class="crm-contacts-addform-title" maxlength="255" required placeholder="${escapeHtml(t('crm_notes', 'Note title'))}" />
+				<label class="crm-contacts-addform-label" for="${addFormId}-title">${escapeHtml(t('touchpoint', 'Title'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<input id="${addFormId}-title" type="text" class="crm-contacts-addform-title" maxlength="255" required placeholder="${escapeHtml(t('touchpoint', 'Note title'))}" />
 			</div>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-type">${escapeHtml(t('crm_notes', 'Type'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
+				<label class="crm-contacts-addform-label" for="${addFormId}-type">${escapeHtml(t('touchpoint', 'Type'))}<span class="crm-contacts-addform-required" aria-hidden="true">*</span></label>
 				<!-- Native <select> is an intentional exception to the "prefer
 				     NcSelect" rule: this is a non-Vue DOM island injected into the
 				     Contacts app, so an NcSelect cannot be hosted here without
@@ -369,13 +369,13 @@ async function injectNotesPanel(detailEl) {
 				<select id="${addFormId}-type" class="crm-contacts-addform-type" required></select>
 			</div>
 			<div class="crm-contacts-addform-row">
-				<label class="crm-contacts-addform-label" for="${addFormId}-content">${escapeHtml(t('crm_notes', 'Content'))}</label>
-				<textarea id="${addFormId}-content" class="crm-contacts-addform-content" rows="3" placeholder="${escapeHtml(t('crm_notes', 'Write a note…'))}"></textarea>
+				<label class="crm-contacts-addform-label" for="${addFormId}-content">${escapeHtml(t('touchpoint', 'Content'))}</label>
+				<textarea id="${addFormId}-content" class="crm-contacts-addform-content" rows="3" placeholder="${escapeHtml(t('touchpoint', 'Write a note…'))}"></textarea>
 			</div>
 			<p class="crm-contacts-addform-hint" role="status" aria-live="polite" hidden></p>
 			<div class="crm-contacts-addform-actions">
-				<button type="button" class="crm-contacts-addform-cancel">${escapeHtml(t('crm_notes', 'Cancel'))}</button>
-				<button type="submit" class="crm-contacts-addform-save">${escapeHtml(t('crm_notes', 'Save'))}</button>
+				<button type="button" class="crm-contacts-addform-cancel">${escapeHtml(t('touchpoint', 'Cancel'))}</button>
+				<button type="submit" class="crm-contacts-addform-save">${escapeHtml(t('touchpoint', 'Save'))}</button>
 			</div>
 		</form>
 		<div id="${bodyId}" class="crm-contacts-notes-body">
@@ -812,7 +812,7 @@ function setupAddNote(panel, bodyEl, uid) {
 			// to create one rather than letting them submit an empty required field.
 			saveBtn.disabled = true
 			hintEl.dataset.crmNoTypes = '1'
-			hintEl.textContent = t('crm_notes', 'Create a note type first.')
+			hintEl.textContent = t('touchpoint', 'Create a note type first.')
 			hintEl.hidden = false
 		}
 	}).catch(() => {
@@ -820,21 +820,21 @@ function setupAddNote(panel, bodyEl, uid) {
 		// presenting an empty required control that can never submit.
 		saveBtn.disabled = true
 		hintEl.dataset.crmNoTypes = '1'
-		hintEl.textContent = t('crm_notes', 'Could not load note types.')
+		hintEl.textContent = t('touchpoint', 'Could not load note types.')
 		hintEl.hidden = false
 	})
 	// Surface the still-missing required fields in form order, mirroring
 	// NoteModal.vue's missingFieldsHint, instead of silently focusing the title.
 	function showMissingFieldsHint() {
 		const missing = []
-		if (!titleEl.value.trim()) missing.push(t('crm_notes', 'Title'))
-		if (!typeEl.value) missing.push(t('crm_notes', 'Type'))
+		if (!titleEl.value.trim()) missing.push(t('touchpoint', 'Title'))
+		if (!typeEl.value) missing.push(t('touchpoint', 'Type'))
 		if (!missing.length) {
 			hintEl.hidden = true
 			hintEl.textContent = ''
 			return
 		}
-		hintEl.textContent = t('crm_notes', 'Required: {fields}', { fields: missing.join(', ') })
+		hintEl.textContent = t('touchpoint', 'Required: {fields}', { fields: missing.join(', ') })
 		hintEl.hidden = false
 	}
 	function closeForm() {
@@ -891,7 +891,7 @@ function setupAddNote(panel, bodyEl, uid) {
 		hintEl.textContent = ''
 		saveBtn.disabled = true
 		const prevLabel = saveBtn.textContent
-		saveBtn.textContent = t('crm_notes', 'Saving\u2026')
+		saveBtn.textContent = t('touchpoint', 'Saving\u2026')
 		try {
 			const { data: note } = await axios.post(`${baseUrl}/notes`, {
 				contactUid: uid,
@@ -903,9 +903,9 @@ function setupAddNote(panel, bodyEl, uid) {
 			if (empty) empty.remove()
 			bodyEl.insertBefore(renderNoteItem(note, typeMap), bodyEl.firstChild)
 			closeForm()
-			showSuccess(t('crm_notes', 'Note added.'))
+			showSuccess(t('touchpoint', 'Note added.'))
 		} catch (err) {
-			showError(t('crm_notes', 'Failed to add note.'))
+			showError(t('touchpoint', 'Failed to add note.'))
 		} finally {
 			saveBtn.disabled = false
 			saveBtn.textContent = prevLabel
@@ -921,7 +921,7 @@ async function loadNotesInto(bodyEl, uid) {
 		if (!notes.length) {
 			const empty = document.createElement('p')
 			empty.className = 'crm-contacts-notes-empty'
-			empty.textContent = t('crm_notes', 'No notes yet')
+			empty.textContent = t('touchpoint', 'No notes yet')
 			bodyEl.appendChild(empty)
 		} else {
 			notes.forEach(note => bodyEl.appendChild(renderNoteItem(note, noteTypeMap)))
@@ -938,15 +938,15 @@ async function loadNotesInto(bodyEl, uid) {
 		bodyEl.innerHTML = ''
 		const error = document.createElement('p')
 		error.className = 'crm-contacts-notes-empty'
-		error.textContent = t('crm_notes', 'Could not load notes.')
+		error.textContent = t('touchpoint', 'Could not load notes.')
 		bodyEl.appendChild(error)
 		const retry = document.createElement('button')
 		retry.type = 'button'
 		retry.className = 'crm-contacts-notes-retry'
-		retry.textContent = t('crm_notes', 'Retry')
+		retry.textContent = t('touchpoint', 'Retry')
 		retry.addEventListener('click', () => loadNotesInto(bodyEl, uid))
 		bodyEl.appendChild(retry)
-		showError(t('crm_notes', 'Failed to load CRM notes.'))
+		showError(t('touchpoint', 'Failed to load CRM notes.'))
 	}
 }
 
@@ -957,11 +957,11 @@ function appendShowMore(bodyEl, uid, noteTypeMap, loadedCount) {
 	const more = document.createElement('button')
 	more.type = 'button'
 	more.className = 'crm-contacts-notes-retry'
-	more.textContent = t('crm_notes', 'Show more')
+	more.textContent = t('touchpoint', 'Show more')
 	let offset = loadedCount
 	more.addEventListener('click', async () => {
 		more.disabled = true
-		more.textContent = t('crm_notes', 'Loading…')
+		more.textContent = t('touchpoint', 'Loading…')
 		try {
 			const next = await fetchNotes(uid, NOTES_PAGE_SIZE, offset)
 			// Advance the offset by the full fetched page regardless of dedupe, so
@@ -975,14 +975,14 @@ function appendShowMore(bodyEl, uid, noteTypeMap, loadedCount) {
 			})
 			if (next.length === NOTES_PAGE_SIZE) {
 				more.disabled = false
-				more.textContent = t('crm_notes', 'Show more')
+				more.textContent = t('touchpoint', 'Show more')
 			} else {
 				more.remove()
 			}
 		} catch {
 			more.disabled = false
-			more.textContent = t('crm_notes', 'Show more')
-			showError(t('crm_notes', 'Failed to load more notes.'))
+			more.textContent = t('touchpoint', 'Show more')
+			showError(t('touchpoint', 'Failed to load more notes.'))
 		}
 	})
 	bodyEl.appendChild(more)

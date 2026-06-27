@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\AppInfo;
+namespace OCA\Touchpoint\Tests\Unit\AppInfo;
 
-use OCA\CrmNotes\AppInfo\Application;
+use OCA\Touchpoint\AppInfo\Application;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use PHPUnit\Framework\TestCase;
@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
 class ApplicationTest extends TestCase {
 
     public function testAppId(): void {
-        $this->assertSame('crm_notes', Application::APP_ID);
+        $this->assertSame('touchpoint', Application::APP_ID);
     }
 
     public function testConstructor(): void {

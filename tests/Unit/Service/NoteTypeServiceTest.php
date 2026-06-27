@@ -1,19 +1,19 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Service;
+namespace OCA\Touchpoint\Tests\Unit\Service;
 
-use OCA\CrmNotes\Db\NoteMapper;
-use OCA\CrmNotes\Db\NoteType;
-use OCA\CrmNotes\Db\NoteTypeMapper;
-use OCA\CrmNotes\Service\NoteTypeInUseException;
-use OCA\CrmNotes\Service\NoteTypeNotFoundException;
-use OCA\CrmNotes\Service\NoteTypeService;
-use OCA\CrmNotes\Service\NoteValidationException;
+use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Db\NoteTypeMapper;
+use OCA\Touchpoint\Service\NoteTypeInUseException;
+use OCA\Touchpoint\Service\NoteTypeNotFoundException;
+use OCA\Touchpoint\Service\NoteTypeService;
+use OCA\Touchpoint\Service\NoteValidationException;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception as DBException;

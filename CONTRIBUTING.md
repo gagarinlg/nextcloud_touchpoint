@@ -1,9 +1,9 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # Contributing
 
-Thanks for helping improve CRM Notes!
+Thanks for helping improve Touchpoint!
 
 ## Development setup
 
@@ -34,7 +34,7 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
   edit a shipped migration).
 - Frontend: Vue 3 + Pinia, `@nextcloud/vue` components and NC CSS variables,
   `vue-material-design-icons` (no emoji), and wrap user-facing strings in
-  `t('crm_notes', ...)`.
+  `t('touchpoint', ...)`.
 - Keep Nextcloud 32–34 compatibility (see `CLAUDE.md` for the details and the
   app's intentional design decisions).
 - Every source file carries an SPDX header; the project is

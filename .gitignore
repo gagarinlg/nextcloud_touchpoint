@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 # Dependencies
@@ -31,3 +31,9 @@ db_backup-*.zip
 *.swp
 .idea/
 .vscode/
+
+# App signing key material (must never be committed)
+*.key
+*.csr
+*.p12
+appinfo/signature.json

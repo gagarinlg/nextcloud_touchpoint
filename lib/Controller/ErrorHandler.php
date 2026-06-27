@@ -1,19 +1,19 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Controller;
+namespace OCA\Touchpoint\Controller;
 
 use Closure;
-use OCA\CrmNotes\Service\NoteForbiddenException;
-use OCA\CrmNotes\Service\NoteNotFoundException;
-use OCA\CrmNotes\Service\NoteTypeForbiddenException;
-use OCA\CrmNotes\Service\NoteTypeInUseException;
-use OCA\CrmNotes\Service\NoteTypeNotFoundException;
-use OCA\CrmNotes\Service\NoteValidationException;
+use OCA\Touchpoint\Service\NoteForbiddenException;
+use OCA\Touchpoint\Service\NoteNotFoundException;
+use OCA\Touchpoint\Service\NoteTypeForbiddenException;
+use OCA\Touchpoint\Service\NoteTypeInUseException;
+use OCA\Touchpoint\Service\NoteTypeNotFoundException;
+use OCA\Touchpoint\Service\NoteValidationException;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IL10N;
@@ -70,7 +70,7 @@ trait ErrorHandler {
 
     private function logError(\Throwable $e): void {
         if (property_exists($this, 'logger') && $this->logger instanceof LoggerInterface) {
-            $this->logger->error('CRM Notes request failed: ' . $e->getMessage(), ['exception' => $e]);
+            $this->logger->error('Touchpoint request failed: ' . $e->getMessage(), ['exception' => $e]);
         }
     }
 }

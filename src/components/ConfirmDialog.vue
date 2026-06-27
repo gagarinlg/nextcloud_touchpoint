@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<!-- Rendered inside the app's own Vue tree (declarative), so it is themed,
@@ -38,12 +38,12 @@ function settle(value) {
 // confirm, matching the previous UX. Callbacks resolve the open() promise.
 const buttons = ref([
 	{
-		label: t('crm_notes', 'Cancel'),
+		label: t('touchpoint', 'Cancel'),
 		type: 'tertiary',
 		callback: () => settle(false),
 	},
 	{
-		label: t('crm_notes', 'Delete'),
+		label: t('touchpoint', 'Delete'),
 		type: 'error',
 		callback: () => settle(true),
 	},
@@ -63,8 +63,8 @@ function show({ message: msg, name: title, confirmLabel: label } = {}) {
 	// A previous, still-open prompt is treated as cancelled before reopening.
 	if (resolver) settle(false)
 	message.value = msg || ''
-	name.value = title || t('crm_notes', 'Confirm')
-	confirmLabel.value = label || t('crm_notes', 'Delete')
+	name.value = title || t('touchpoint', 'Confirm')
+	confirmLabel.value = label || t('touchpoint', 'Delete')
 	buttons.value[1].label = confirmLabel.value
 	open.value = true
 	return new Promise((resolve) => {

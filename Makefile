@@ -1,9 +1,9 @@
-# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Build / test / package / deploy for the CRM Notes Nextcloud app.
+# Build / test / package / deploy for the Touchpoint Nextcloud app.
 
-app_name = crm_notes
+app_name = touchpoint
 project_dir = $(CURDIR)
 build_dir = $(project_dir)/build
 appstore_dir = $(build_dir)/appstore
@@ -52,7 +52,7 @@ test-e2e:
 check: lint test
 
 # --- packaging (App Store tarball) ----------------------------------------
-# Produces build/appstore/crm_notes.tar.gz containing only the runnable app
+# Produces build/appstore/touchpoint.tar.gz containing only the runnable app
 # (no node_modules/.git/tests/src/dev configs — see .nextcloudignore).
 .PHONY: appstore
 appstore: build
@@ -63,7 +63,7 @@ appstore: build
 	@echo "Built $(package_name).tar.gz"
 
 # --- deploy to a local Nextcloud --------------------------------------------
-# Syncs the runnable app into $(NEXTCLOUD_APPS)/crm_notes as a REAL directory
+# Syncs the runnable app into $(NEXTCLOUD_APPS)/touchpoint as a REAL directory
 # (no symlink to the dev tree, so the Nextcloud updater's backup stays small).
 # Run with privileges that can write there + chown, e.g.  sudo make deploy
 .PHONY: deploy

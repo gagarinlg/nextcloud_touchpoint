@@ -1,15 +1,15 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Service;
+namespace OCA\Touchpoint\Service;
 
-use OCA\CrmNotes\Db\NoteMapper;
-use OCA\CrmNotes\Db\NoteType;
-use OCA\CrmNotes\Db\NoteTypeMapper;
+use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Db\NoteTypeMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception as DBException;
@@ -17,10 +17,10 @@ use Psr\Log\LoggerInterface;
 
 class NoteTypeService {
 
-    /** crm_note_types.name column length (VARCHAR(128)). */
+    /** touchpoint_note_types.name column length (VARCHAR(128)). */
     private const MAX_NAME_LENGTH = 128;
 
-    /** crm_note_types.icon column length (VARCHAR(64)). */
+    /** touchpoint_note_types.icon column length (VARCHAR(64)). */
     private const MAX_ICON_LENGTH = 64;
 
     /**
@@ -73,7 +73,7 @@ class NoteTypeService {
         try {
             return $this->mapper->findById($id, $userId);
         } catch (DoesNotExistException | MultipleObjectsReturnedException $e) {
-            $this->logger->debug('CRM Notes: note type lookup failed', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: note type lookup failed', ['exception' => $e]);
             throw new NoteTypeNotFoundException('Note type not found');
         }
     }
@@ -113,7 +113,7 @@ class NoteTypeService {
         try {
             return $this->mapper->findOwnedById($id, $userId);
         } catch (DoesNotExistException | MultipleObjectsReturnedException $e) {
-            $this->logger->debug('CRM Notes: owned note type lookup failed', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: owned note type lookup failed', ['exception' => $e]);
             throw new NoteTypeNotFoundException('Note type not found');
         }
     }
@@ -302,7 +302,7 @@ class NoteTypeService {
                 // A concurrent request already seeded this default — ignore the
                 // duplicate so seeding stays idempotent under a race.
                 $this->logger->debug(
-                    'CRM Notes: global default note type already seeded concurrently',
+                    'Touchpoint: global default note type already seeded concurrently',
                     ['name' => $default['name']]
                 );
             }

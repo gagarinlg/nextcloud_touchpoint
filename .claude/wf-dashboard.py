@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live dashboard for the crm_notes fix/review workflow.
+"""Live dashboard for the touchpoint fix/review workflow.
 
 Prints ONE full snapshot of the workflow state to stdout. The wrapper
 (wf-dash.sh) clears the screen and re-runs this on every filesystem event
@@ -180,7 +180,7 @@ def main():
                  "ux": "Review", "comp": "Review"}.get(last["key"], "?")
 
     # ---------- header ----------
-    print(f"{B}{CYA}═══ crm_notes fix/review loop · {time.strftime('%H:%M:%S')} ═══{R}")
+    print(f"{B}{CYA}═══ touchpoint fix/review loop · {time.strftime('%H:%M:%S')} ═══{R}")
     print(f"{B}Round {cur_round}/8{R} · phase: {B}{phase}{R} · "
           f"{completed_rounds} review-rounds done · "
           f"{len([a for a in agents if a['status']=='run'])} live · "

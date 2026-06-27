@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div ref="rootEl" class="crm-contact-notes-view">
@@ -20,7 +20,7 @@
 				</NcButton>
 				<NcButton type="primary" @click="notesStore.openModal(null)">
 					<template #icon><IconPlus :size="20" /></template>
-					{{ t('crm_notes', 'Add note') }}
+					{{ t('touchpoint', 'Add note') }}
 				</NcButton>
 			</div>
 		</div>
@@ -34,7 +34,7 @@
 					<IconChevronDown v-if="showCard" :size="20" />
 					<IconChevronRight v-else :size="20" />
 				</template>
-				{{ showCard ? t('crm_notes', 'Hide contact details') : t('crm_notes', 'Show contact details') }}
+				{{ showCard ? t('touchpoint', 'Hide contact details') : t('touchpoint', 'Show contact details') }}
 			</NcButton>
 			<!-- The region is always present so aria-controls always resolves to a
 			     real element; the embedded Contacts card is lazily mounted inside it
@@ -46,16 +46,16 @@
 
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.contactNotes.length" :size="32" />
 		<NcEmptyContent v-else-if="notesStore.contactNotesError && !notesStore.contactNotes.length"
-			:name="t('crm_notes', 'Could not load notes')"
-			:description="t('crm_notes', 'Something went wrong while loading. Please try again.')">
+			:name="t('touchpoint', 'Could not load notes')"
+			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
 			<template #icon><IconAlert :size="48" /></template>
 			<template #action>
-				<NcButton @click="reload">{{ t('crm_notes', 'Retry') }}</NcButton>
+				<NcButton @click="reload">{{ t('touchpoint', 'Retry') }}</NcButton>
 			</template>
 		</NcEmptyContent>
 		<NcEmptyContent v-else-if="!notesStore.contactNotes.length"
-			:name="t('crm_notes', 'No notes yet')"
-			:description="t('crm_notes', 'Add a note for this contact')">
+			:name="t('touchpoint', 'No notes yet')"
+			:description="t('touchpoint', 'Add a note for this contact')">
 			<template #icon><IconNote :size="48" /></template>
 		</NcEmptyContent>
 		<template v-else>
@@ -67,7 +67,7 @@
 				@delete="onDelete(note)" />
 			<div v-if="notesStore.contactNotesHasMore" class="crm-load-more">
 				<NcButton :disabled="notesStore.loadingMore" @click="onLoadMore">
-					{{ notesStore.loadingMore ? t('crm_notes', 'Loading…') : t('crm_notes', 'Load more') }}
+					{{ notesStore.loadingMore ? t('touchpoint', 'Loading…') : t('touchpoint', 'Load more') }}
 				</NcButton>
 			</div>
 		</template>
@@ -108,7 +108,7 @@ const contactsStore = useContactsStore()
 
 // Whether the embedded contact-card integration is available (Contacts app
 // installed + its OCA bundle loaded on this page). Provided by PageController.
-const contactsAppEnabled = loadState('crm_notes', 'contactsAppEnabled', false)
+const contactsAppEnabled = loadState('touchpoint', 'contactsAppEnabled', false)
 const showCard = ref(false)
 
 // Imperative handle to the declarative confirm dialog.
@@ -123,13 +123,13 @@ const contact = computed(() => contactsStore.currentContact)
 
 // The button shows the order currently in effect; clicking flips to the other.
 const sortLabel = computed(() => notesStore.sort === 'oldest'
-	? t('crm_notes', 'Oldest first')
-	: t('crm_notes', 'Newest first'))
+	? t('touchpoint', 'Oldest first')
+	: t('touchpoint', 'Newest first'))
 
 // Tell screen-reader users what the click will do, not just the current state.
 const sortAriaLabel = computed(() => notesStore.sort === 'newest'
-	? t('crm_notes', 'Sorted newest first. Click to sort oldest first.')
-	: t('crm_notes', 'Sorted oldest first. Click to sort newest first.'))
+	? t('touchpoint', 'Sorted newest first. Click to sort oldest first.')
+	: t('touchpoint', 'Sorted oldest first. Click to sort newest first.'))
 
 function toggleSort() {
 	notesStore.setSort(notesStore.sort === 'newest' ? 'oldest' : 'newest')
@@ -161,24 +161,24 @@ async function onLoadMore() {
 		await withScrollPreserved(rootEl.value, () => notesStore.loadMoreContactNotes())
 		const added = notesStore.contactNotes.length - before
 		if (added > 0) {
-			loadMoreStatus.value = n('crm_notes', '%n more note loaded', '%n more notes loaded', added)
+			loadMoreStatus.value = n('touchpoint', '%n more note loaded', '%n more notes loaded', added)
 		}
 	} catch {
-		showError(t('crm_notes', 'Failed to load more notes.'))
+		showError(t('touchpoint', 'Failed to load more notes.'))
 	}
 }
 
 async function onDelete(note) {
 	const ok = await confirmDialog.value?.show({
-		message: t('crm_notes', 'Delete this note?'),
-		name: t('crm_notes', 'Delete note'),
-		confirmLabel: t('crm_notes', 'Delete'),
+		message: t('touchpoint', 'Delete this note?'),
+		name: t('touchpoint', 'Delete note'),
+		confirmLabel: t('touchpoint', 'Delete'),
 	})
 	if (!ok) return
 	try {
 		await notesStore.remove(note.id, contact.value?.uid)
 	} catch {
-		showError(t('crm_notes', 'Failed to delete note.'))
+		showError(t('touchpoint', 'Failed to delete note.'))
 	}
 }
 </script>

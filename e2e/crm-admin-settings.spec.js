@@ -1,13 +1,13 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 const { test, expect } = require('@playwright/test');
 const { login } = require('./helpers');
 
 test.setTimeout(60000);
 
-const ADMIN_URL = '/index.php/settings/admin/crm_notes';
+const ADMIN_URL = '/index.php/settings/admin/touchpoint';
 
-test.describe('CRM Notes — admin settings section', () => {
+test.describe('Touchpoint — admin settings section', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page);
 		await page.goto(ADMIN_URL);

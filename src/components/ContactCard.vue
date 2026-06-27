@@ -1,14 +1,14 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-contact-card">
 		<NcLoadingIcon v-if="state === 'loading'" :size="32" />
 		<NcEmptyContent v-else-if="state === 'error'"
-			:name="t('crm_notes', 'Contact details unavailable')"
-			:description="t('crm_notes', 'The Contacts app could not render this card.')">
+			:name="t('touchpoint', 'Contact details unavailable')"
+			:description="t('touchpoint', 'The Contacts app could not render this card.')">
 			<template #icon><IconAccountOff :size="48" /></template>
 			<template #action>
-				<NcButton @click="mount">{{ t('crm_notes', 'Retry') }}</NcButton>
+				<NcButton @click="mount">{{ t('touchpoint', 'Retry') }}</NcButton>
 			</template>
 		</NcEmptyContent>
 		<!-- v-show (not v-if): the mount target must exist in the DOM before we
@@ -99,7 +99,7 @@ async function mount() {
 		handle = api.mountContactDetails(mountEl.value, email)
 		state.value = 'ready'
 	} catch (e) {
-		console.error('CRM Notes: failed to mount embedded contact card', e)
+		console.error('Touchpoint: failed to mount embedded contact card', e)
 		state.value = 'error'
 	}
 }

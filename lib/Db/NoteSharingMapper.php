@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Db;
+namespace OCA\Touchpoint\Db;
 
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\Exception as DBException;
@@ -26,7 +26,7 @@ class NoteSharingMapper extends QBMapper {
     private const IN_CHUNK_SIZE = 900;
 
     public function __construct(IDBConnection $db) {
-        parent::__construct($db, 'crm_note_sharing', NoteSharing::class);
+        parent::__construct($db, 'touchpoint_note_sharing', NoteSharing::class);
     }
 
     /**

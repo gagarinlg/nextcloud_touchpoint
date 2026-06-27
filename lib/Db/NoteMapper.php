@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Db;
+namespace OCA\Touchpoint\Db;
 
 use OCP\AppFramework\Db\QBMapper;
 use OCP\DB\QueryBuilder\IQueryBuilder;
@@ -30,7 +30,7 @@ class NoteMapper extends QBMapper {
     public const SORT_OLDEST = 'oldest';
 
     public function __construct(IDBConnection $db) {
-        parent::__construct($db, 'crm_notes', Note::class);
+        parent::__construct($db, 'touchpoint_notes', Note::class);
     }
 
     /**
@@ -311,7 +311,7 @@ class NoteMapper extends QBMapper {
      * express — see NoteService::create()). This lookup is therefore NOT limited
      * to pre-junction-era rows; it exists so the contact panel folds primary-only
      * links into its visible-set even for notes that, for whatever reason, lack a
-     * matching crm_note_contacts junction row (e.g. rows created before the
+     * matching touchpoint_note_contacts junction row (e.g. rows created before the
      * junction table existed, or where the primary uid was never mirrored into
      * the junction). NoteService::findByContact() unions these ids with the
      * junction-table ids and de-duplicates.

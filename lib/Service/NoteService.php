@@ -1,21 +1,21 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Service;
+namespace OCA\Touchpoint\Service;
 
 use DateTime;
-use OCA\CrmNotes\Db\Note;
-use OCA\CrmNotes\Db\NoteContact;
-use OCA\CrmNotes\Db\NoteContactMapper;
-use OCA\CrmNotes\Db\NoteFile;
-use OCA\CrmNotes\Db\NoteFileMapper;
-use OCA\CrmNotes\Db\NoteMapper;
-use OCA\CrmNotes\Db\NoteSharing;
-use OCA\CrmNotes\Db\NoteSharingMapper;
+use OCA\Touchpoint\Db\Note;
+use OCA\Touchpoint\Db\NoteContact;
+use OCA\Touchpoint\Db\NoteContactMapper;
+use OCA\Touchpoint\Db\NoteFile;
+use OCA\Touchpoint\Db\NoteFileMapper;
+use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Db\NoteSharing;
+use OCA\Touchpoint\Db\NoteSharingMapper;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception as DBException;
@@ -25,12 +25,12 @@ use Psr\Log\LoggerInterface;
 
 class NoteService {
 
-    /** crm_notes.title column length (VARCHAR(255)). */
+    /** touchpoint.title column length (VARCHAR(255)). */
     private const MAX_TITLE_LENGTH = 255;
-    /** crm_notes.contact_uid column length (VARCHAR(255)). */
+    /** touchpoint.contact_uid column length (VARCHAR(255)). */
     private const MAX_CONTACT_UID_LENGTH = 255;
     /**
-     * Hard cap on note content length. crm_notes.content is declared Types::TEXT
+     * Hard cap on note content length. touchpoint.content is declared Types::TEXT
      * (migration), which on MySQL/MariaDB tops out at 65,535 BYTES. mb_strlen()
      * counts characters, and a single multibyte character can be up to 4 bytes in
      * utf8mb4, so the worst-case byte cost of N characters is 4*N. Capping at
@@ -118,7 +118,7 @@ class NoteService {
                 continue;
             }
             // Deduplicate by (type, id) so the same principal is persisted once.
-            // crm_note_sharing has a UNIQUE index on
+            // touchpoint_note_sharing has a UNIQUE index on
             // (note_id, shared_with_type, shared_with_id); a payload listing the
             // same principal twice would otherwise blow up syncSharing()'s second
             // insert with a unique-constraint violation. Mirrors
@@ -457,7 +457,7 @@ class NoteService {
      * Note on $addressbookId: this is currently a dead field. The Contacts
      * manager only exposes a non-numeric address-book key (e.g. 'contacts'),
      * so no real numeric address-book id is available client-side; the value
-     * stored in crm_notes.addressbook_id and crm_note_contacts.addressbook_id
+     * stored in touchpoint.addressbook_id and touchpoint_note_contacts.addressbook_id
      * is effectively always 0. It is not used for any authorization check or
      * lookup. Do NOT build a feature that trusts this column until a real
      * numeric id is plumbed through (which would require a new migration).
@@ -497,9 +497,9 @@ class NoteService {
         $now = new DateTime();
 
         $note = new Note();
-        // crm_notes.contact_uid is NOT dead/redundant duplication of the junction
+        // touchpoint.contact_uid is NOT dead/redundant duplication of the junction
         // table: it is the canonical pointer to the note's PRIMARY contact. The
-        // crm_note_contacts junction set is unordered and has no "primary" marker,
+        // touchpoint_note_contacts junction set is unordered and has no "primary" marker,
         // so the scalar contact_uid is the only place that records which of the
         // linked contacts is the primary one. The frontend relies on it (NoteItem
         // renders this contact's name, links to it, and excludes it from the
@@ -734,7 +734,7 @@ class NoteService {
         try {
             $userFolder = $this->rootFolder->getUserFolder($userId);
         } catch (\Throwable $e) {
-            $this->logger->warning('CRM Notes: could not open user folder for file validation', ['exception' => $e]);
+            $this->logger->warning('Touchpoint: could not open user folder for file validation', ['exception' => $e]);
             return null;
         }
 

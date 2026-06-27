@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test } = require('@playwright/test');
@@ -12,7 +12,7 @@ test('debug toggle structure', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
 
-    await page.goto('http://localhost/index.php/settings/admin/crm_notes');
+    await page.goto('http://localhost/index.php/settings/admin/touchpoint');
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
 

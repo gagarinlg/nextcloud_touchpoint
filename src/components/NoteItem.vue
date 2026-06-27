@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-note-item" :class="{ 'is-pinned': note.isPinned }">
@@ -28,7 +28,7 @@
 				class="crm-pin-indicator"
 				:size="16"
 				role="img"
-				:aria-label="t('crm_notes', 'Pinned')" />
+				:aria-label="t('touchpoint', 'Pinned')" />
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="note.content" class="crm-note-content" v-html="renderedContent" />
@@ -38,7 +38,7 @@
 			</span>
 		</div>
 		<div v-if="linkedContacts.length" class="crm-note-linked">
-			<span class="crm-linked-label">{{ t('crm_notes', 'Also linked to:') }}</span>
+			<span class="crm-linked-label">{{ t('touchpoint', 'Also linked to:') }}</span>
 			<span v-for="c in linkedContacts" :key="c.uid" class="crm-linked-chip">{{ c.name }}</span>
 		</div>
 		<div class="crm-note-footer">
@@ -49,14 +49,14 @@
 			<div class="crm-note-actions">
 				<NcButton type="tertiary" :disabled="deleting" @click="$emit('edit', note)">
 					<template #icon><IconPencil :size="16" /></template>
-					{{ t('crm_notes', 'Edit') }}
+					{{ t('touchpoint', 'Edit') }}
 				</NcButton>
 				<NcButton type="tertiary" :disabled="deleting" @click="$emit('delete', note)">
 					<template #icon>
 						<NcLoadingIcon v-if="deleting" :size="16" />
 						<IconDelete v-else :size="16" />
 					</template>
-					{{ deleting ? t('crm_notes', 'Deleting…') : t('crm_notes', 'Delete') }}
+					{{ deleting ? t('touchpoint', 'Deleting…') : t('touchpoint', 'Delete') }}
 				</NcButton>
 			</div>
 		</div>
@@ -92,7 +92,7 @@ defineEmits(['edit', 'delete', 'contact-click'])
 function fileLabel(f) {
 	if (f.name) return f.name
 	if (f.filePath) return f.filePath.split('/').pop()
-	return t('crm_notes', 'Attachment')
+	return t('touchpoint', 'Attachment')
 }
 
 const noteTypesStore = useNoteTypesStore()
@@ -142,8 +142,8 @@ const formattedUpdatedDate = computed(() => formatTimestamp(props.note.updatedAt
 const createdByline = computed(() => {
 	const date = formattedDate.value
 	return props.note.createdBy
-		? t('crm_notes', 'created {date} by {author}', { date, author: props.note.createdBy })
-		: t('crm_notes', 'created {date}', { date })
+		? t('touchpoint', 'created {date} by {author}', { date, author: props.note.createdBy })
+		: t('touchpoint', 'created {date}', { date })
 })
 
 const editedByline = computed(() => {
@@ -154,8 +154,8 @@ const editedByline = computed(() => {
 	}
 	const date = formattedUpdatedDate.value
 	return props.note.updatedBy !== props.note.createdBy
-		? t('crm_notes', 'edited {date} by {author}', { date, author: props.note.updatedBy })
-		: t('crm_notes', 'edited {date}', { date })
+		? t('touchpoint', 'edited {date} by {author}', { date, author: props.note.updatedBy })
+		: t('touchpoint', 'edited {date}', { date })
 })
 
 // Note content is rendered inside a card that sits under the view's <h2>, so any

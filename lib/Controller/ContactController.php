@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Controller;
+namespace OCA\Touchpoint\Controller;
 
-use OCA\CrmNotes\AppInfo\Application;
+use OCA\Touchpoint\AppInfo\Application;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -157,7 +157,7 @@ class ContactController extends Controller {
             $photoUrl = '';
             if ($this->entryHasPhoto($entry) && $this->entryPhotoIsServable($entry)) {
                 $photoUrl = $this->urlGenerator->linkToRoute(
-                    'crm_notes.contact.photo',
+                    'touchpoint.contact.photo',
                     ['uid' => $uid]
                 );
             }
@@ -335,7 +335,7 @@ class ContactController extends Controller {
                 }
             }
         } catch (\Throwable $e) {
-            $this->logger->debug('CRM Notes: address book enumeration failed', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: address book enumeration failed', ['exception' => $e]);
             return null;
         }
         if ($accessibleIds === []) {
@@ -356,7 +356,7 @@ class ContactController extends Controller {
             $carddata = $result->fetchOne();
             $result->closeCursor();
         } catch (\Throwable $e) {
-            $this->logger->debug('CRM Notes: contact photo lookup failed', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: contact photo lookup failed', ['exception' => $e]);
             return null;
         }
 
@@ -383,7 +383,7 @@ class ContactController extends Controller {
         try {
             $doc = Reader::read($carddata, Reader::OPTION_FORGIVING);
         } catch (\Throwable $e) {
-            $this->logger->debug('CRM Notes: could not parse contact vCard for photo', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: could not parse contact vCard for photo', ['exception' => $e]);
             return null;
         }
 
@@ -518,7 +518,7 @@ class ContactController extends Controller {
         try {
             $doc = Reader::read($card, Reader::OPTION_FORGIVING);
         } catch (\Throwable $e) {
-            $this->logger->debug('CRM Notes: could not parse PHOTO vCard line', ['exception' => $e]);
+            $this->logger->debug('Touchpoint: could not parse PHOTO vCard line', ['exception' => $e]);
             return null;
         }
 

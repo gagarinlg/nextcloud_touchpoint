@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Db;
+namespace OCA\Touchpoint\Tests\Unit\Db;
 
-use OCA\CrmNotes\Db\NoteSharingMapper;
+use OCA\Touchpoint\Db\NoteSharingMapper;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -75,7 +75,7 @@ class NoteSharingMapperTest extends TestCase {
     }
 
     public function testTableName(): void {
-        $this->assertSame('crm_note_sharing', $this->mapper->getTableName());
+        $this->assertSame('touchpoint_note_sharing', $this->mapper->getTableName());
     }
 
     public function testFindWritableNoteIdsAddsCanEditPredicate(): void {
@@ -114,7 +114,7 @@ class NoteSharingMapperTest extends TestCase {
 
     /**
      * syncSharing() must tolerate a unique-constraint violation on insert (the
-     * crm_note_sharing_unique index on (note_id, type, id)) the same way
+     * touchpoint_note_sharing_unique index on (note_id, type, id)) the same way
      * NoteService::create()/addFile() do, so a duplicate target racing past the
      * service-side dedupe never surfaces as a 500. The owning principal is
      * already shared, so swallowing the violation keeps the ACL correct.

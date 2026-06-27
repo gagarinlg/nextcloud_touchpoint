@@ -1,14 +1,14 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Controller;
+namespace OCA\Touchpoint\Tests\Unit\Controller;
 
-use OCA\CrmNotes\Service\NoteNotFoundException;
-use OCA\CrmNotes\Service\NoteTypeNotFoundException;
+use OCA\Touchpoint\Service\NoteNotFoundException;
+use OCA\Touchpoint\Service\NoteTypeNotFoundException;
 use OCP\AppFramework\Http\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use PHPUnit\Framework\TestCase;
@@ -22,7 +22,7 @@ class ErrorHandlerTest extends TestCase {
 
     protected function setUp(): void {
         $this->handler = new class {
-            use \OCA\CrmNotes\Controller\ErrorHandler;
+            use \OCA\Touchpoint\Controller\ErrorHandler;
 
             public function callHandleNotFound(\Closure $callback): \OCP\AppFramework\Http\JSONResponse {
                 return $this->handleNotFound($callback);

@@ -1,11 +1,11 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Listener;
+namespace OCA\Touchpoint\Listener;
 
 use OCP\AppFramework\Http\Events\BeforeTemplateRenderedEvent;
 use OCP\EventDispatcher\Event;
@@ -13,7 +13,7 @@ use OCP\EventDispatcher\IEventListener;
 use OCP\Util;
 
 /**
- * Injects the CRM Notes panel into the Contacts app's contact-detail view.
+ * Injects the Touchpoint panel into the Contacts app's contact-detail view.
  *
  * The Contacts app provides no dedicated extension point for adding a section to
  * its detail view, so we hook the global before-render event: when the page being
@@ -33,6 +33,6 @@ class LoadContactsTabListener implements IEventListener {
         if ($event->getResponse()->getApp() !== 'contacts') {
             return;
         }
-        Util::addScript('crm_notes', 'crm_notes-contacts-integration', 'crm_notes');
+        Util::addScript('touchpoint', 'touchpoint-contacts-integration', 'touchpoint');
     }
 }

@@ -4,12 +4,12 @@ Guidance for working in this repository.
 
 ## What this is
 
-**CRM Notes** (`crm_notes`) — a Nextcloud app that attaches CRM-style notes to
+**Touchpoint** (`touchpoint`) — a Nextcloud app that attaches CRM-style notes to
 address-book contacts. Notes have a type (Call, Meeting, Email, Task, General,
 plus user-defined types with colors), can be pinned, can carry file attachments,
 and can be shared with other users/groups. It surfaces:
 
-- A standalone app page (left-nav "CRM Notes") with an all-notes view and a
+- A standalone app page (left-nav "Touchpoint") with an all-notes view and a
   note-types manager.
 - A tab inside the **Contacts** app (via `LoadContactsOcaApiEvent`) showing the
   notes for the open contact.
@@ -22,7 +22,7 @@ than pinning a number here.
 
 ## Tech stack
 
-- **Backend:** PHP 8.2+, Nextcloud App Framework. PSR-4 `OCA\CrmNotes\` → `lib/`.
+- **Backend:** PHP 8.2+, Nextcloud App Framework. PSR-4 `OCA\Touchpoint\` → `lib/`.
 - **Frontend:** Vue 3 + Pinia, built with Vite (`@nextcloud/vite-config`),
   using `@nextcloud/vue` 9.x components.
 - **Tests:** PHPUnit 10.5 (unit) + Playwright (e2e, German locale, against
@@ -72,8 +72,8 @@ e2e/                            Playwright specs.
 
 ## Database tables
 
-All prefixed `crm_`: `crm_notes`, `crm_note_types`, `crm_note_contacts`,
-`crm_note_files`, `crm_note_sharing`. Schema changes go through a new
+All prefixed `crm_`: `touchpoint`, `touchpoint_note_types`, `touchpoint_note_contacts`,
+`touchpoint_note_files`, `touchpoint_note_sharing`. Schema changes go through a new
 `lib/Migration/VersionXXXXDate*.php` step — never edit existing migrations that
 have shipped. Note that there are **no DB-level foreign keys**; child-row cleanup
 on note deletion is done in `NoteService::delete()`, so do not bypass the service
@@ -109,7 +109,7 @@ prebuilt bundles under `js/`/`css/`, not the sources.
   can contain `/`, `#`, `@`.
 - **Markdown** note bodies are rendered through `marked` + **DOMPurify**; keep
   user-supplied HTML sanitized. Don't introduce `innerHTML` paths that bypass it.
-- **i18n:** wrap all user-facing strings in `t('crm_notes', '...')`. Use
+- **i18n:** wrap all user-facing strings in `t('touchpoint', '...')`. Use
   interpolation (`t(..., { count })`) rather than concatenating numbers with
   translated fragments.
 - **Design system:** prefer `@nextcloud/vue` components and NC CSS variables

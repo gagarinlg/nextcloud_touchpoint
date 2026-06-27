@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -13,11 +13,11 @@ test('Test file attachment saves and shows on reopen', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
     
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(3000);
     
     const result = await page.evaluate(async () => {
-        const baseUrl = OC.generateUrl('/apps/crm_notes');
+        const baseUrl = OC.generateUrl('/apps/touchpoint');
         const token = OC.requestToken;
         const headers = { 'requesttoken': token, 'Content-Type': 'application/json' };
         
@@ -58,7 +58,7 @@ test('Test file attachment saves and shows on reopen', async ({ page }) => {
     await page.waitForTimeout(3000);
     
     const check = await page.evaluate(async () => {
-        const baseUrl = OC.generateUrl('/apps/crm_notes');
+        const baseUrl = OC.generateUrl('/apps/touchpoint');
         const token = OC.requestToken;
         const notesResp = await fetch(baseUrl + '/api/notes', { headers: { requesttoken: token } });
         const notes = await notesResp.json();

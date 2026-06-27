@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Live tracker for the crm_notes fix/review workflow (since /workflows TUI
+# Live tracker for the touchpoint fix/review workflow (since /workflows TUI
 # doesn't render in the VSCode extension). Usage: bash .claude/wf-watch.sh
 set -u
 WF_DIR="/home/gagarin/.claude/projects/-home-gagarin-code-notes/201b089e-4b17-4c99-96fa-7d77269a1f0f/subagents/workflows/wf_34d1226a-f10"
@@ -7,7 +7,7 @@ REPO="/home/gagarin/code/notes"
 
 while true; do
   clear
-  echo "=== crm_notes fix/review workflow @ $(date '+%H:%M:%S') ==="
+  echo "=== touchpoint fix/review workflow @ $(date '+%H:%M:%S') ==="
   if [ ! -d "$WF_DIR" ]; then echo "workflow dir gone (finished/cleaned up)"; break; fi
 
   n=$(ls "$WF_DIR"/agent-*.jsonl 2>/dev/null | wc -l)

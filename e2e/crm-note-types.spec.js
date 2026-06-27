@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 const { test, expect } = require('@playwright/test');
 const { login, openApp, gotoSection, RX, unique } = require('./helpers');
@@ -28,7 +28,7 @@ async function closeModalIfOpen(page) {
 	await page.locator('.crm-modal-body').waitFor({ state: 'detached', timeout: 5000 }).catch(() => {});
 }
 
-test.describe('CRM Notes — note types manager', () => {
+test.describe('Touchpoint — note types manager', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page);
 		await openApp(page);
@@ -85,22 +85,22 @@ test.describe('CRM Notes — note types manager', () => {
 		// Cleanup via API (UI delete is currently broken — see the fixme test below).
 		await page.evaluate(async (renamed) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-			const types = await (await fetch('/index.php/apps/crm_notes/api/note-types', { headers: { requesttoken: token } })).json();
+			const types = await (await fetch('/index.php/apps/touchpoint/api/note-types', { headers: { requesttoken: token } })).json();
 			const t = types.find(x => x.name === renamed);
-			if (t) await fetch('/index.php/apps/crm_notes/api/note-types/' + t.id, { method: 'DELETE', headers: { requesttoken: token } });
+			if (t) await fetch('/index.php/apps/touchpoint/api/note-types/' + t.id, { method: 'DELETE', headers: { requesttoken: token } });
 		}, renamed);
 	});
 
 	// KNOWN ISSUE (current build): clicking "Delete type" throws
 	//   TypeError: Cannot read properties of undefined (reading '_c')
-	// inside crm_notes-main.mjs — the confirmDestructive() path (getDialogBuilder)
+	// inside touchpoint-main.mjs — the confirmDestructive() path (getDialogBuilder)
 	// crashes, so the in-app confirmation dialog never renders and nothing is
 	// deleted. Re-enable once the bundle is fixed. (Deletion itself works via API.)
 	test.fixme('delete a type via the in-app confirmation dialog', async ({ page }) => {
 		const name = unique('E2E-DelType');
 		await page.evaluate(async (name) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-			await fetch('/index.php/apps/crm_notes/api/note-types', { method: 'POST', headers: { 'Content-Type': 'application/json', requesttoken: token }, body: JSON.stringify({ name, color: '#123456', icon: 'icon-comment' }) });
+			await fetch('/index.php/apps/touchpoint/api/note-types', { method: 'POST', headers: { 'Content-Type': 'application/json', requesttoken: token }, body: JSON.stringify({ name, color: '#123456', icon: 'icon-comment' }) });
 		}, name);
 		await page.reload();
 		await openApp(page);
@@ -126,7 +126,7 @@ test.describe('CRM Notes — note types manager', () => {
 		const result = await page.evaluate(async ({ name, hsl }) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken') || window.OC?.requestToken;
 			const h = { 'Content-Type': 'application/json', requesttoken: token };
-			const create = await fetch('/index.php/apps/crm_notes/api/note-types', {
+			const create = await fetch('/index.php/apps/touchpoint/api/note-types', {
 				method: 'POST', headers: h,
 				body: JSON.stringify({ name, color: hsl, icon: 'icon-comment' }),
 			});
@@ -141,7 +141,7 @@ test.describe('CRM Notes — note types manager', () => {
 		// Cleanup.
 		await page.evaluate(async (id) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken') || window.OC?.requestToken;
-			await fetch(`/index.php/apps/crm_notes/api/note-types/${id}`, { method: 'DELETE', headers: { requesttoken: token } });
+			await fetch(`/index.php/apps/touchpoint/api/note-types/${id}`, { method: 'DELETE', headers: { requesttoken: token } });
 		}, result.id);
 	});
 
@@ -160,11 +160,11 @@ test.describe('CRM Notes — note types manager', () => {
 		const ids = await page.evaluate(async (name) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken') || window.OC?.requestToken;
 			const h = { 'Content-Type': 'application/json', requesttoken: token };
-			const types = await (await fetch('/index.php/apps/crm_notes/api/note-types', { headers: { requesttoken: token } })).json();
+			const types = await (await fetch('/index.php/apps/touchpoint/api/note-types', { headers: { requesttoken: token } })).json();
 			const type = types.find(t => t.name === name);
-			const contacts = await (await fetch('/index.php/apps/crm_notes/api/contacts', { headers: { requesttoken: token } })).json();
+			const contacts = await (await fetch('/index.php/apps/touchpoint/api/contacts', { headers: { requesttoken: token } })).json();
 			const uid = (contacts[0] || {}).uid;
-			const res = await fetch('/index.php/apps/crm_notes/api/notes', {
+			const res = await fetch('/index.php/apps/touchpoint/api/notes', {
 				method: 'POST', headers: h,
 				// addressbookId MUST be non-zero: the running build's Entity::insert omits
 				// any field left at its default (0) and the NOT NULL addressbook_id column
@@ -188,8 +188,8 @@ test.describe('CRM Notes — note types manager', () => {
 		// Cleanup: remove the note then the type via API.
 		await page.evaluate(async ({ noteId, typeId }) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken') || window.OC?.requestToken;
-			await fetch(`/index.php/apps/crm_notes/api/notes/${noteId}`, { method: 'DELETE', headers: { requesttoken: token } });
-			await fetch(`/index.php/apps/crm_notes/api/note-types/${typeId}`, { method: 'DELETE', headers: { requesttoken: token } });
+			await fetch(`/index.php/apps/touchpoint/api/notes/${noteId}`, { method: 'DELETE', headers: { requesttoken: token } });
+			await fetch(`/index.php/apps/touchpoint/api/note-types/${typeId}`, { method: 'DELETE', headers: { requesttoken: token } });
 		}, ids);
 	});
 });

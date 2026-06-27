@@ -1,28 +1,28 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Service;
+namespace OCA\Touchpoint\Tests\Unit\Service;
 
 use DateTime;
-use OCA\CrmNotes\Db\Note;
-use OCA\CrmNotes\Db\NoteContact;
-use OCA\CrmNotes\Db\NoteContactMapper;
-use OCA\CrmNotes\Db\NoteFile;
-use OCA\CrmNotes\Db\NoteFileMapper;
-use OCA\CrmNotes\Db\NoteMapper;
-use OCA\CrmNotes\Db\NoteSharingMapper;
-use OCA\CrmNotes\Db\NoteType;
-use OCA\CrmNotes\Service\NoteForbiddenException;
-use OCA\CrmNotes\Service\NoteNotFoundException;
-use OCA\CrmNotes\Service\NoteService;
-use OCA\CrmNotes\Service\NoteTypeNotFoundException;
-use OCA\CrmNotes\Service\NoteTypeService;
-use OCA\CrmNotes\Service\NoteValidationException;
-use OCA\CrmNotes\Service\SettingsService;
+use OCA\Touchpoint\Db\Note;
+use OCA\Touchpoint\Db\NoteContact;
+use OCA\Touchpoint\Db\NoteContactMapper;
+use OCA\Touchpoint\Db\NoteFile;
+use OCA\Touchpoint\Db\NoteFileMapper;
+use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Db\NoteSharingMapper;
+use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Service\NoteForbiddenException;
+use OCA\Touchpoint\Service\NoteNotFoundException;
+use OCA\Touchpoint\Service\NoteService;
+use OCA\Touchpoint\Service\NoteTypeNotFoundException;
+use OCA\Touchpoint\Service\NoteTypeService;
+use OCA\Touchpoint\Service\NoteValidationException;
+use OCA\Touchpoint\Service\SettingsService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\Files\Folder;
@@ -610,7 +610,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testCreateDeduplicatesRepeatedShareTargets(): void {
-        // crm_note_sharing has a UNIQUE index on
+        // touchpoint_note_sharing has a UNIQUE index on
         // (note_id, shared_with_type, shared_with_id). A payload that lists the
         // same principal twice must be collapsed to a single target by
         // sanitiseShareTargets() so syncSharing()'s second insert never trips the
@@ -1364,19 +1364,19 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findById')->willThrowException(new DoesNotExistException('nope'));
         $this->mapper->method('findByIdPublic')->with(1)->willReturn($note);
 
-        $own = new \OCA\CrmNotes\Db\NoteSharing();
+        $own = new \OCA\Touchpoint\Db\NoteSharing();
         $own->setNoteId(1);
         $own->setSharedWithType('user');
         $own->setSharedWithId('reader');
         $own->setCanEdit(false);
 
-        $other = new \OCA\CrmNotes\Db\NoteSharing();
+        $other = new \OCA\Touchpoint\Db\NoteSharing();
         $other->setNoteId(1);
         $other->setSharedWithType('user');
         $other->setSharedWithId('someone-else');
         $other->setCanEdit(true);
 
-        $group = new \OCA\CrmNotes\Db\NoteSharing();
+        $group = new \OCA\Touchpoint\Db\NoteSharing();
         $group->setNoteId(1);
         $group->setSharedWithType('group');
         $group->setSharedWithId('staff');
@@ -1424,7 +1424,7 @@ class NoteServiceTest extends TestCase {
         $this->mapper->method('findById')->willThrowException(new DoesNotExistException('nope'));
         $this->mapper->method('findByIdPublic')->with(1)->willReturn($note);
 
-        $own = new \OCA\CrmNotes\Db\NoteSharing();
+        $own = new \OCA\Touchpoint\Db\NoteSharing();
         $own->setNoteId(1);
         $own->setSharedWithType('user');
         $own->setSharedWithId('reader');
@@ -1462,9 +1462,9 @@ class NoteServiceTest extends TestCase {
 
         $this->mapper->method('findById')->with(1, 'owner')->willReturn($note);
 
-        $a = new \OCA\CrmNotes\Db\NoteSharing();
+        $a = new \OCA\Touchpoint\Db\NoteSharing();
         $a->setNoteId(1); $a->setSharedWithType('user'); $a->setSharedWithId('reader'); $a->setCanEdit(false);
-        $b = new \OCA\CrmNotes\Db\NoteSharing();
+        $b = new \OCA\Touchpoint\Db\NoteSharing();
         $b->setNoteId(1); $b->setSharedWithType('user'); $b->setSharedWithId('someone-else'); $b->setCanEdit(true);
 
         $sharing = $this->createMock(NoteSharingMapper::class);
@@ -1719,7 +1719,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testCreateRejectsOverLengthContent(): void {
-        // GRUMPY DEV #1: content is written into crm_notes.content (Types::TEXT,
+        // GRUMPY DEV #1: content is written into touchpoint.content (Types::TEXT,
         // 64 KiB on MySQL/MariaDB). An over-length body must be rejected with a
         // NoteValidationException (400) BEFORE the row is inserted, mirroring the
         // title/contact_uid guards — never an opaque DB-truncation 500 or silent

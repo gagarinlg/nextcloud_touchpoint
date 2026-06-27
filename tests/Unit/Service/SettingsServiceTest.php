@@ -1,14 +1,14 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Service;
+namespace OCA\Touchpoint\Tests\Unit\Service;
 
-use OCA\CrmNotes\AppInfo\Application;
-use OCA\CrmNotes\Service\SettingsService;
+use OCA\Touchpoint\AppInfo\Application;
+use OCA\Touchpoint\Service\SettingsService;
 use OCP\IAppConfig;
 use OCP\IConfig;
 use OCP\IGroup;

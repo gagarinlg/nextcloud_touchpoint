@@ -1,31 +1,31 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-note-types-view">
 		<div class="crm-view-header">
-			<h1>{{ t('crm_notes', 'Note types') }}</h1>
+			<h1>{{ t('touchpoint', 'Note types') }}</h1>
 			<NcButton type="primary" @click="noteTypesStore.openModal()">
 				<template #icon><IconPlus :size="20" /></template>
-				{{ t('crm_notes', 'Add type') }}
+				{{ t('touchpoint', 'Add type') }}
 			</NcButton>
 		</div>
 
 		<NcLoadingIcon v-if="noteTypesStore.loading" :size="32" />
 		<NcEmptyContent v-else-if="noteTypesStore.error"
-			:name="t('crm_notes', 'Could not load note types')"
-			:description="t('crm_notes', 'Something went wrong while loading. Please try again.')">
+			:name="t('touchpoint', 'Could not load note types')"
+			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
 			<template #icon><IconAlert :size="48" /></template>
 			<template #action>
-				<NcButton @click="noteTypesStore.load()">{{ t('crm_notes', 'Retry') }}</NcButton>
+				<NcButton @click="noteTypesStore.load()">{{ t('touchpoint', 'Retry') }}</NcButton>
 			</template>
 		</NcEmptyContent>
 		<NcEmptyContent v-else-if="!noteTypesStore.noteTypes.length"
-			:name="t('crm_notes', 'No note types')"
-			:description="t('crm_notes', 'Create a note type to get started.')">
+			:name="t('touchpoint', 'No note types')"
+			:description="t('touchpoint', 'Create a note type to get started.')">
 			<template #icon><IconLabel :size="48" /></template>
 			<template #action>
 				<NcButton type="primary" @click="noteTypesStore.openModal()">
-					{{ t('crm_notes', 'Add type') }}
+					{{ t('touchpoint', 'Add type') }}
 				</NcButton>
 			</template>
 		</NcEmptyContent>
@@ -34,12 +34,12 @@
 				<NoteTypeBadge :type="type" />
 				<div class="crm-type-actions">
 					<NcButton type="tertiary"
-						:aria-label="t('crm_notes', 'Edit type')"
+						:aria-label="t('touchpoint', 'Edit type')"
 						@click="noteTypesStore.openModal(type)">
 						<template #icon><IconPencil :size="16" /></template>
 					</NcButton>
 					<NcButton type="tertiary"
-						:aria-label="t('crm_notes', 'Delete type')"
+						:aria-label="t('touchpoint', 'Delete type')"
 						@click="onDelete(type)">
 						<template #icon><IconDelete :size="16" /></template>
 					</NcButton>
@@ -88,7 +88,7 @@ async function onDelete(type) {
 	if (inUse > 0) {
 		// The server blocks deleting a type that is still in use (409). Explain
 		// why instead of offering a delete that is guaranteed to fail.
-		showError(n('crm_notes',
+		showError(n('touchpoint',
 			'This type is used by %n note. Reassign or delete it first.',
 			'This type is used by %n notes. Reassign or delete those notes first.',
 			inUse))
@@ -96,18 +96,18 @@ async function onDelete(type) {
 	}
 
 	const ok = await confirmDialog.value?.show({
-		message: t('crm_notes', 'Delete this note type? Notes using it will lose their type.'),
-		name: t('crm_notes', 'Delete note type'),
-		confirmLabel: t('crm_notes', 'Delete'),
+		message: t('touchpoint', 'Delete this note type? Notes using it will lose their type.'),
+		name: t('touchpoint', 'Delete note type'),
+		confirmLabel: t('touchpoint', 'Delete'),
 	})
 	if (!ok) return
 	try {
 		await noteTypesStore.remove(type.id)
 	} catch (e) {
 		if (e?.response?.status === 409) {
-			showError(t('crm_notes', 'This note type is still used by existing notes.'))
+			showError(t('touchpoint', 'This note type is still used by existing notes.'))
 		} else {
-			showError(t('crm_notes', 'Failed to delete note type.'))
+			showError(t('touchpoint', 'Failed to delete note type.'))
 		}
 	}
 }

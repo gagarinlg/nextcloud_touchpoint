@@ -1,9 +1,9 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div ref="rootEl" class="crm-all-notes-view">
 		<div class="crm-view-header">
-			<h1>{{ t('crm_notes', 'All notes') }}</h1>
+			<h1>{{ t('touchpoint', 'All notes') }}</h1>
 			<NcButton type="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
 				<template #icon>
 					<IconSortDescending v-if="notesStore.sort === 'newest'" :size="20" />
@@ -14,20 +14,20 @@
 		</div>
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.allNotes.length" :size="32" />
 		<NcEmptyContent v-else-if="notesStore.allNotesError && !notesStore.allNotes.length"
-			:name="t('crm_notes', 'Could not load notes')"
-			:description="t('crm_notes', 'Something went wrong while loading. Please try again.')">
+			:name="t('touchpoint', 'Could not load notes')"
+			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
 			<template #icon><IconAlert :size="48" /></template>
 			<template #action>
-				<NcButton @click="notesStore.loadAll()">{{ t('crm_notes', 'Retry') }}</NcButton>
+				<NcButton @click="notesStore.loadAll()">{{ t('touchpoint', 'Retry') }}</NcButton>
 			</template>
 		</NcEmptyContent>
 		<NcEmptyContent v-else-if="!notesStore.allNotes.length"
-			:name="t('crm_notes', 'No notes yet')"
-			:description="t('crm_notes', 'Open a contact to add your first note.')">
+			:name="t('touchpoint', 'No notes yet')"
+			:description="t('touchpoint', 'Open a contact to add your first note.')">
 			<template #icon><IconNote :size="48" /></template>
 			<template #action>
 				<NcButton type="primary" @click="$emit('go-to-contacts')">
-					{{ t('crm_notes', 'Browse contacts') }}
+					{{ t('touchpoint', 'Browse contacts') }}
 				</NcButton>
 			</template>
 		</NcEmptyContent>
@@ -42,7 +42,7 @@
 				@contact-click="onContactClick" />
 			<div v-if="notesStore.allNotesHasMore" class="crm-load-more">
 				<NcButton :disabled="notesStore.loadingMore" @click="onLoadMore">
-					{{ notesStore.loadingMore ? t('crm_notes', 'Loading…') : t('crm_notes', 'Load more') }}
+					{{ notesStore.loadingMore ? t('touchpoint', 'Loading…') : t('touchpoint', 'Load more') }}
 				</NcButton>
 			</div>
 		</template>
@@ -86,13 +86,13 @@ const rootEl = ref(null)
 
 // The button shows the order currently in effect; clicking flips to the other.
 const sortLabel = computed(() => notesStore.sort === 'oldest'
-	? t('crm_notes', 'Oldest first')
-	: t('crm_notes', 'Newest first'))
+	? t('touchpoint', 'Oldest first')
+	: t('touchpoint', 'Newest first'))
 
 // Tell screen-reader users what the click will do, not just the current state.
 const sortAriaLabel = computed(() => notesStore.sort === 'newest'
-	? t('crm_notes', 'Sorted newest first. Click to sort oldest first.')
-	: t('crm_notes', 'Sorted oldest first. Click to sort newest first.'))
+	? t('touchpoint', 'Sorted newest first. Click to sort oldest first.')
+	: t('touchpoint', 'Sorted oldest first. Click to sort newest first.'))
 
 function toggleSort() {
 	notesStore.setSort(notesStore.sort === 'newest' ? 'oldest' : 'newest')
@@ -113,24 +113,24 @@ async function onLoadMore() {
 		await withScrollPreserved(rootEl.value, () => notesStore.loadMoreNotes())
 		const added = notesStore.allNotes.length - before
 		if (added > 0) {
-			loadMoreStatus.value = n('crm_notes', '%n more note loaded', '%n more notes loaded', added)
+			loadMoreStatus.value = n('touchpoint', '%n more note loaded', '%n more notes loaded', added)
 		}
 	} catch {
-		showError(t('crm_notes', 'Failed to load more notes.'))
+		showError(t('touchpoint', 'Failed to load more notes.'))
 	}
 }
 
 async function onDelete(note) {
 	const ok = await confirmDialog.value?.show({
-		message: t('crm_notes', 'Delete this note?'),
-		name: t('crm_notes', 'Delete note'),
-		confirmLabel: t('crm_notes', 'Delete'),
+		message: t('touchpoint', 'Delete this note?'),
+		name: t('touchpoint', 'Delete note'),
+		confirmLabel: t('touchpoint', 'Delete'),
 	})
 	if (!ok) return
 	try {
 		await notesStore.remove(note.id)
 	} catch {
-		showError(t('crm_notes', 'Failed to delete note.'))
+		showError(t('touchpoint', 'Failed to delete note.'))
 	}
 }
 

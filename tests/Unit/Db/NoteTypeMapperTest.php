@@ -1,14 +1,14 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Db;
+namespace OCA\Touchpoint\Tests\Unit\Db;
 
-use OCA\CrmNotes\Db\NoteType;
-use OCA\CrmNotes\Db\NoteTypeMapper;
+use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Db\NoteTypeMapper;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
@@ -42,12 +42,12 @@ class NoteTypeMapperTest extends TestCase {
     }
 
     public function testTableName(): void {
-        $this->assertSame('crm_note_types', $this->mapper->getTableName());
+        $this->assertSame('touchpoint_note_types', $this->mapper->getTableName());
     }
 
     public function testFindAllBuildsCorrectQuery(): void {
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
-        $this->qb->expects($this->once())->method('from')->with('crm_note_types')->willReturnSelf();
+        $this->qb->expects($this->once())->method('from')->with('touchpoint_note_types')->willReturnSelf();
         $this->qb->expects($this->once())->method('where')->willReturnSelf();
         $this->qb->expects($this->once())->method('orderBy')->with('name', 'ASC')->willReturnSelf();
 
@@ -56,7 +56,7 @@ class NoteTypeMapperTest extends TestCase {
 
     public function testFindByIdBuildsCorrectQuery(): void {
         $this->qb->expects($this->once())->method('select')->with('*')->willReturnSelf();
-        $this->qb->expects($this->once())->method('from')->with('crm_note_types')->willReturnSelf();
+        $this->qb->expects($this->once())->method('from')->with('touchpoint_note_types')->willReturnSelf();
         $this->qb->expects($this->once())->method('where')->willReturnSelf();
         $this->qb->expects($this->once())->method('andWhere')->willReturnSelf();
 

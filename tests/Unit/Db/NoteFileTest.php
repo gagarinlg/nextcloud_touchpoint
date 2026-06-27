@@ -1,13 +1,13 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Tests\Unit\Db;
+namespace OCA\Touchpoint\Tests\Unit\Db;
 
-use OCA\CrmNotes\Db\NoteFile;
+use OCA\Touchpoint\Db\NoteFile;
 use PHPUnit\Framework\TestCase;
 
 class NoteFileTest extends TestCase {

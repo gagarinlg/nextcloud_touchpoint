@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Live auto-refreshing dashboard for the crm_notes fix/review workflow.
+# Live auto-refreshing dashboard for the touchpoint fix/review workflow.
 # Redraws on any filesystem change in the workflow dir / repo (event-driven via
 # inotifywait), with a 5s timeout so the elapsed clocks keep ticking. Falls back
 # to plain 5s polling if inotifywait is unavailable.  Ctrl-C to stop.

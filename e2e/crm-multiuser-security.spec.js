@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 const { test, expect } = require('@playwright/test');
 const { login, openApp } = require('./helpers');
@@ -27,11 +27,11 @@ async function adminCreateSharedNote(browser, canEdit) {
 	const created = await page.evaluate(async ({ canEdit, user }) => {
 		const token = document.querySelector('head')?.getAttribute('data-requesttoken');
 		const H = { 'Content-Type': 'application/json', requesttoken: token };
-		const types = await (await fetch('/index.php/apps/crm_notes/api/note-types', { headers: { requesttoken: token } })).json();
-		const contacts = await (await fetch('/index.php/apps/crm_notes/api/contacts', { headers: { requesttoken: token } })).json();
+		const types = await (await fetch('/index.php/apps/touchpoint/api/note-types', { headers: { requesttoken: token } })).json();
+		const contacts = await (await fetch('/index.php/apps/touchpoint/api/contacts', { headers: { requesttoken: token } })).json();
 		const uid = contacts[0].uid;
 		// addressbookId MUST be non-zero (see crm-notes-crud.spec.js KNOWN ISSUE).
-		const res = await fetch('/index.php/apps/crm_notes/api/notes', {
+		const res = await fetch('/index.php/apps/touchpoint/api/notes', {
 			method: 'POST', headers: H,
 			body: JSON.stringify({
 				contactUid: uid, noteTypeId: types[0].id,
@@ -50,11 +50,11 @@ async function adminCreateSharedNote(browser, canEdit) {
 async function adminDeleteNote(page, id) {
 	await page.evaluate(async (id) => {
 		const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-		await fetch('/index.php/apps/crm_notes/api/notes/' + id, { method: 'DELETE', headers: { requesttoken: token } });
+		await fetch('/index.php/apps/touchpoint/api/notes/' + id, { method: 'DELETE', headers: { requesttoken: token } });
 	}, id).catch(() => {});
 }
 
-test.describe('CRM Notes — multi-user sharing authorization', () => {
+test.describe('Touchpoint — multi-user sharing authorization', () => {
 	test('a read-only recipient can VIEW a note shared with them', async ({ browser }) => {
 		const { ctx: adminCtx, page: admin, created } = await adminCreateSharedNote(browser, false);
 		expect(created.status).toBeLessThan(300);
@@ -67,7 +67,7 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 		await openApp(u);
 		const view = await u.evaluate(async (id) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-			const res = await fetch('/index.php/apps/crm_notes/api/notes/' + id, { headers: { requesttoken: token } });
+			const res = await fetch('/index.php/apps/touchpoint/api/notes/' + id, { headers: { requesttoken: token } });
 			const body = await res.json().catch(() => null);
 			return { status: res.status, title: body && body.title };
 		}, created.id);
@@ -94,8 +94,8 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
 			const HJ = { 'Content-Type': 'application/json', requesttoken: token };
 			const H = { requesttoken: token };
-			const put = await fetch('/index.php/apps/crm_notes/api/notes/' + id, { method: 'PUT', headers: HJ, body: JSON.stringify({ title: 'HACKED' }) });
-			const del = await fetch('/index.php/apps/crm_notes/api/notes/' + id, { method: 'DELETE', headers: H });
+			const put = await fetch('/index.php/apps/touchpoint/api/notes/' + id, { method: 'PUT', headers: HJ, body: JSON.stringify({ title: 'HACKED' }) });
+			const del = await fetch('/index.php/apps/touchpoint/api/notes/' + id, { method: 'DELETE', headers: H });
 			return { putStatus: put.status, delStatus: del.status };
 		}, created.id);
 
@@ -117,9 +117,9 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 		const priv = await admin.evaluate(async () => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
 			const H = { 'Content-Type': 'application/json', requesttoken: token };
-			const types = await (await fetch('/index.php/apps/crm_notes/api/note-types', { headers: { requesttoken: token } })).json();
-			const contacts = await (await fetch('/index.php/apps/crm_notes/api/contacts', { headers: { requesttoken: token } })).json();
-			const res = await fetch('/index.php/apps/crm_notes/api/notes', {
+			const types = await (await fetch('/index.php/apps/touchpoint/api/note-types', { headers: { requesttoken: token } })).json();
+			const contacts = await (await fetch('/index.php/apps/touchpoint/api/contacts', { headers: { requesttoken: token } })).json();
+			const res = await fetch('/index.php/apps/touchpoint/api/notes', {
 				method: 'POST', headers: H,
 				body: JSON.stringify({ contactUid: contacts[0].uid, noteTypeId: types[0].id, title: 'ADMIN PRIVATE ' + Date.now(), addressbookId: 1, contactUids: [contacts[0].uid] }),
 			});
@@ -133,7 +133,7 @@ test.describe('CRM Notes — multi-user sharing authorization', () => {
 		await openApp(u);
 		const access = await u.evaluate(async (privId) => {
 			const token = document.querySelector('head')?.getAttribute('data-requesttoken');
-			const res = await fetch('/index.php/apps/crm_notes/api/notes/' + privId, { headers: { requesttoken: token } });
+			const res = await fetch('/index.php/apps/touchpoint/api/notes/' + privId, { headers: { requesttoken: token } });
 			return { status: res.status };
 		}, priv.id);
 

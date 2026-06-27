@@ -1,11 +1,11 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
-# CRM Notes
+# Touchpoint
 
 CRM-style notes attached to your Nextcloud address-book contacts.
 
-CRM Notes lets you keep a timeline of interactions (calls, meetings, emails,
+Touchpoint lets you keep a timeline of interactions (calls, meetings, emails,
 tasks, …) against each contact. Notes have a **type** (with colour and icon),
 can be **pinned**, carry **file attachments**, render **Markdown**, and can be
 **shared** with other users and groups.
@@ -19,7 +19,7 @@ can be **pinned**, carry **file attachments**, render **Markdown**, and can be
 - **File attachments** from your Nextcloud Files.
 - **Sharing** with users/groups, with per-recipient edit permission.
 - **Contacts app integration** (when the Contacts app is installed):
-  - a **CRM Notes panel** injected into the contact detail view, with inline
+  - a **Touchpoint panel** injected into the contact detail view, with inline
     note creation;
   - an **embedded contact card** shown next to a contact's notes in the app;
   - a **hover-menu entry** linking to a contact's notes.
@@ -42,19 +42,19 @@ This app is not yet on the App Store, so install it manually.
 ### From a release tarball (recommended)
 
 ```bash
-make appstore                       # produces build/appstore/crm_notes.tar.gz
+make appstore                       # produces build/appstore/touchpoint.tar.gz
 # on the server:
-tar -xzf crm_notes.tar.gz -C /var/www/html/apps/
-chown -R www-data:www-data /var/www/html/apps/crm_notes
-sudo -u www-data php /var/www/html/occ app:enable crm_notes
+tar -xzf touchpoint.tar.gz -C /var/www/html/apps/
+chown -R www-data:www-data /var/www/html/apps/touchpoint
+sudo -u www-data php /var/www/html/occ app:enable touchpoint
 ```
 
 ### Deploy straight into a local Nextcloud
 
 ```bash
 sudo make deploy NEXTCLOUD_APPS=/var/www/html/apps
-sudo chown -R www-data:www-data /var/www/html/apps/crm_notes
-sudo -u www-data php /var/www/html/occ app:enable crm_notes
+sudo chown -R www-data:www-data /var/www/html/apps/touchpoint
+sudo -u www-data php /var/www/html/occ app:enable touchpoint
 ```
 
 `make deploy` builds the frontend and copies **only the runnable app** (no
@@ -63,7 +63,7 @@ folder — so the Nextcloud updater's "create backup" step stays small. **Do not
 symlink the development checkout into `apps/`: the updater follows the symlink
 and tries to back up `node_modules`/`.git`, which breaks the backup step.
 
-The app folder **must** be named `crm_notes` (it must match the app id).
+The app folder **must** be named `touchpoint` (it must match the app id).
 
 ## Development
 
@@ -89,7 +89,7 @@ templates/   PHP templates served to the page.
 l10n/        Translations.
 tests/       PHPUnit unit tests.
 e2e/         Playwright end-to-end specs.
-import_egroupware.py   Optional one-off eGroupware → CRM Notes migration tool.
+import_egroupware.py   Optional one-off eGroupware → Touchpoint migration tool.
 ```
 
 ## Migrating from eGroupware

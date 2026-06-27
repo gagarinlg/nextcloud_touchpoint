@@ -1,15 +1,15 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Controller;
+namespace OCA\Touchpoint\Controller;
 
-use OCA\CrmNotes\AppInfo\Application;
-use OCA\CrmNotes\Db\NoteMapper;
-use OCA\CrmNotes\Service\NoteService;
+use OCA\Touchpoint\AppInfo\Application;
+use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Service\NoteService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\JSONResponse;

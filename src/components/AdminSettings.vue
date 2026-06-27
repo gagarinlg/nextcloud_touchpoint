@@ -1,10 +1,10 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-admin-settings">
 		<div class="crm-admin-section">
 			<h2 class="crm-admin-section-title">
-				{{ t('crm_notes', 'Note visibility') }}
+				{{ t('touchpoint', 'Note visibility') }}
 			</h2>
 
 			<div class="crm-admin-row">
@@ -13,10 +13,10 @@
 					type="switch"
 					:disabled="saving"
 					@update:model-value="save">
-					{{ t('crm_notes', 'Notes are public (all users see all notes)') }}
+					{{ t('touchpoint', 'Notes are public (all users see all notes)') }}
 				</NcCheckboxRadioSwitch>
 				<p class="crm-admin-hint">
-					{{ t('crm_notes', 'When enabled, every user can read all notes in the system. When disabled, notes are private by default unless explicitly shared.') }}
+					{{ t('touchpoint', 'When enabled, every user can read all notes in the system. When disabled, notes are private by default unless explicitly shared.') }}
 				</p>
 			</div>
 		</div>
@@ -27,7 +27,7 @@
 				role="status"
 				aria-live="polite">
 				<IconCheck :size="16" />
-				{{ t('crm_notes', 'Settings saved') }}
+				{{ t('touchpoint', 'Settings saved') }}
 			</div>
 		</transition>
 	</div>
@@ -42,7 +42,7 @@ import NcCheckboxRadioSwitch from '@nextcloud/vue/components/NcCheckboxRadioSwit
 import IconCheck from 'vue-material-design-icons/Check.vue'
 import { saveSettings } from '../services/SettingsService.js'
 
-const notesPublic = ref(loadState('crm_notes', 'notesPublic', false))
+const notesPublic = ref(loadState('touchpoint', 'notesPublic', false))
 const saving = ref(false)
 const lastSaved = ref(false)
 let savedTimer = null
@@ -55,7 +55,7 @@ async function save(value) {
 		lastSaved.value = true
 		savedTimer = setTimeout(() => { lastSaved.value = false }, 3000)
 	} catch {
-		showError(t('crm_notes', 'Failed to save settings'))
+		showError(t('touchpoint', 'Failed to save settings'))
 		notesPublic.value = !value
 	} finally {
 		saving.value = false

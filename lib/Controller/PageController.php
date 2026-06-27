@@ -1,14 +1,14 @@
 <?php
 
-// SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+// SPDX-FileCopyrightText: 2026 Touchpoint Contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 declare(strict_types=1);
 
-namespace OCA\CrmNotes\Controller;
+namespace OCA\Touchpoint\Controller;
 
-use OCA\CrmNotes\AppInfo\Application;
-use OCA\CrmNotes\Service\NoteTypeService;
+use OCA\Touchpoint\AppInfo\Application;
+use OCA\Touchpoint\Service\NoteTypeService;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -60,8 +60,8 @@ class PageController extends Controller {
         // it never offers a "Show contact details" control that cannot work.
         $this->initialState->provideInitialState('contactsAppEnabled', $contactsAppEnabled);
 
-        Util::addStyle(Application::APP_ID, 'crm_notes-main');
-        Util::addScript(Application::APP_ID, 'crm_notes-main', Application::APP_ID);
+        Util::addStyle(Application::APP_ID, 'touchpoint-main');
+        Util::addScript(Application::APP_ID, 'touchpoint-main', Application::APP_ID);
 
         return new TemplateResponse(Application::APP_ID, 'main');
     }

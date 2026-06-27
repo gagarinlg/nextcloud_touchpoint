@@ -1,24 +1,24 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
 	<div class="crm-settings-view">
-		<h1>{{ t('crm_notes', 'Settings') }}</h1>
+		<h1>{{ t('touchpoint', 'Settings') }}</h1>
 
 		<NcLoadingIcon v-if="settingsStore.loading" :size="32" />
 		<NcEmptyContent v-else-if="settingsStore.error && !settingsStore.shareTargets.length"
-			:name="t('crm_notes', 'Could not load settings')"
-			:description="t('crm_notes', 'Something went wrong while loading. Please try again.')">
+			:name="t('touchpoint', 'Could not load settings')"
+			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
 			<template #icon><IconAlert :size="48" /></template>
 			<template #action>
-				<NcButton @click="settingsStore.load()">{{ t('crm_notes', 'Retry') }}</NcButton>
+				<NcButton @click="settingsStore.load()">{{ t('touchpoint', 'Retry') }}</NcButton>
 			</template>
 		</NcEmptyContent>
 		<template v-else>
 			<!-- Per-user: default share targets -->
 			<section class="crm-settings-section">
-				<h2>{{ t('crm_notes', 'Default sharing') }}</h2>
+				<h2>{{ t('touchpoint', 'Default sharing') }}</h2>
 				<p class="crm-settings-hint">
-					{{ t('crm_notes', 'New notes are automatically shared with the following users and groups:') }}
+					{{ t('touchpoint', 'New notes are automatically shared with the following users and groups:') }}
 				</p>
 
 				<!-- Selected targets list -->
@@ -31,21 +31,21 @@
 							<IconAccount v-else :size="18" />
 						</span>
 						<span class="crm-share-target-name">{{ target.name || target.id }}</span>
-						<span class="crm-share-target-type">{{ target.type === 'group' ? t('crm_notes', 'Group') : t('crm_notes', 'User') }}</span>
+						<span class="crm-share-target-type">{{ target.type === 'group' ? t('touchpoint', 'Group') : t('touchpoint', 'User') }}</span>
 						<NcCheckboxRadioSwitch :model-value="!!target.canEdit"
 							class="crm-share-target-canedit"
-							:aria-label="t('crm_notes', 'Allow {name} to edit', { name: target.name || target.id })"
+							:aria-label="t('touchpoint', 'Allow {name} to edit', { name: target.name || target.id })"
 							@update:model-value="setTargetCanEdit(i, $event)">
-							{{ t('crm_notes', 'Can edit') }}
+							{{ t('touchpoint', 'Can edit') }}
 						</NcCheckboxRadioSwitch>
 						<NcButton type="tertiary"
-							:aria-label="t('crm_notes', 'Remove')"
+							:aria-label="t('touchpoint', 'Remove')"
 							@click="removeTarget(i)">
 							<template #icon><IconClose :size="14" /></template>
 						</NcButton>
 					</div>
 					<p v-if="!settingsStore.shareTargets.length" class="crm-settings-empty">
-						{{ t('crm_notes', 'No default sharing configured') }}
+						{{ t('touchpoint', 'No default sharing configured') }}
 					</p>
 				</div>
 
@@ -55,7 +55,7 @@
 				     and matches every other selector in the app. -->
 				<div class="crm-share-search">
 					<label for="crm-share-search-input" class="crm-group-label">
-						{{ t('crm_notes', 'Search users or groups') }}
+						{{ t('touchpoint', 'Search users or groups') }}
 					</label>
 					<NcSelect input-id="crm-share-search-input"
 						:model-value="null"
@@ -63,8 +63,8 @@
 						:loading="searching"
 						:filterable="false"
 						:clear-search-on-select="true"
-						:aria-label-combobox="t('crm_notes', 'Search users or groups')"
-						:placeholder="t('crm_notes', 'Search users or groups…')"
+						:aria-label-combobox="t('touchpoint', 'Search users or groups')"
+						:placeholder="t('touchpoint', 'Search users or groups…')"
 						:no-options-text="searchNoOptionsText"
 						label="name"
 						track-by="key"
@@ -75,7 +75,7 @@
 								<IconGroup v-if="option.type === 'group'" :size="16" />
 								<IconAccount v-else :size="16" />
 								<span class="crm-share-option-name">{{ option.name }}</span>
-								<span class="crm-result-type">{{ option.type === 'group' ? t('crm_notes', 'Group') : t('crm_notes', 'User') }}</span>
+								<span class="crm-result-type">{{ option.type === 'group' ? t('touchpoint', 'Group') : t('touchpoint', 'User') }}</span>
 							</span>
 						</template>
 					</NcSelect>
@@ -86,7 +86,7 @@
 				<NcButton type="primary"
 					:disabled="settingsStore.saving || settingsStore.error"
 					@click="save">
-					{{ settingsStore.saving ? t('crm_notes', 'Saving…') : t('crm_notes', 'Save') }}
+					{{ settingsStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
 				</NcButton>
 				<!-- When a load error coexists with already-loaded targets the form
 				     still renders, so explain why Save is greyed out instead of
@@ -97,9 +97,9 @@
 					class="crm-save-hint"
 					role="status"
 					aria-live="polite">
-					{{ t('crm_notes', 'Settings could not be loaded fully. Reload before saving to avoid overwriting your configuration.') }}
+					{{ t('touchpoint', 'Settings could not be loaded fully. Reload before saving to avoid overwriting your configuration.') }}
 					<NcButton type="tertiary" @click="settingsStore.load()">
-						{{ t('crm_notes', 'Reload') }}
+						{{ t('touchpoint', 'Reload') }}
 					</NcButton>
 				</p>
 			</div>
@@ -136,8 +136,8 @@ let searchTimer = null
 // query exists, and report "no matches" once a non-empty query returned nothing.
 const searchNoOptionsText = computed(() =>
 	lastQuery.value.trim()
-		? t('crm_notes', 'No matching users or groups')
-		: t('crm_notes', 'Type to search users or groups'),
+		? t('touchpoint', 'No matching users or groups')
+		: t('touchpoint', 'Type to search users or groups'),
 )
 
 function setTargetCanEdit(index, value) {
@@ -197,9 +197,9 @@ function removeTarget(index) {
 async function save() {
 	try {
 		await settingsStore.save()
-		showSuccess(t('crm_notes', 'Settings saved'))
+		showSuccess(t('touchpoint', 'Settings saved'))
 	} catch {
-		showError(t('crm_notes', 'Failed to save settings'))
+		showError(t('touchpoint', 'Failed to save settings'))
 	}
 }
 </script>

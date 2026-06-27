@@ -1,9 +1,9 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
-# CRM Notes — Feature Roadmap & Ideas
+# Touchpoint — Feature Roadmap & Ideas
 
-Ideas for evolving **CRM Notes** (`crm_notes`) from a solid "notes attached to
+Ideas for evolving **Touchpoint** (`touchpoint`) from a solid "notes attached to
 contacts" tool into a genuine, Nextcloud-native lightweight CRM.
 
 **Two guiding themes for what's missing today:**
@@ -34,7 +34,7 @@ thousands of notes, this is the single biggest gap.
 ### 2. Tasks: due dates, status, reminders  ·  **L**
 The "Task" note type exists but carries no task semantics.
 - Schema (new migration): add `due_date` (nullable) and `status`
-  (`open`/`done`) to `crm_notes`.
+  (`open`/`done`) to `touchpoint`.
 - UI: due-date picker + done toggle on Task-type notes; "open tasks" filter;
   overdue styling.
 - Reminders via `OCP\Notification` (see #3) and/or **AppFramework cron**
@@ -84,7 +84,7 @@ PDF and a simple CSV endpoint.
 - **Bulk actions** (S–M): multi-select notes → delete / change type / share.
 - **Note templates** (M): predefined skeletons per type (e.g. a call-log
   template with prompts), so common note types are faster to fill in.
-- **Mail → note capture** (M): a Mail-app action ("Save to CRM Notes") that
+- **Mail → note capture** (M): a Mail-app action ("Save to Touchpoint") that
   attaches an email to a contact as an Email-type note — the "Email" type exists
   but nothing currently logs a real message.
 - **Richer linking** (M): link a note to multiple contacts *and* to an

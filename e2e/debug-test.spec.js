@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -11,7 +11,7 @@ test('Debug current issues', async ({ page }) => {
     await page.click('button[type=submit]');
     await page.waitForURL('**/apps/**');
     
-    await page.goto('http://localhost/index.php/apps/crm_notes');
+    await page.goto('http://localhost/index.php/apps/touchpoint');
     await page.waitForTimeout(2000);
     
     await page.screenshot({ path: '/tmp/crm-current-full.png', fullPage: true });
@@ -47,7 +47,7 @@ test('Debug current issues', async ({ page }) => {
     }
     
     // Test API
-    const r = await page.request.get('http://localhost/index.php/apps/crm_notes/api/notes');
+    const r = await page.request.get('http://localhost/index.php/apps/touchpoint/api/notes');
     const notes = await r.json();
     console.log('NOTES COUNT:', notes.length);
     if (notes.length > 0) {

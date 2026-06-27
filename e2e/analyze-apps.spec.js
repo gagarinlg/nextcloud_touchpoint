@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+ * SPDX-FileCopyrightText: 2026 Touchpoint Contributors
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 const { test, expect } = require('@playwright/test');
@@ -44,7 +44,7 @@ test.describe('App Analysis', () => {
     });
 
     test('capture crm notes app', async ({ page }) => {
-        await page.goto('/apps/crm_notes/');
+        await page.goto('/apps/touchpoint/');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
         await page.screenshot({ path: 'e2e/screenshots/crm-full.png', fullPage: true });
@@ -78,7 +78,7 @@ test.describe('App Analysis', () => {
     });
 
     test('capture crm detail and modal', async ({ page }) => {
-        await page.goto('/apps/crm_notes/');
+        await page.goto('/apps/touchpoint/');
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
 

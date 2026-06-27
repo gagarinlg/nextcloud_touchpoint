@@ -1,4 +1,4 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 
 # Changelog
@@ -19,7 +19,7 @@ All notable changes to this project are documented here. The format is based on
 ## [1.1.6] - 2026-06-26
 
 ### Fixed
-- Fresh **MySQL/MariaDB** installs: `crm_note_files.file_path` shortened to
+- Fresh **MySQL/MariaDB** installs: `touchpoint_note_files.file_path` shortened to
   `VARCHAR(512)` so the composite unique index stays within InnoDB's 3072-byte
   key limit (a fresh install previously failed `CREATE TABLE`).
 - `POST /api/notes` with a missing `contactUid`/`noteTypeId` now returns a clean
@@ -29,7 +29,7 @@ All notable changes to this project are documented here. The format is based on
 ## [1.1.5] - 2026-06-26
 
 ### Fixed
-- The **CRM Notes panel now appears in the Contacts app** again: hook the global
+- The **Touchpoint panel now appears in the Contacts app** again: hook the global
   `BeforeTemplateRenderedEvent` (the Contacts app never dispatches its own OCA
   event on its page), resolve the contact UID from the Contacts 8.x base64 URL,
   and start the observer even when the script loads after `DOMContentLoaded`.

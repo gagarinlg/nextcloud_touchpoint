@@ -5,14 +5,14 @@ version = 1
 [[annotations]]
 path = ["css/**", "js/**"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 CRM Notes Contributors"
+SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 # Binary/asset files that cannot carry a text comment header.
 [[annotations]]
 path = ["img/**", "screenshots/**"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 CRM Notes Contributors"
+SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
 # JSON config / lockfiles cannot hold comments, so their licensing is declared
@@ -20,5 +20,12 @@ SPDX-License-Identifier = "AGPL-3.0-or-later"
 [[annotations]]
 path = ["composer.json", "composer.lock", "package.json", "package-lock.json"]
 precedence = "aggregate"
-SPDX-FileCopyrightText = "2026 CRM Notes Contributors"
+SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+# Root LICENSE file (full AGPL-3.0 text) for GitHub license detection.
+[[annotations]]
+path = ["LICENSE"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2007 Free Software Foundation, Inc."
 SPDX-License-Identifier = "AGPL-3.0-or-later"

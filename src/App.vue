@@ -1,20 +1,20 @@
-<!-- SPDX-FileCopyrightText: 2026 CRM Notes Contributors -->
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
-	<NcContent app-name="crm_notes">
+	<NcContent app-name="touchpoint">
 		<NcAppNavigation>
 			<template #list>
-				<NcAppNavigationItem :name="t('crm_notes', 'Notes')"
+				<NcAppNavigationItem :name="t('touchpoint', 'Notes')"
 					:active="activeSection === 'contacts'"
 					@click="setSection('contacts')">
 					<template #icon><IconNotes :size="20" /></template>
 				</NcAppNavigationItem>
-				<NcAppNavigationItem :name="t('crm_notes', 'Note types')"
+				<NcAppNavigationItem :name="t('touchpoint', 'Note types')"
 					:active="activeSection === 'note-types'"
 					@click="setSection('note-types')">
 					<template #icon><IconLabel :size="20" /></template>
 				</NcAppNavigationItem>
-				<NcAppNavigationItem :name="t('crm_notes', 'Settings')"
+				<NcAppNavigationItem :name="t('touchpoint', 'Settings')"
 					:active="activeSection === 'settings'"
 					@click="setSection('settings')">
 					<template #icon><IconSettings :size="20" /></template>
@@ -29,31 +29,31 @@
 				<div class="crm-list-header">
 					<NcTextField :model-value="contactsStore.searchQuery"
 						type="search"
-						:label="t('crm_notes', 'Search contacts')"
-						:placeholder="t('crm_notes', 'Search contacts\u2026')"
-						:trailing-button-label="t('crm_notes', 'Clear search')"
+						:label="t('touchpoint', 'Search contacts')"
+						:placeholder="t('touchpoint', 'Search contacts\u2026')"
+						:trailing-button-label="t('touchpoint', 'Clear search')"
 						@trailing-button-click="contactsStore.searchQuery = ''"
 						@update:model-value="contactsStore.searchQuery = $event" />
 				</div>
 				<NcLoadingIcon v-if="contactsStore.loading" :size="32" class="crm-loading" />
 				<NcEmptyContent v-else-if="contactsStore.error && !contactsStore.contacts.length"
-					:name="t('crm_notes', 'Could not load contacts')"
-					:description="t('crm_notes', 'Something went wrong while loading. Please try again.')">
+					:name="t('touchpoint', 'Could not load contacts')"
+					:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
 					<template #icon><IconAlert :size="48" /></template>
 					<template #action>
-						<NcButton @click="contactsStore.load()">{{ t('crm_notes', 'Retry') }}</NcButton>
+						<NcButton @click="contactsStore.load()">{{ t('touchpoint', 'Retry') }}</NcButton>
 					</template>
 				</NcEmptyContent>
 				<NcEmptyContent v-else-if="contactsStore.searchQuery && !displayedContacts.length"
 					class="crm-contacts-no-results"
-					:name="t('crm_notes', 'No contacts found')"
-					:description="t('crm_notes', 'No contacts match “{query}”', { query: contactsStore.searchQuery })">
+					:name="t('touchpoint', 'No contacts found')"
+					:description="t('touchpoint', 'No contacts match “{query}”', { query: contactsStore.searchQuery })">
 					<template #icon><IconSearch :size="48" /></template>
 				</NcEmptyContent>
 				<NcEmptyContent v-else-if="!displayedContacts.length"
 					class="crm-contacts-no-results"
-					:name="t('crm_notes', 'No contacts')"
-					:description="t('crm_notes', 'Add contacts to your address book to start taking notes.')">
+					:name="t('touchpoint', 'No contacts')"
+					:description="t('touchpoint', 'Add contacts to your address book to start taking notes.')">
 					<template #icon><IconContacts :size="48" /></template>
 				</NcEmptyContent>
 				<ul v-else class="crm-contacts-list">
@@ -155,7 +155,7 @@ function onHideDetails() {
 	contactsStore.deselect()
 }
 
-// Deep link from the Contacts tab: /apps/crm_notes#contact/<encoded-uid>.
+// Deep link from the Contacts tab: /apps/touchpoint#contact/<encoded-uid>.
 // Parse the fragment and return the decoded UID, or null when absent/malformed.
 function contactUidFromHash() {
 	const match = window.location.hash.match(/^#contact\/(.+)$/)
@@ -196,7 +196,7 @@ onMounted(async () => {
 	// rejection here.
 	await Promise.allSettled([contactsStore.load(), noteTypesStore.load(), settingsStore.load()])
 	// Now that contacts are loaded, honour any #contact/<uid> deep link the user
-	// arrived with (e.g. the "Open in CRM Notes" link on the Contacts tab).
+	// arrived with (e.g. the "Open in Touchpoint" link on the Contacts tab).
 	applyContactDeepLink()
 })
 

@@ -1,5 +1,5 @@
 OC.L10N.register(
-    "crm_notes",
+    "touchpoint",
     {
     "Add note" : "Dodaj notatkę",
     "Add type" : "Dodaj typ",
