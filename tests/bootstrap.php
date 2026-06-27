@@ -13,11 +13,11 @@ if (!class_exists(\OCP\AppFramework\Db\Entity::class)) {
     require_once __DIR__ . '/stubs.php';
 }
 
-// ContactController parses vCard PHOTO properties with Sabre\VObject, which
-// Nextcloud bundles at runtime under its 3rdparty/ tree. The unit-test
-// autoloader does not see that tree, so load the bundled autoloader when the
-// VObject Reader is not already available. This lets the photo-parsing tests
-// exercise the real decoder without adding a composer dependency just for tests.
+// ContactController parses vCard PHOTO properties with Sabre\VObject. At runtime
+// Nextcloud provides it from its bundled 3rdparty/ tree; for tests it comes from
+// the sabre/vobject require-dev dependency (so CI, which has no Nextcloud install,
+// can exercise the real decoder). As a last resort — e.g. running the suite inside
+// a real Nextcloud without `composer install` — fall back to the bundled tree.
 if (!class_exists(\Sabre\VObject\Reader::class)) {
     foreach ([
         getenv('NEXTCLOUD_3RDPARTY_AUTOLOAD') ?: '',
