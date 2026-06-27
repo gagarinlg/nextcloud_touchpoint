@@ -117,3 +117,27 @@ prebuilt bundles under `js/`/`css/`, not the sources.
   hardcoded hex/px. Use `vue-material-design-icons`, not emoji, for iconography.
 - The repo root contains several throwaway `test_*.spec.js` files and a backup
   DB dump — these are scratch artifacts, not part of the app.
+
+## Keep documentation in sync with changes
+
+Treat docs as part of the change, not a follow-up. Any change that alters
+behaviour, structure, or contracts **must** update the relevant docs **in the
+same commit/PR** as the code:
+
+- **`CLAUDE.md`** — update when you change the app's structure, conventions,
+  tech stack, compatibility (NC/PHP versions), the DB schema/tables, or any of
+  the gotchas above. If a rule here becomes wrong, fix it; don't leave it stale.
+- **API changes are non-negotiable.** Whenever you add, change, remove, or
+  deprecate anything in the **public API surface** — OCS/REST routes, dispatched
+  `OCA\Touchpoint\Event\*` events, the `window.OCA.Touchpoint` JS API,
+  capability keys, webhook payloads, or migration-affecting DB columns — update
+  every place that documents it: the API docs under `docs/`, `CHANGELOG.md`,
+  `docs/ROADMAP.md` (mark items shipped / adjust status), and `CLAUDE.md` if the
+  contract or conventions shift. A published API contract is a compatibility
+  promise; document version and deprecation, never silently change it.
+- **User-facing or admin-facing changes** — update `README.md` (and screenshots
+  if the UI moved meaningfully) and `CHANGELOG.md` under the unreleased section.
+- **New routes / controllers / services / migrations** — keep the **Layout** and
+  **Database tables** sections of this file accurate.
+- When unsure whether a doc needs updating, err toward updating it; a stale doc
+  is worse than a verbose one.
