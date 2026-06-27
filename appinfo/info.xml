@@ -23,9 +23,14 @@ stay dormant when it is not.
     <namespace>CrmNotes</namespace>
     <category>office</category>
     <category>organization</category>
-    <website>https://github.com/crm-notes/crm_notes</website>
-    <bugs>https://github.com/crm-notes/crm_notes/issues</bugs>
-    <repository type="git">https://github.com/crm-notes/crm_notes.git</repository>
+    <website>https://github.com/gagarinlg/nextcloud_notes</website>
+    <bugs>https://github.com/gagarinlg/nextcloud_notes/issues</bugs>
+    <repository type="git">https://github.com/gagarinlg/nextcloud_notes.git</repository>
+
+    <screenshot>https://raw.githubusercontent.com/gagarinlg/nextcloud_notes/master/screenshots/01-all-notes.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/gagarinlg/nextcloud_notes/master/screenshots/02-embedded-contact-card.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/gagarinlg/nextcloud_notes/master/screenshots/03-contacts-app-panel.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/gagarinlg/nextcloud_notes/master/screenshots/04-add-note-in-contacts.png</screenshot>
 
     <dependencies>
         <php min-version="8.2" max-version="8.5" />

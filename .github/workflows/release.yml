@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Release
+
+# Build a clean app tarball and attach it to a GitHub release when a version
+# tag is pushed. NOTE: this does NOT sign the app for the Nextcloud App Store —
+# that requires the app's signing certificate (see the App Store docs).
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Build & package
+        run: |
+          npm ci
+          make appstore
+      - name: Attach tarball to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/appstore/crm_notes.tar.gz
+          generate_release_notes: true

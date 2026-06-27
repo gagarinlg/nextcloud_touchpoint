@@ -15,7 +15,10 @@
 /CLAUDE.md
 /README.md
 /CHANGELOG.md
+/CONTRIBUTING.md
+/AUTHORS.md
 /docs
+/screenshots
 /Makefile
 
 # Frontend sources & toolchain (only the built js/css ship)
