@@ -180,7 +180,16 @@
       "Bash(rm -rf .git/refs/original/)",
       "Bash(git reflog *)",
       "Bash(git gc *)",
-      "Bash(git rev-list *)"
+      "Bash(git rev-list *)",
+      "Bash(sudo rm -rf /var/www/html/apps/crm_notes)",
+      "Bash(echo \"installed_version: $\\(sudo -u www-data php /var/www/html/occ config:app:get touchpoint installed_version \\)\")",
+      "Bash(grep -iE '\\\\.\\(png|jpg|jpeg|gif|webp\\)$')",
+      "Bash(git check-ignore *)",
+      "Bash(sudo tail -60 /var/www/html/data/nextcloud.log)",
+      "Bash(sudo cp lib/Migration/Version1000Date20260627000000.php /var/www/html/apps/touchpoint/lib/Migration/)",
+      "Bash(sudo chown www-data:www-data /var/www/html/apps/touchpoint/lib/Migration/Version1000Date20260627000000.php)",
+      "Bash(sudo systemctl reload php8.3-fpm)",
+      "Bash(curl -s -u tpdemo:'TpDemo!2026' -X PROPFIND -H \"Depth: 1\" \"http://localhost/remote.php/dav/addressbooks/users/tpdemo/\" -o /dev/null -w \"  propfind: %{http_code}\\\\n\")"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",

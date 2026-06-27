@@ -1,6 +1,15 @@
 OC.L10N.register(
     "touchpoint",
     {
+    "Notes" : "Notizen",
+    "Write a note…" : "Notiz schreiben…",
+    "Please pick a note type first." : "Bitte zuerst einen Notiztyp auswählen.",
+    "Note added." : "Notiz hinzugefügt.",
+    "Failed to add note." : "Notiz konnte nicht hinzugefügt werden.",
+    "Show contact details" : "Kontaktdetails anzeigen",
+    "Hide contact details" : "Kontaktdetails ausblenden",
+    "Contact details unavailable" : "Kontaktdetails nicht verfügbar",
+    "The Contacts app could not render this card." : "Die Kontakte-App konnte diese Karte nicht darstellen.",
     "Add contact…" : "Kontakt hinzufügen…",
     "by {author}" : "von {author}",
     "edited {date}" : "bearbeitet {date}",

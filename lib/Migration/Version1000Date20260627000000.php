@@ -65,7 +65,12 @@ class Version1000Date20260627000000 extends SimpleMigrationStep {
             $t->addColumn('name', Types::STRING, ['notnull' => true, 'length' => 128]);
             $t->addColumn('icon', Types::STRING, ['notnull' => false, 'length' => 64, 'default' => 'icon-note']);
             $t->addColumn('color', Types::STRING, ['notnull' => false, 'length' => 32, 'default' => '#0082c9']);
-            $t->addColumn('user_id', Types::STRING, ['notnull' => true, 'length' => 64]);
+            // Default '': the shared GLOBAL default types are stored with an empty
+            // user_id, and Nextcloud's Entity setter omits a field whose value
+            // equals its property default ('' for userId) — so without a DB default
+            // the omitted column would violate NOT NULL when seedDefaults() inserts
+            // the global set on a fresh install. (Same pattern as addressbook_id.)
+            $t->addColumn('user_id', Types::STRING, ['notnull' => true, 'length' => 64, 'default' => '']);
             $t->addColumn('is_default', Types::BOOLEAN, ['notnull' => true, 'default' => false]);
             $t->setPrimaryKey(['id']);
             $t->addIndex(['user_id'], 'tp_nt_user_idx');

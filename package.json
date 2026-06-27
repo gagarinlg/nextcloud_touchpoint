@@ -1,6 +1,6 @@
 {
   "name": "touchpoint",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "CRM-style notes for Nextcloud contacts",
   "license": "AGPL-3.0-or-later",
   "scripts": {
