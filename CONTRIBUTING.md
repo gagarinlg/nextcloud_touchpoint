@@ -24,8 +24,12 @@ Run the quality gates (CI runs the same):
 ```bash
 make lint        # eslint + phpstan
 make test        # phpunit
+make docs-check  # fail if docs/ARCHITECTURE.md's generated inventory is stale
 make test-e2e    # playwright (needs a running Nextcloud at localhost)
 ```
+
+If `make docs-check` fails, run `make docs` to regenerate the inventory and
+commit the result.
 
 ## Conventions
 
@@ -41,6 +45,7 @@ make test-e2e    # playwright (needs a running Nextcloud at localhost)
   [REUSE](https://reuse.software/)-compliant (`reuse lint` must pass).
 - **Update docs in the same change.** Behaviour, structure, or contract changes
   must update the relevant docs (`README.md`, `CHANGELOG.md`, `docs/API.md`,
+  `docs/ARCHITECTURE.md` — prose by hand, inventory via `make docs`,
   `docs/ROADMAP.md`, `CLAUDE.md`) alongside the code — never as a follow-up.
   **API changes** (HTTP routes in `appinfo/routes.php`, OCS/REST routes,
   `OCA\Touchpoint\Event\*` events, the `window.OCA.Touchpoint` JS API, capability

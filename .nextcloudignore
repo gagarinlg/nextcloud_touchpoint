@@ -43,7 +43,8 @@
 /.phpunit.cache
 /test-results
 
-# Migration helper (not part of the running app)
+# Dev scripts & migration helper (not part of the running app)
+/scripts
 /import_egroupware.py
 /__pycache__
 
