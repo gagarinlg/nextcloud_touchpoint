@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 CRM Notes Contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Files/dirs excluded from the packaged / deployed app (rsync --exclude-from).
+# Everything NOT listed here ships: appinfo/ lib/ js/ css/ img/ templates/
+# l10n/ LICENSES/ REUSE.toml.
+
+# VCS & project meta
+/.git
+/.github
+/.gitignore
+/.gitattributes
+/.nextcloudignore
+/.claude
+/CLAUDE.md
+/README.md
+/CHANGELOG.md
+/docs
+/Makefile
+
+# Frontend sources & toolchain (only the built js/css ship)
+/src
+/node_modules
+/vite.config.mjs
+/.eslintrc.cjs
+/package.json
+/package-lock.json
+
+# PHP dev toolchain (no runtime composer deps)
+/vendor
+/composer.json
+/composer.lock
+/phpstan.neon
+/phpunit.xml
+
+# Tests & their artifacts
+/tests
+/e2e
+/playwright.config.js
+/.phpunit.cache
+/test-results
+
+# Migration helper (not part of the running app)
+/import_egroupware.py
+/__pycache__
+
+# Build staging & source maps (not needed at runtime)
+/build
+*.map
+*.map.license
