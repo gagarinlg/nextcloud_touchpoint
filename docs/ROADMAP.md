@@ -35,16 +35,25 @@ thousands of notes, this is the single biggest gap.
 Do **not** build a task engine into Touchpoint — Nextcloud already has an
 official **Tasks** app (CalDAV `VTODO`). Integrate with it when it's installed,
 and degrade gracefully when it isn't:
-- "Create a follow-up task" from a note → write a `VTODO` (with `RELATED-TO` /
-  a link back to the note) into the user's tasks calendar via CalDAV; store the
-  task UID on the note so the two stay linked.
-- Surface a contact's open tasks alongside their notes (read the user's `VTODO`s
-  via the dav/CalDAV APIs, filter by the link/category), with a deep link into
-  the Tasks app — read-only is enough for v1.
-- Reminders/overdue then come "for free" from the Tasks app + Calendar, rather
-  than a parallel reminder system here.
-- Gate the whole feature on `IAppManager::isEnabledForUser('tasks')` (and/or
-  `dav`), mirroring how the Contacts integration is gated today.
+The Tasks app (0.18.x) has no third-party JS/PHP API — it's a CalDAV `VTODO`
+frontend — but Nextcloud's **public `OCP\Calendar` API fully supports this**
+(no private hacks needed, unlike the contact-photo case):
+- **Create** "follow-up task" from a note: pick a writable VTODO calendar via
+  `IManager::getCalendarsForPrincipal()` filtered by `ICreateFromString` +
+  `ICalendarIsWritable`, build a `VTODO` (SUMMARY, DUE, `RELATED-TO`/an
+  `X-TOUCHPOINT-NOTE` prop + a deep link in DESCRIPTION) and persist it with
+  `ICreateFromString::createFromString()`. Store the returned task UID on the
+  note (new column or a small link table) so the two stay linked.
+- **Read/surface** a contact's open tasks next to their notes via
+  `IManager::search('', [], ['types' => ['VTODO']])` (or `searchForPrincipal()`),
+  filtered by the link, showing status/due + a deep link into the Tasks app —
+  read-only is enough for v1.
+- Reminders/overdue come "for free" from the Tasks app + Calendar — no parallel
+  reminder system here.
+- Gate on `IAppManager::isEnabledForUser('tasks')`, mirroring the Contacts
+  integration. *Confirmed available on this NC: `OCP\Calendar\ICreateFromString`,
+  `IManager::search`/`searchForPrincipal`, `ICalendarIsWritable`,
+  `ICalendarEventBuilder`.*
 - *Rationale: avoids duplicating the Tasks app and keeps tasks where users
   already manage them; Touchpoint stays the relationship/notes layer.*
 
