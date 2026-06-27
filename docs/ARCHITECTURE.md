@@ -174,8 +174,10 @@ talks to the same backend API directly.
 | Area | Files |
 |---|---|
 | Bootstrap | `Application.php` |
-| Controllers | `ContactController.php`, `ErrorHandler.php`, `NoteController.php`, `NoteTypeController.php`, `PageController.php`, `RequiresUser.php`, `SettingsController.php`, `UnauthenticatedException.php` |
-| Services | `NoteForbiddenException.php`, `NoteNotFoundException.php`, `NoteService.php`, `NoteTypeForbiddenException.php`, `NoteTypeInUseException.php`, `NoteTypeNotFoundException.php`, `NoteTypeService.php`, `NoteValidationException.php`, `SettingsService.php` |
+| Controllers | `ContactController.php`, `NoteController.php`, `NoteTypeController.php`, `PageController.php`, `SettingsController.php` |
+| Controller traits/helpers | `ErrorHandler.php`, `RequiresUser.php` |
+| Services | `NoteService.php`, `NoteTypeService.php`, `SettingsService.php` |
+| Exceptions | `UnauthenticatedException.php`, `NoteForbiddenException.php`, `NoteNotFoundException.php`, `NoteTypeForbiddenException.php`, `NoteTypeInUseException.php`, `NoteTypeNotFoundException.php`, `NoteValidationException.php` |
 | Mappers | `NoteContactMapper.php`, `NoteFileMapper.php`, `NoteMapper.php`, `NoteSharingMapper.php`, `NoteTypeMapper.php` |
 | Entities | `Note.php`, `NoteContact.php`, `NoteFile.php`, `NoteSharing.php`, `NoteType.php` |
 | Migrations | `Version1000Date20260627000000.php` |

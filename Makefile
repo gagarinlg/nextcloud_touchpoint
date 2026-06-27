@@ -60,10 +60,7 @@ docs:
 
 .PHONY: docs-check
 docs-check:
-	php scripts/gen-docs.php
-	@git diff --quiet -- docs/ARCHITECTURE.md || { \
-	  echo "::error::docs/ARCHITECTURE.md inventory is stale — run 'make docs' and commit."; \
-	  git --no-pager diff -- docs/ARCHITECTURE.md; exit 1; }
+	php scripts/gen-docs.php --check
 
 # --- packaging (App Store tarball) ----------------------------------------
 # Produces build/appstore/touchpoint.tar.gz containing only the runnable app

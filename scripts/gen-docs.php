@@ -71,7 +71,15 @@ foreach ($tables as $t => $mig) {
     $tableRows[] = sprintf('| `%s` (physical `oc_%s`) | `%s` |', $t, $t, $mig);
 }
 
-// ── file maps ────────────────────────────────────────────────────────────────
+// ── file maps (categorised by role, not just by directory) ──────────────────
+$controllers = rel('lib/Controller/*Controller.php');
+$services = rel('lib/Service/*Service.php');
+// Exceptions live next to the controllers/services that throw them.
+$exceptions = rel('lib/*/*Exception.php');
+sort($exceptions);
+// Whatever is left in lib/Controller is a shared trait/helper (ErrorHandler,
+// RequiresUser, …).
+$ctrlHelpers = array_values(array_diff(rel('lib/Controller/*.php'), $controllers, $exceptions));
 $mappers = rel('lib/Db/*Mapper.php');
 $entities = array_values(array_diff(rel('lib/Db/*.php'), $mappers));
 
@@ -99,8 +107,10 @@ $inv[] = '';
 $inv[] = '| Area | Files |';
 $inv[] = '|---|---|';
 $inv[] = '| Bootstrap | ' . bnames(rel('lib/AppInfo/*.php')) . ' |';
-$inv[] = '| Controllers | ' . bnames(rel('lib/Controller/*.php')) . ' |';
-$inv[] = '| Services | ' . bnames(rel('lib/Service/*.php')) . ' |';
+$inv[] = '| Controllers | ' . bnames($controllers) . ' |';
+$inv[] = '| Controller traits/helpers | ' . bnames($ctrlHelpers) . ' |';
+$inv[] = '| Services | ' . bnames($services) . ' |';
+$inv[] = '| Exceptions | ' . bnames($exceptions) . ' |';
 $inv[] = '| Mappers | ' . bnames($mappers) . ' |';
 $inv[] = '| Entities | ' . bnames($entities) . ' |';
 $inv[] = '| Migrations | ' . bnames(rel('lib/Migration/*.php')) . ' |';
@@ -129,6 +139,18 @@ if ($s === false || $e === false || $e < $s) {
     exit(1);
 }
 $out = substr($doc, 0, $s) . $block . substr($doc, $e + strlen(END));
+
+// --check: report drift without writing, ignoring any unrelated prose edits in
+// the working tree (we only compare the generated block). CI uses this.
+if (in_array('--check', $argv, true)) {
+    if ($out !== $doc) {
+        fwrite(STDERR, "error: " . DOC . " inventory is stale — run 'make docs' and commit.\n");
+        exit(1);
+    }
+    fwrite(STDERR, DOC . " inventory is up to date\n");
+    exit(0);
+}
+
 if ($out !== $doc) {
     file_put_contents(DOC, $out);
     fwrite(STDERR, "updated " . DOC . "\n");
