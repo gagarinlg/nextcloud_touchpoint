@@ -175,13 +175,19 @@
       "Bash(echo \"installed_version: $\\(sudo -u www-data php occ config:app:get touchpoint installed_version \\)\")",
       "Bash(curl -s -u admin:admin -o /dev/null -w \" app page HTTP %{http_code}\\\\n\" \"http://localhost/apps/touchpoint/\")",
       "Bash(git rm *)",
-      "Bash(command -v git-filter-repo)"
+      "Bash(command -v git-filter-repo)",
+      "Bash(FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter 'git rm -r --cached --ignore-unmatch screenshots' --prune-empty -- --all)",
+      "Bash(rm -rf .git/refs/original/)",
+      "Bash(git reflog *)",
+      "Bash(git gc *)",
+      "Bash(git rev-list *)"
     ],
     "additionalDirectories": [
       "/home/gagarin/code/notes-workflow-viewer",
       "/var/www/html/LICENSES",
       "/home/gagarin/code/notes/e2e",
-      "/tmp"
+      "/tmp",
+      "/home/gagarin/code/notes/.git/refs"
     ]
   }
 }
