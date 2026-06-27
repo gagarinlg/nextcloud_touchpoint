@@ -31,17 +31,22 @@ thousands of notes, this is the single biggest gap.
   the note. Big discoverability win and an app-store plus.
 - *Verified absent: no search in NoteService/NoteMapper, no ISearchProvider.*
 
-### 2. Tasks: due dates, status, reminders  ·  **L**
-The "Task" note type exists but carries no task semantics.
-- Schema (new migration): add `due_date` (nullable) and `status`
-  (`open`/`done`) to `touchpoint`.
-- UI: due-date picker + done toggle on Task-type notes; "open tasks" filter;
-  overdue styling.
-- Reminders via `OCP\Notification` (see #3) and/or **AppFramework cron**
-  (`IJob`) that fires notifications for due/overdue tasks.
-- Stretch: two-way sync to **Calendar (CalDAV VTODO)** or a **Deck** board so
-  tasks live where users already work.
-- *Verified absent: no due_date/reminder/status columns.*
+### 2. Tasks via the official Tasks app (integration, not built-in)  ·  **M–L**
+Do **not** build a task engine into Touchpoint — Nextcloud already has an
+official **Tasks** app (CalDAV `VTODO`). Integrate with it when it's installed,
+and degrade gracefully when it isn't:
+- "Create a follow-up task" from a note → write a `VTODO` (with `RELATED-TO` /
+  a link back to the note) into the user's tasks calendar via CalDAV; store the
+  task UID on the note so the two stay linked.
+- Surface a contact's open tasks alongside their notes (read the user's `VTODO`s
+  via the dav/CalDAV APIs, filter by the link/category), with a deep link into
+  the Tasks app — read-only is enough for v1.
+- Reminders/overdue then come "for free" from the Tasks app + Calendar, rather
+  than a parallel reminder system here.
+- Gate the whole feature on `IAppManager::isEnabledForUser('tasks')` (and/or
+  `dav`), mirroring how the Contacts integration is gated today.
+- *Rationale: avoids duplicating the Tasks app and keeps tasks where users
+  already manage them; Touchpoint stays the relationship/notes layer.*
 
 ### 3. Notifications  ·  **M**
 Today, sharing a note with someone is silent.
@@ -137,8 +142,17 @@ PDF and a simple CSV endpoint.
 - **e2e coverage** (M): expand Playwright specs to cover the new surfaces —
   embedded card, full contact list + search, Contacts-tab inline add-note,
   photo rendering, sharing permissions.
-- **i18n completeness** (S): only German (`de`) is topped up; add a translation
-  workflow (Transifex/weblate) and ensure every user-facing string is wrapped.
+- **i18n completeness** (S): only German (`de`, `de_DE`) is filled in; every
+  user-facing string is wrapped, but the other ~80 locale files are stubs.
+  Publishing on the App Store wires the app into Nextcloud's **Transifex**
+  project, where the community supplies translations — so the practical task is
+  to enable that, not to hand-translate. Sensible launch-priority languages
+  (by Nextcloud community size): **French (fr)**, **Spanish (es)**,
+  **Italian (it)**, **Dutch (nl)**, **Czech (cs)**, **Polish (pl)**,
+  **Portuguese (pt_BR)**, then **Chinese (zh_CN)**, **Japanese (ja)**, plus the
+  Nordics (**da, sv, nb, fi**), **Hungarian (hu)**, **Turkish (tr)**,
+  **Ukrainian (uk)**, **Catalan (ca)**, **Greek (el)**, **Korean (ko)**.
+  German is already done.
 - **Attachment import for migrations** (S): the eGroupware importer skips files
   whose blobs are absent from the backup; document how to supply a complete VFS
   export, and add the DB-backed `fs_content` path test.
@@ -152,8 +166,9 @@ PDF and a simple CSV endpoint.
 ## Suggested first milestone
 If picking a single coherent release: **"Find & Act v1"** —
 1. Full-text note search + Unified Search provider (#1)
-2. Task due dates + status + a cron-driven reminder notification (#2 + #3)
-3. Dashboard "My open tasks" widget (#4)
+2. Tasks-app integration — create/link follow-up VTODOs from a note (#2) + share
+   notifications (#3)
+3. Dashboard "Recent notes" / "Follow-ups" widget (#4)
 
 That set is what converts *notes on contacts* into something a team would run a
 CRM on, and every piece is a clean, app-store-rewarded Nextcloud integration.
