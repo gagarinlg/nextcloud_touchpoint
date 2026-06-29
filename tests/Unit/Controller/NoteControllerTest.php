@@ -9,6 +9,7 @@ namespace OCA\Touchpoint\Tests\Unit\Controller;
 
 use OCA\Touchpoint\Controller\NoteController;
 use OCA\Touchpoint\Db\Note;
+use OCA\Touchpoint\Db\NoteMapper;
 use OCA\Touchpoint\Service\NoteNotFoundException;
 use OCA\Touchpoint\Service\NoteService;
 use OCP\AppFramework\Http\Http;
@@ -444,5 +445,165 @@ class NoteControllerTest extends TestCase {
 
         $result = $this->controller->removeFile(999, 1);
         $this->assertSame(Http::STATUS_NOT_FOUND, $result->getStatus());
+    }
+
+    // ── search() ─────────────────────────────────────────────────────────────
+
+    /**
+     * q of exactly 500 chars (= MAX_SEARCH_TERM_LENGTH) must be accepted (200).
+     */
+    public function testSearchWith500CharQueryReturns200(): void {
+        $q = str_repeat('a', NoteMapper::MAX_SEARCH_TERM_LENGTH);
+
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => $q,
+                default  => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('search')
+            ->willReturn([]);
+
+        $result = $this->controller->search();
+        $this->assertSame(200, $result->getStatus());
+    }
+
+    /**
+     * q of 501 chars (> MAX_SEARCH_TERM_LENGTH) must return HTTP 400 with a
+     * 'message' key in the JSON body.
+     */
+    public function testSearchWith501CharQueryReturns400(): void {
+        $q = str_repeat('a', NoteMapper::MAX_SEARCH_TERM_LENGTH + 1);
+
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => $q,
+                default  => $default,
+            });
+
+        // service must NOT be called — the controller rejects the request early.
+        $this->service->expects($this->never())->method('search');
+
+        $result = $this->controller->search();
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $result->getStatus());
+        $this->assertArrayHasKey('message', $result->getData());
+    }
+
+    /**
+     * A crafted array-typed q (e.g. ?q[]=x) must NOT raise an E_WARNING via a
+     * (string) cast (PHPUnit turns warnings into errors, so this test fails on
+     * the unguarded cast). A non-string q degrades to an empty term → clean 200.
+     */
+    public function testSearchWithArrayQueryParamReturns200WithoutWarning(): void {
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => ['x'],   // attacker-crafted array-typed param
+                default  => $default,
+            });
+
+        // q coerces to '' → the service is asked to search a blank term.
+        $this->service->expects($this->once())
+            ->method('search')
+            ->with($this->anything(), '', $this->anything(), $this->anything(), $this->anything())
+            ->willReturn([]);
+
+        $result = $this->controller->search();
+        $this->assertSame(200, $result->getStatus());
+    }
+
+    /**
+     * The 400 error message must be wrapped through l10n->t() so non-English
+     * instances receive a translated string.
+     */
+    public function testSearch400MessageIsTranslated(): void {
+        $q = str_repeat('x', NoteMapper::MAX_SEARCH_TERM_LENGTH + 1);
+
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => $q,
+                default  => $default,
+            });
+
+        // l10n mock returns its argument (already set in setUp).
+        $result = $this->controller->search();
+        $this->assertSame(Http::STATUS_BAD_REQUEST, $result->getStatus());
+        // The message must be whatever l10n->t() returns — the mock returns its arg.
+        $this->assertSame('Search query must not exceed 500 characters.', $result->getData()['message']);
+    }
+
+    /**
+     * Absent/empty q must be accepted (200) and return an empty array — the
+     * service returns [] for an empty term.
+     */
+    public function testSearchWithEmptyQReturns200AndEmptyArray(): void {
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => '',
+                default  => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('search')
+            ->willReturn([]);
+
+        $result = $this->controller->search();
+        $this->assertSame(200, $result->getStatus());
+        $this->assertSame([], $result->getData());
+    }
+
+    /**
+     * limit=500 must be clamped to 200 before reaching noteService->search().
+     */
+    public function testSearchClampsOversizedLimit(): void {
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => 'test',
+                'limit'  => '500',
+                default  => $default,
+            });
+
+        $this->service->expects($this->once())
+            ->method('search')
+            ->with('testuser', 'test', 200, 0, 'newest')
+            ->willReturn([]);
+
+        $result = $this->controller->search();
+        $this->assertSame(200, $result->getStatus());
+    }
+
+    /**
+     * The controller passes the trimmed q and correct paging args to
+     * noteService->search().
+     */
+    public function testSearchPassesCorrectArgsToService(): void {
+        $this->request->method('getParam')
+            ->willReturnCallback(fn (string $key, $default = null) => match ($key) {
+                'q'      => '  hello world  ',
+                'limit'  => '10',
+                'offset' => '20',
+                default  => $default,
+            });
+
+        // Trimmed 'hello world', limit 10, offset 20, default sort 'newest'.
+        $this->service->expects($this->once())
+            ->method('search')
+            ->with('testuser', 'hello world', 10, 20, 'newest')
+            ->willReturn([]);
+
+        $this->controller->search();
+    }
+
+    /**
+     * Verify that #[UserRateLimit] attribute is present on the search() method.
+     * This prevents the rate-limit from being silently dropped during refactoring.
+     */
+    public function testSearchMethodHasUserRateLimitAttribute(): void {
+        $ref = new \ReflectionMethod(NoteController::class, 'search');
+        $attrs = $ref->getAttributes(\OCP\AppFramework\Http\Attribute\UserRateLimit::class);
+        $this->assertNotEmpty(
+            $attrs,
+            'NoteController::search() must carry the #[UserRateLimit] attribute',
+        );
     }
 }

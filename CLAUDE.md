@@ -11,8 +11,9 @@ and can be shared with other users/groups. It surfaces:
 
 - A standalone app page (left-nav "Touchpoint") with an all-notes view and a
   note-types manager.
-- A tab inside the **Contacts** app (via `LoadContactsOcaApiEvent`) showing the
-  notes for the open contact.
+- A tab inside the **Contacts** app (via `BeforeTemplateRenderedEvent` — Contacts
+  does not fire its own event on its page, so the global before-render hook is
+  used instead; see `Application.php`) showing the notes for the open contact.
 - An entry in the contacts menu (hover card) linking to a contact's notes.
 - An admin settings section.
 
@@ -48,7 +49,7 @@ appinfo/
   info.xml            App manifest: id, version, deps, navigation, contactsmenu, settings.
   routes.php          All HTTP routes (array-based routing).
 lib/
-  AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener.
+  AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener and NoteSearchProvider.
   Controller/                   Thin controllers; errors funneled through ErrorHandler.
   Service/                      Business logic (NoteService, NoteTypeService, SettingsService).
   Db/                           QBMapper mappers + Entities (Note, NoteType, NoteContact,
@@ -56,6 +57,7 @@ lib/
   Migration/                    VersionXXXXDate*.php schema migrations.
   ContactsMenu/Provider.php     Contacts hover-menu entry.
   Listener/                     LoadContactsTabListener (injects the Contacts tab assets).
+  Search/                       NoteSearchProvider — Unified Search integration (OCP\Search\IProvider).
   Settings/                     Admin + AdminSection.
 src/
   main.js                       App page entry.
@@ -72,7 +74,7 @@ e2e/                            Playwright specs.
 
 ## Database tables
 
-All prefixed `crm_`: `touchpoint`, `touchpoint_note_types`, `touchpoint_note_contacts`,
+All named `touchpoint_*`: `touchpoint_notes`, `touchpoint_note_types`, `touchpoint_note_contacts`,
 `touchpoint_note_files`, `touchpoint_note_sharing`. Schema changes go through a new
 `lib/Migration/VersionXXXXDate*.php` step — never edit existing migrations that
 have shipped. Note that there are **no DB-level foreign keys**; child-row cleanup
@@ -117,6 +119,14 @@ prebuilt bundles under `js/`/`css/`, not the sources.
   hardcoded hex/px. Use `vue-material-design-icons`, not emoji, for iconography.
 - The repo root contains several throwaway `test_*.spec.js` files and a backup
   DB dump — these are scratch artifacts, not part of the app.
+- **`_searchSeq`** in the notes Pinia store is an internal race-guard counter;
+  do not reset it outside of `cancelSearch()`. JavaScript numbers become
+  `Infinity` at 2^53-1 (not a wrap-around); at `Infinity`, all subsequent
+  `runSearch()` calls would be silently discarded. In practice this requires
+  ~285,000 years of continuous 1000-searches/sec and is not a real risk.
+- **`GET /api/notes/search`** returns HTTP 400 for `q` > 500 characters —
+  consistent with `assertMaxLength` validation elsewhere. Do not switch to
+  silent truncation.
 
 ## Keep documentation in sync with changes
 

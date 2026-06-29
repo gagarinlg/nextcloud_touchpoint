@@ -19,20 +19,23 @@ Status reflects the codebase as of v1.1.x (verified absent unless noted).
 
 ## P0 — Highest impact (turns it into a CRM)
 
-### 1. Full-text note search  ·  **M**
-Search note **title + content** (not just the contact list). With tens of
-thousands of notes, this is the single biggest gap.
-- Backend: `NoteService::search(term)` → `NoteMapper` query with `LIKE`/`ILIKE`
-  on `title`/`content`, scoped to owned + shared notes (reuse `findAccessiblePage`
-  access logic), paginated.
-- Frontend: a search box in the all-notes view; debounced server query.
-- **Also register a Unified Search provider** (`OCP\Search\IProvider`) so notes
-  appear in Nextcloud's global search bar (top-right magnifier) and deep-link to
-  the note. Big discoverability win and an app-store plus.
-- **v1 = DB only.** Use a case-insensitive `LIKE`/`iLike` query
-  (`IDBConnection::escapeLikeParameter`, portable MySQL+pgsql) — **no search
-  engine**, no admin setup. This is the chosen path.
-- *Verified absent: no search in NoteService/NoteMapper, no ISearchProvider.*
+### 1. Full-text note search  ·  **M**  ✅ **Shipped**
+
+Implemented in v1.2.0. Case-insensitive iLike query on `title`/`content` via
+`NoteMapper::searchAccessiblePage()`, scoped to owned + shared notes (mirrors
+`findAccessiblePage` access logic exactly). `NoteService::search()` composes
+existing helpers; public mode returns `[]` in both the HTTP path and the Unified
+Search provider to prevent cross-user disclosure. `GET /api/notes/search` returns
+HTTP 400 for `q` > 500 characters; rate-limited at 30 req/60 s per user.
+
+- **Backend:** `NoteMapper::searchAccessiblePage()` + `NoteService::search()` +
+  `GET /api/notes/search` controller with `#[UserRateLimit(limit: 30, period: 60)]`.
+- **Frontend:** debounced search box in `AllNotesView.vue`; race-guard via
+  `_searchSeq` in the notes Pinia store; `cancelSearch()` called on unmount.
+- **Unified Search:** `OCA\Touchpoint\Search\NoteSearchProvider` (`OCP\Search\IProvider`)
+  registered in `Application.php`. Deep-links use `rawurlencode` (`%20` for spaces).
+- **v1 = DB iLike.** No search engine required. Future: optional
+  `IFullTextSearchProvider` upgrade path documented in `ARCHITECTURE.md`.
 
 #### 1a. Optional: Elasticsearch / Full Text Search integration  ·  **M** *(later, optional)*
 A **deferred, optional** enhancement layered on top of #1 once the DB search
@@ -229,10 +232,11 @@ The Smart-Picker/Reference provider (integration surface #1 above) is *also* an
 outward API: it gives every other app a first-class way to **link to and embed**
 a Touchpoint note. Cross-listed deliberately.
 
-### E. Search provider  ·  **M**
-The Unified Search `OCP\Search\IProvider` (P0 #1) makes notes discoverable to the
-whole platform, including as a search source other reference providers can pick
-from (`getSupportedSearchProviderIds`).
+### E. Search provider  ·  **M**  ✅ **Shipped**
+`OCA\Touchpoint\Search\NoteSearchProvider` is registered. Notes appear in the
+Nextcloud global search bar and deep-link to the contact view. See `docs/API.md`
+for the access-scoping and public-mode behavior. Future reference providers can
+pick it up via `getSupportedSearchProviderIds`.
 
 ### F. Flow / WorkflowEngine operations  ·  **M**
 Expose the note events from (A) as **Flow** triggers and/or a custom
@@ -316,6 +320,17 @@ land.
 
 ## Technical debt & hardening backlog
 
+- **Unified Search enrichment cost** (S): `NoteService::search()` always runs
+  `enrichNotes()` (contact/file/sharing lookups, ~3 extra queries/page), but
+  `NoteSearchProvider` only reads title/content/contactUid — wasted work on the
+  one search path that bypasses the `#[UserRateLimit]` guard. Consider an
+  `$enrich` flag or a lean `search()` variant for the provider. (Correctness is
+  fine; bounded by the 200-row clamp.)
+- **`(string) getParam(...)` robustness** (S): several controllers cast request
+  params to string directly (`sort`, `filePath`, contact `term`, …); an
+  array-typed param (`?x[]=1`) raises an `E_WARNING`. `NoteController::search()`
+  now coerces defensively (`is_string(...) ? ... : ''`); apply the same pattern
+  codebase-wide.
 - **Contact-list virtualization** (M): the list now renders the *whole* address
   book using CSS `content-visibility` for paint, but ~5–6k `NcListItem`
   instances still cost ~3 s to mount. Swap to true row virtualization
@@ -352,7 +367,7 @@ land.
 
 ## Suggested first milestone
 If picking a single coherent release: **"Find & Act v1"** —
-1. Full-text note search + Unified Search provider (#1)
+1. ~~Full-text note search + Unified Search provider (#1)~~ ✅ **Done**
 2. Tasks-app integration — create/link follow-up VTODOs from a note (#2) + share
    notifications (#3)
 3. Dashboard "Recent notes" / "Follow-ups" widget (#4)

@@ -51,3 +51,12 @@ export async function removeFile(noteId, noteFileId) {
 	const { data } = await axios.delete(`${baseUrl}/${noteId}/files/${noteFileId}`)
 	return data
 }
+
+export async function searchNotes(q, limit, offset, sort) {
+	const params = { q }
+	if (limit != null) params.limit = limit
+	if (offset != null) params.offset = offset
+	if (sort === 'oldest') params.sort = sort
+	const { data } = await axios.get(`${baseUrl}/search`, { params })
+	return data
+}

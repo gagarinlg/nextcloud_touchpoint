@@ -9,7 +9,40 @@ All notable changes to this project are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+- **Full-text note search** (`GET /api/notes/search?q=<term>`): case-insensitive
+  iLike query across note title and content, scoped to owned and explicitly-shared
+  notes. Returns HTTP 400 for `q` longer than 500 characters (not silently
+  truncated). Blank or whitespace-only `q` returns 200 `[]`. Rate-limited to 30
+  requests per 60 seconds per user (`#[UserRateLimit(limit: 30, period: 60)]`).
+  The in-app search box debounces 300 ms, requires at least 2 characters,
+  paginates with a **Load more** button, discriminates `429`/`400`/generic
+  errors with actionable messages, and shows an explicit "search unavailable"
+  state in public mode.
+- **Nextcloud Unified Search provider** (`NoteSearchProvider`): notes now appear
+  in the global Nextcloud search bar with the app icon. Results deep-link to the
+  contact view using `rawurlencode` (spaces as `%20`, not `+`); long sublines are
+  truncated with an ellipsis. Public mode suppresses search results in both the
+  HTTP endpoint and the Unified Search provider to prevent cross-user information
+  disclosure.
+
+### Fixed
+- In-app search no longer flashes a false "No notes found" empty state during the
+  300 ms debounce, and toggling the sort order while a search is active now
+  re-runs the search instead of silently re-ordering only the background list.
+- Search results are no longer silently capped at 50 with no affordance to reach
+  the rest — the search list now paginates like the all-notes list.
+
+### Removed
+- Dead, intentionally-unscoped `NoteMapper::searchPublic()` (no caller; public-mode
+  search is a deliberately-unsupported product decision). Removing it eliminates a
+  latent cross-user-leak footgun.
+
 ### Changed
+- Numeric (`\d+`) route requirements added to all `/api/notes/{id}` and
+  `/api/notes/{noteId}/files/...` routes so literal sub-routes (e.g.
+  `/api/notes/search`) can never be captured by a wildcard regardless of router
+  declaration order.
 - Restructured the repository to standard Nextcloud-app conventions: built
   `js/`/`css/` are no longer committed (built via `make build`), added a
   `Makefile`, `.nextcloudignore`, `README.md`, `CHANGELOG.md` and CI. The app is

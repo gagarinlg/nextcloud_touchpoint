@@ -37,7 +37,30 @@ export const useNotesStore = defineStore('notes', {
 		editingNote: null,
 		pendingFiles: [],   // { fileId, filePath, name } — not yet saved
 		removedFileIds: [], // noteFileId values to remove on save
+		searchQuery: '',
+		searchResults: [],
+		searchLoading: false,
+		// false when there is no error; otherwise a discriminated reason string
+		// ('ratelimited' | 'toolong' | 'generic') so the view can show an
+		// actionable message instead of a single opaque "Something went wrong".
+		searchError: false,
+		searchOffset: 0,
+		searchHasMore: false,
+		// True while loadMoreSearch() has a request in flight, so the search
+		// "Load more" button can show progress and disable itself.
+		searchLoadingMore: false,
+		// internal race guard — do not mutate externally; use cancelSearch() to
+		// invalidate in-flight requests. JavaScript numbers become Infinity at
+		// 2^53-1 (not wrap-around); at Infinity, all seq === this._searchSeq
+		// checks would be Infinity === Infinity (true), breaking the guard. In
+		// practice this requires ~285,000 years of continuous 1000-searches/sec
+		// and is not a real risk. Mitigation if ever needed:
+		// this._searchSeq = (this._searchSeq >= Number.MAX_SAFE_INTEGER) ? 0 : this._searchSeq + 1
+		_searchSeq: 0,
 	}),
+	getters: {
+		isSearching: (state) => state.searchQuery.trim().length > 0,
+	},
 	actions: {
 		// Switch the sort direction. Validates to the two supported values so a
 		// stray value can never be sent to the API; callers re-load afterwards.
@@ -140,6 +163,7 @@ export const useNotesStore = defineStore('notes', {
 				this.saving = false
 			}
 		},
+		// Legacy non-reactive helper; new computed state goes in getters: not here.
 		isDeleting(id) {
 			return this.pendingDeleteIds.includes(id)
 		},
@@ -179,6 +203,106 @@ export const useNotesStore = defineStore('notes', {
 				this.removedFileIds.push(f.noteFileId)
 			}
 			this.pendingFiles.splice(index, 1)
+		},
+
+		setSearchQuery(q) {
+			this.searchQuery = q
+		},
+
+		// Map an axios error to a discriminated reason the view can explain.
+		// 429: rate-limited (#[UserRateLimit] on the search endpoint); 400:
+		// invalid input (e.g. term over MAX_SEARCH_TERM_LENGTH); otherwise generic.
+		_searchErrorReason(e) {
+			const status = e?.response?.status
+			if (status === 429) return 'ratelimited'
+			if (status === 400) return 'toolong'
+			return 'generic'
+		},
+
+		// Increment _searchSeq to invalidate any in-flight runSearch() /
+		// loadMoreSearch() call. Call from onUnmounted in AllNotesView to prevent
+		// stale XHR responses from overwriting searchResults after component remount.
+		cancelSearch() {
+			this._searchSeq++
+			this.searchLoading = false
+			this.searchLoadingMore = false
+		},
+
+		// Reset all search state back to the clean, non-searching baseline and
+		// invalidate any in-flight request (cancelSearch bumps _searchSeq). This is
+		// the single owner of the search-reset invariant — the view must call this
+		// rather than mutating searchResults/searchError directly, so future state
+		// (e.g. the pagination cursor) stays in one place.
+		resetSearch() {
+			this.searchQuery = ''
+			this.searchResults = []
+			this.searchError = false
+			this.searchOffset = 0
+			this.searchHasMore = false
+			this.cancelSearch()
+		},
+
+		async runSearch() {
+			const seq = ++this._searchSeq
+			if (!this.isSearching) {
+				this.searchResults = []
+				this.searchOffset = 0
+				this.searchHasMore = false
+				return
+			}
+			this.searchLoading = true
+			this.searchError = false
+			try {
+				const results = await NoteService.searchNotes(
+					this.searchQuery.trim(), PAGE_SIZE, 0, this.sort,
+				)
+				if (seq !== this._searchSeq) return  // stale response — discard
+				this.searchResults = results
+				this.searchOffset = results.length
+				this.searchHasMore = results.length === PAGE_SIZE
+			} catch (e) {
+				if (seq === this._searchSeq) this.searchError = this._searchErrorReason(e)
+			} finally {
+				// Only update searchLoading for the current sequence.
+				// Stale responses (seq mismatch) must not reset the loading state,
+				// as a newer runSearch() is responsible for its own lifecycle.
+				// cancelSearch() sets searchLoading = false synchronously before
+				// any stale response can arrive, so the loading state is always
+				// correct from the component's perspective.
+				if (seq === this._searchSeq) this.searchLoading = false
+			}
+		},
+
+		// Append the next page of search results, mirroring loadMoreNotes() but on
+		// the search list and guarded by the same _searchSeq race token so a stale
+		// page (from a search that has since changed) is discarded.
+		async loadMoreSearch() {
+			if (!this.searchHasMore || this.searchLoading || this.searchLoadingMore || !this.isSearching) return
+			const seq = this._searchSeq
+			this.searchLoadingMore = true
+			// Clear any stale error from a prior failed runSearch() for this
+			// sequence, mirroring runSearch(): otherwise a recovered error could
+			// keep the "Search failed" empty state shadowing successfully-appended
+			// results (the template checks searchError before the results branch).
+			this.searchError = false
+			try {
+				const results = await NoteService.searchNotes(
+					this.searchQuery.trim(), PAGE_SIZE, this.searchOffset, this.sort,
+				)
+				if (seq !== this._searchSeq) return  // stale page — a newer search owns the state
+				this.searchResults.push(...results)
+				this.searchOffset += results.length
+				this.searchHasMore = results.length === PAGE_SIZE
+			} catch (e) {
+				// Surface the same discriminated reason runSearch() uses so a
+				// rate-limited (429) or invalid load-more gets the actionable
+				// message, not just the generic toast. Guarded by the seq check so
+				// a stale page's failure cannot clobber a newer search's state.
+				if (seq === this._searchSeq) this.searchError = this._searchErrorReason(e)
+				throw e
+			} finally {
+				if (seq === this._searchSeq) this.searchLoadingMore = false
+			}
 		},
 	},
 })

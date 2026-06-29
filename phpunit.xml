@@ -10,6 +10,34 @@
         <testsuite name="unit">
             <directory>./tests/Unit</directory>
         </testsuite>
+        <!--
+            Integration suite: runs real SQL queries against an in-process database.
+            Primary engine: SQLite in-memory (pdo_sqlite — confirmed available on
+            this host via php8.3-sqlite3).  Self-contained; no external DB service
+            required in CI.
+            Fallback: PostgreSQL via a Unix-socket peer-auth connection to the NC
+            database, used only when pdo_sqlite is absent.
+            Individual tests extend IntegrationTestCase, which calls
+            markTestSkipped() when both engines are unavailable
+            (bootstrap sets $GLOBALS['integration_skip_reason']).
+
+            Bootstrap note: phpunit.xml declares a single bootstrap (tests/bootstrap.php)
+            for all suites. The integration-specific bootstrap (tests/Integration/bootstrap.php)
+            is loaded lazily via IntegrationTestCase::setUpIntegration(), which is called
+            from each subclass's setUp(). Subclasses MUST call parent::setUp() or invoke
+            setUpIntegration() explicitly — omitting it causes all integration tests to be
+            silently skipped with markTestSkipped() rather than failing visibly.
+
+            SQLite LIKE is case-insensitive for ASCII only; integration tests must
+            use ASCII-only fixture terms.  Unicode case-sensitivity tests
+            (e.g. German umlauts) must be verified in T10 e2e against the real
+            MySQL/PostgreSQL instance.
+
+            Run: ./vendor/bin/phpunit with flag: testsuite=integration
+        -->
+        <testsuite name="integration">
+            <directory>./tests/Integration</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

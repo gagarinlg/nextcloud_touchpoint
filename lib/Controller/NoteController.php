@@ -11,7 +11,9 @@ use OCA\Touchpoint\AppInfo\Application;
 use OCA\Touchpoint\Db\NoteMapper;
 use OCA\Touchpoint\Service\NoteService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IL10N;
 use OCP\IRequest;
@@ -89,6 +91,45 @@ class NoteController extends Controller {
                 $limitInt,
                 $offsetInt,
                 $this->getSortParam(),
+            );
+        });
+    }
+
+    #[NoAdminRequired]
+    #[UserRateLimit(limit: 30, period: 60)]
+    public function search(): JSONResponse {
+        // Pre-trim q here so the mb_strlen check operates on the true character
+        // count. NoteService::search() also trims unconditionally for callers
+        // that bypass this controller (e.g. NoteSearchProvider via
+        // NoteService::search() directly).
+        // Coerce defensively: a crafted `?q[]=x` makes getParam() return an
+        // array, and `(string) $array` would raise an E_WARNING and search the
+        // literal "Array". A non-string q is meaningless — treat it as empty.
+        $rawQ = $this->request->getParam('q', '');
+        $q = trim(is_string($rawQ) ? $rawQ : '');
+        if (mb_strlen($q) > NoteMapper::MAX_SEARCH_TERM_LENGTH) {
+            // Return 400: consistent with the app's assertMaxLength validation
+            // pattern. Silent truncation is avoided because the caller cannot
+            // tell whether their full query was used.
+            return new JSONResponse(
+                ['message' => $this->l10n->t('Search query must not exceed 500 characters.')],
+                Http::STATUS_BAD_REQUEST
+            );
+        }
+        return $this->handleNotFound(function () use ($q) {
+            $limit    = $this->request->getParam('limit');
+            $offset   = $this->request->getParam('offset');
+            // Defense-in-depth clamp. The service also clamps unconditionally.
+            // The service clamp is authoritative for callers that bypass this
+            // controller (e.g., NoteSearchProvider via NoteService::search()).
+            $limitInt  = max(1, min((int)($limit ?? 50), 200));
+            $offsetInt = max(0, (int)($offset ?? 0));
+            return $this->noteService->search(
+                $this->getUserId(),
+                $q,
+                $limitInt,
+                $offsetInt,
+                $this->getSortParam()
             );
         });
     }

@@ -200,6 +200,7 @@ namespace OCP\AppFramework\Db {
 namespace OCP {
     interface IDBConnection {
         public function getQueryBuilder();
+        public function escapeLikeParameter(string $param): string;
     }
 
     interface IRequest {
@@ -313,6 +314,7 @@ namespace OCP\DB\QueryBuilder {
         public function eq($x, $y, $type = null);
         public function in($x, $y, $type = null);
         public function like($x, $y, $type = null);
+        public function iLike($x, $y, $type = null): string;
         public function gt($x, $y, $type = null);
         public function andX(...$args);
         public function orX(...$args);
@@ -422,6 +424,11 @@ namespace OCP\AppFramework\Http\Attribute {
     #[\Attribute(\Attribute::TARGET_METHOD)]
     class PublicPage {
     }
+
+    #[\Attribute(\Attribute::TARGET_METHOD)]
+    class UserRateLimit {
+        public function __construct(int $limit, int $period) {}
+    }
 }
 
 // --- OCP\AppFramework\Bootstrap ---
@@ -434,6 +441,7 @@ namespace OCP\AppFramework\Bootstrap {
     interface IRegistrationContext {
         public function registerEventListener(string $event, string $listener, int $priority = 0): void;
         public function registerService(string $name, callable $factory, bool $shared = true): void;
+        public function registerSearchProvider(string $class): void;
     }
     interface IBootContext {
         public function getAppContainer();
@@ -538,6 +546,97 @@ namespace OCP\Contacts\ContactsMenu {
 
     interface IActionFactory {
         public function newLinkAction(string $icon, string $name, string $href): IAction;
+    }
+}
+
+// --- OCP\Search ---
+// OCP\Contacts\ContactsMenu\IProvider is a separate interface; always use FQN
+// or aliased imports in test files that use both to avoid ambiguity.
+namespace OCP\Search {
+
+    /**
+     * Interface for Unified Search providers implemented by apps.
+     */
+    interface IProvider {
+        public function getId(): string;
+        public function getName(): string;
+        public function getOrder(string $route, array $routeParameters): ?int;
+        public function search(\OCP\IUser $user, ISearchQuery $query): SearchResult;
+    }
+
+    interface ISearchQuery {
+        public const SORT_DATE_DESC = 1;
+        public function getTerm(): string;
+        public function getLimit(): int;
+        public function getCursor();
+        public function getFilter(string $name): ?IFilter;
+        public function getFilters(): IFilterCollection;
+        public function getSortOrder(): int;
+        public function getRoute(): string;
+        public function getRouteParameters(): array;
+    }
+
+    interface IFilter {
+        public function get(): mixed;
+    }
+
+    /**
+     * NOTE: must extend \IteratorAggregate (not \Traversable directly).
+     * Vendored OCP/Search/IFilterCollection.php declares:
+     *   interface IFilterCollection extends IteratorAggregate
+     * count() is omitted here — it was added in NC 32.0.1 only.
+     */
+    interface IFilterCollection extends \IteratorAggregate {
+        public function has(string $name): bool;
+        public function get(string $name): ?IFilter;
+        public function getIterator(): \Traversable;
+    }
+
+    final class SearchResult {
+        private function __construct(
+            private string $name,
+            private bool $isPaginated,
+            private array $entries,
+            private mixed $cursor = null,
+        ) {}
+
+        public static function complete(string $name, array $entries): self {
+            return new self($name, false, $entries);
+        }
+
+        public static function paginated(string $name, array $entries, mixed $cursor): self {
+            return new self($name, true, $entries, $cursor);
+        }
+
+        /**
+         * Test-only accessor: the real SearchResult keeps entries private and
+         * exposes them via jsonSerialize(). Expose them here so unit tests can
+         * assert on the ACTUAL SearchResultEntry objects the provider produced
+         * (e.g. the real subline), rather than re-deriving the value.
+         *
+         * @return SearchResultEntry[]
+         */
+        public function getEntries(): array {
+            return $this->entries;
+        }
+
+        public function getCursor(): mixed {
+            return $this->cursor;
+        }
+    }
+
+    class SearchResultEntry {
+        // Test-only: expose the constructor args as public readonly properties so
+        // unit tests can assert on the real values the provider emitted (the real
+        // SearchResultEntry exposes them via jsonSerialize()).
+        public function __construct(
+            public readonly string $thumbnailUrl,
+            public readonly string $title,
+            public readonly string $subline,
+            public readonly string $resourceUrl,
+            public readonly string $icon = '',
+            public readonly bool $rounded = false,
+        ) {}
     }
 }
 

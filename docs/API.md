@@ -55,7 +55,8 @@ The photo endpoint only reads vCards from address books whose key `is_numeric()`
 | Method | Path | Body / query | Description |
 |---|---|---|---|
 | GET | `/api/notes` | `sort` (`newest`\|`oldest`), `limit`, `offset` | All notes accessible to the user (owned + shared). Returns [`Note[]`](#note). |
-| GET | `/api/notes/{id}` | — | A single accessible note. |
+| GET | `/api/notes/search` | `q` (string, max 500 chars), `sort`, `limit` (1–200, default 50), `offset` | Case-insensitive full-text search across note title and content. Returns [`Note[]`](#note) on 200; `400 { "message": … }` if `q` exceeds 500 characters. Blank or whitespace-only `q` returns 200 `[]`. Public mode returns 200 `[]`. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+| GET | `/api/notes/{id}` | `id` numeric (`\d+`) | A single accessible note. The `\d+` requirement keeps `/api/notes/search` (and other literal sub-routes) from ever being captured by this wildcard. |
 | POST | `/api/notes` | see [create body](#note-create--update-body) | Create a note. |
 | PUT | `/api/notes/{id}` | see [update body](#note-create--update-body) | Update a note (only supplied fields change; `null` = leave as-is). |
 | DELETE | `/api/notes/{id}` | — | Delete a note and its child rows (files, contacts, sharing). |
@@ -170,10 +171,55 @@ exceptions to status codes and a `{ "message": … }` body:
 
 | Status | When |
 |---|---|
-| `400` | Invalid/missing input (e.g. absent/invalid `noteTypeId`). |
+| `400` | Invalid/missing input (e.g. absent/invalid `noteTypeId`; `q` exceeding 500 characters on `/api/notes/search`). |
 | `403` | Authenticated but not permitted on the resource. |
 | `404` | Resource missing or not owned/accessible by the caller. |
 | `500` | Unexpected failure (logged; opaque message to the client). |
+
+---
+
+## Search integration
+
+Notes appear in the **Nextcloud Unified Search** bar (top-right magnifier) via
+`OCA\Touchpoint\Search\NoteSearchProvider` (`OCP\Search\IProvider`). Each result
+deep-links to the note's contact view (`#contact/<rawurlencode(uid)>`), or to the
+app root when the note has no linked contact.
+
+Access scoping mirrors the authenticated session: only notes owned by or
+explicitly shared with the searching user are returned. **Public mode suppresses
+all results** (both via the HTTP endpoint and via the Unified Search provider) to
+avoid surfacing other users' notes without per-user ownership context. There is
+no public-mode keyword-search code path on the backend: the previously-unused,
+intentionally-unscoped `NoteMapper::searchPublic()` was removed (it had no caller
+and was a latent cross-user-leak footgun). If public-mode search is ever required
+as a product feature, it must be (re)introduced with the access decision
+co-located in the query method, not guarded only by a distant service-layer
+early-return.
+
+The provider ranks itself via `getOrder()`: it returns `-1` (float to the top)
+on any `touchpoint.*` route — so notes lead the Unified Search results while the
+user is inside the Touchpoint app — and the neutral default `30` everywhere else.
+
+The `/api/notes/search` HTTP endpoint is the backing store for both the in-app
+search box and the Unified Search provider.
+
+**In-app search-box UX** (`AllNotesView.vue`), layered on top of the endpoint
+above:
+
+- Searches are debounced 300 ms and only fire for a trimmed term of **at least 2
+  characters** (shorter input shows a "keep typing" hint rather than firing the
+  most-expensive `%a%` scans and burning the rate-limit budget).
+- The loading indicator is shown for the whole debounce window, so the
+  "No notes found" empty state never flashes before the first response.
+- Results paginate with a **Load more** button (`limit`/`offset`, `PAGE_SIZE`
+  = 50), mirroring the all-notes list; the screen-reader live region announces
+  "Showing first N notes" while more pages remain.
+- Errors are discriminated by status: `429` shows a "too many searches, wait a
+  moment" message (no auto-retry), `400` (over 500 chars) an explicit length
+  message, anything else the generic retryable error.
+- In **public mode** the box renders an explicit "Search is unavailable while
+  notes are shared publicly" empty state and fires no request (the endpoint would
+  return `[]` anyway), instead of a misleading generic "No notes found".
 
 ---
 
@@ -192,7 +238,6 @@ it out of "planned."
   superseding the internal routes above for external/automation use.
 - **Webhooks** — outbound HTTP on the lifecycle events via `webhook_listeners`.
 - **Reference provider + Smart Picker** — link/embed a note from Text/Talk/Deck.
-- **Unified Search provider** — `OCP\Search\IProvider` for notes.
 - **Flow / WorkflowEngine** operations on the lifecycle events.
 - **Capabilities** — `OCP\Capabilities\ICapability` so clients can feature-detect.
 - **JS embedding API** — a documented `window.OCA.Touchpoint` (e.g.

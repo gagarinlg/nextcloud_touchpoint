@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\Touchpoint\AppInfo;
 
 use OCA\Touchpoint\Listener\LoadContactsTabListener;
+use OCA\Touchpoint\Search\NoteSearchProvider;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -33,6 +34,7 @@ class Application extends App implements IBootstrap {
             BeforeTemplateRenderedEvent::class,
             LoadContactsTabListener::class,
         );
+        $context->registerSearchProvider(NoteSearchProvider::class);
     }
 
     public function boot(IBootContext $context): void {

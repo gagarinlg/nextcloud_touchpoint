@@ -29,6 +29,14 @@ class NoteMapper extends QBMapper {
     /** Sort direction keyword: oldest notes first. */
     public const SORT_OLDEST = 'oldest';
 
+    /**
+     * Maximum character length for a search term. Shared between the HTTP
+     * controller (which returns HTTP 400 for excess) and the service layer
+     * (which returns [] for callers that bypass the controller, e.g.
+     * NoteSearchProvider via Unified Search).
+     */
+    public const MAX_SEARCH_TERM_LENGTH = 500;
+
     public function __construct(IDBConnection $db) {
         parent::__construct($db, 'touchpoint_notes', Note::class);
     }
@@ -267,6 +275,90 @@ class NoteMapper extends QBMapper {
             // Stable final tiebreaker on the unique id so LIMIT/OFFSET paging is
             // deterministic when notes share created_at. Follows the same
             // direction as created_at.
+            ->addOrderBy('id', $dir);
+
+        if ($limit !== null) {
+            $qb->setMaxResults($limit);
+        }
+        if ($offset !== null) {
+            $qb->setFirstResult($offset);
+        }
+
+        return $this->findEntities($qb);
+    }
+
+    /**
+     * Escape $term for use in an iLike predicate and wrap with wildcards.
+     *
+     * Returns a plain PHP string — NOT yet a bound SQL parameter. The caller
+     * is responsible for wrapping this value with createNamedParameter() before
+     * passing it to iLike(). escapeLikeParameter() escapes LIKE metacharacters
+     * (%, _, \) only; without createNamedParameter() a term such as
+     * "foo' OR '1'='1" would be an inline SQL injection vector.
+     *
+     * Wildcard-handling caveat: escapeLikeParameter() backslash-escapes %, _ and
+     * \, and the OCP ExpressionBuilder emits a bare LIKE/ILIKE with NO ESCAPE
+     * clause. This neutralises metacharacters correctly only where the DB treats
+     * backslash as the default LIKE escape — true on the supported production
+     * backends (MySQL and PostgreSQL), which NC requires for production. On SQLite
+     * (discouraged for production by NC) LIKE has NO default escape, so the
+     * backslash becomes a LITERAL pattern character: a search for "%" becomes the
+     * pattern "%\%%", which matches only rows that literally contain a backslash.
+     * The practical effect on SQLite is OVER-restriction (a note whose text
+     * contains a literal % or _ will fail to be found), not over-matching — a
+     * bounded correctness/usability quirk, never a confidentiality one. In all
+     * cases the search predicate is ANDed with the owned-or-shared visibility
+     * predicate in searchAccessiblePage(), so it can only ever scope to the
+     * caller's OWN/shared-to-them notes (no cross-user leak), and values are always
+     * bound via createNamedParameter(), so there is no injection vector.
+     */
+    private function buildLikePattern(string $term): string {
+        $escaped = $this->db->escapeLikeParameter($term);
+        return '%' . $escaped . '%';
+    }
+
+    /**
+     * Search one ordered page of notes accessible to $userId (owned + explicitly
+     * shared) whose title or content matches $term (case-insensitive iLike).
+     *
+     * Access scoping mirrors findAccessiblePage() exactly: two separate orX()
+     * objects (visibility predicate and search predicate) combined with
+     * andWhere(), making flat-OR mis-parenthesisation structurally impossible.
+     *
+     * @param int[]  $sharedIds note ids shared with the user (may be empty)
+     * @param string $sort      'newest' (created_at DESC) or 'oldest' (created_at ASC)
+     * @return Note[]
+     */
+    public function searchAccessiblePage(string $userId, array $sharedIds, string $term, ?int $limit, ?int $offset, string $sort = self::SORT_NEWEST): array {
+        $qb      = $this->db->getQueryBuilder();
+        $dir     = $this->sortDir($sort);
+        $pattern = $this->buildLikePattern($term);
+
+        $qb->select('*')->from($this->getTableName());
+
+        // --- Visibility predicate (mirrors findAccessiblePage) ---
+        $visible = $qb->expr()->orX(
+            $qb->expr()->eq('user_id', $qb->createNamedParameter($userId, IQueryBuilder::PARAM_STR))
+        );
+        foreach (array_chunk(array_values(array_unique($sharedIds)), self::IN_CHUNK_SIZE) as $chunk) {
+            $visible->add($qb->expr()->in(
+                'id',
+                $qb->createNamedParameter($chunk, IQueryBuilder::PARAM_INT_ARRAY)
+            ));
+        }
+
+        // --- Search predicate (separate orX — ANDed with visibility below) ---
+        // createNamedParameter() wraps $pattern as a bound prepared-statement
+        // parameter. The optional third argument on iLike() itself (column type
+        // hint) is NOT used here — it is not the binding mechanism.
+        $search = $qb->expr()->orX(
+            $qb->expr()->iLike('title',   $qb->createNamedParameter($pattern, IQueryBuilder::PARAM_STR)),
+            $qb->expr()->iLike('content', $qb->createNamedParameter($pattern, IQueryBuilder::PARAM_STR))
+        );
+
+        $qb->where($visible)
+            ->andWhere($search)
+            ->orderBy('created_at', $dir)
             ->addOrderBy('id', $dir);
 
         if ($limit !== null) {

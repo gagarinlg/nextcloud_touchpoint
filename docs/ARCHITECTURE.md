@@ -54,6 +54,22 @@ talks to the same backend API directly.
   `IN()` queries (≤900 ids). `Note::jsonSerialize()` is **viewer-aware**: a share
   recipient sees only their own `sharing` entry and none of the audit/identity
   fields (`userId`, `createdBy`, `updatedBy`) — owners (and public mode) see all.
+- **Search** — `lib/Search/NoteSearchProvider` implements `OCP\Search\IProvider`
+  and is registered in `Application::register()` via
+  `$context->registerSearchProvider(NoteSearchProvider::class)`. Notes appear in
+  the Nextcloud Unified Search bar. Access scoping mirrors
+  `NoteService::findAll()` exactly (owned + explicitly-shared; public mode returns
+  `[]` in both the HTTP endpoint and the provider). Deep-links use
+  `rawurlencode()` (`%20` for spaces in contact UIDs). Sublines are sanitised with
+  `mb_substr(UTF-8) → html_entity_decode → strip_tags` to prevent
+  double-encoding of stored Markdown entities. Note: `htmlspecialchars()` is
+  intentionally NOT applied here — the NC Unified Search Vue component renders
+  sublines via text interpolation and handles HTML-encoding itself; a PHP-side
+  `htmlspecialchars()` would cause double-encoding visible as literal `&amp;`.
+  **Deployment rollback:** if the app fails to boot after upgrade (e.g. due to a
+  fatal error in `NoteSearchProvider`), run: `occ app:disable touchpoint`, revert
+  to the previous release tarball, then `occ app:enable touchpoint`. This is
+  standard NC app recovery.
 - **Listener** — `LoadContactsTabListener` handles `BeforeTemplateRenderedEvent`,
   and when the rendered app is `contacts` injects the
   `touchpoint-contacts-integration` bundle. (The Contacts app exposes no real
@@ -142,11 +158,12 @@ talks to the same backend API directly.
 | `GET` | `/api/contacts` | `contact#index` |
 | `GET` | `/api/contacts/{uid}/photo` | `contact#photo` |
 | `GET` | `/api/notes` | `note#index` |
+| `GET` | `/api/notes/search` | `note#search` |
+| `GET` | `/api/notes/contact/{contactUid}` | `note#byContact` |
 | `GET` | `/api/notes/{id}` | `note#show` |
 | `POST` | `/api/notes` | `note#create` |
 | `PUT` | `/api/notes/{id}` | `note#update` |
 | `DELETE` | `/api/notes/{id}` | `note#destroy` |
-| `GET` | `/api/notes/contact/{contactUid}` | `note#byContact` |
 | `POST` | `/api/notes/{noteId}/files` | `note#addFile` |
 | `DELETE` | `/api/notes/{noteId}/files/{noteFileId}` | `note#removeFile` |
 | `GET` | `/api/settings` | `settings#get` |
@@ -182,6 +199,7 @@ talks to the same backend API directly.
 | Entities | `Note.php`, `NoteContact.php`, `NoteFile.php`, `NoteSharing.php`, `NoteType.php` |
 | Migrations | `Version1000Date20260627000000.php` |
 | Listeners | `LoadContactsTabListener.php` |
+| Search providers | `NoteSearchProvider.php` |
 | ContactsMenu | `Provider.php` |
 | Settings | `Admin.php`, `AdminSection.php` |
 | Vue entries | `adminSettings.js`, `contacts-integration.js`, `main.js` |

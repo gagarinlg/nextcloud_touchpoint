@@ -37,3 +37,6 @@ db_backup-*.zip
 *.csr
 *.p12
 appinfo/signature.json
+
+# Review-workflow scratch (verdicts, plans) — never committed
+.review-tmp/

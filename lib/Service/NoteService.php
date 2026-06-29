@@ -454,6 +454,69 @@ class NoteService {
     }
 
     /**
+     * Search notes accessible to $userId whose title or content matches $term
+     * (case-insensitive iLike). Returns [] for blank/whitespace-only terms and
+     * for public mode (where keyword search would expose other users' notes to
+     * any authenticated searcher without per-user ownership context).
+     *
+     * Limit is clamped to [1, 200] here; the service clamp is authoritative for
+     * all callers (HTTP controller and NoteSearchProvider). The controller also
+     * clamps as defense-in-depth but explicitly documents that this clamp governs.
+     *
+     * Access scoping composes the same tested helpers as findAll() verbatim.
+     * $userId serves double duty as the access-scope principal and the enrichment
+     * viewer; do not introduce a separate $viewerUserId without a security review,
+     * as enrichNotes() uses it to determine which sharing and audit fields are
+     * visible.
+     *
+     * @return Note[]
+     */
+    public function search(string $userId, string $term, ?int $limit = null, ?int $offset = null, string $sort = NoteMapper::SORT_NEWEST): array {
+        // Trim first: whitespace-only input (q='   ') must be caught server-side
+        // independent of any frontend trimming.
+        $term = trim($term);
+
+        // Blank term: no useful query, return immediately without touching the DB
+        // or resolving group memberships.
+        if ($term === '') {
+            return [];
+        }
+
+        // Enforce the 500-character maximum on all callers, including the Unified
+        // Search provider (NoteSearchProvider), which bypasses NoteController and
+        // its HTTP-level 400 guard. An oversized term produces a LIKE '%…50000-char…%'
+        // against a TEXT column — a full-table scan with pathological DB memory use.
+        // The HTTP rate-limit does not protect this path.
+        if (mb_strlen($term) > NoteMapper::MAX_SEARCH_TERM_LENGTH) {
+            return [];
+        }
+
+        // Public mode makes all notes globally readable by any authenticated user.
+        // Returning all notes via keyword search would expose other users' notes
+        // to any authenticated searcher without the expected per-user ownership
+        // context of both the Unified Search UI and the direct API.
+        // Return empty. If product explicitly requires public-mode search,
+        // remove this guard and document the decision in ARCHITECTURE.md.
+        if ($this->settingsService->isNotesPublic()) {
+            return [];
+        }
+
+        // Authoritative clamp — callers that bypass the HTTP controller (e.g.
+        // NoteSearchProvider) rely solely on this enforcement.
+        $limit  = max(1, min($limit ?? 50, 200));
+        $offset = max(0, $offset ?? 0);
+
+        $sort = $this->normaliseSort($sort);
+
+        $groupIds  = $this->settingsService->getUserGroupIds($userId);
+        $sharedIds = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
+
+        $page = $this->mapper->searchAccessiblePage($userId, $sharedIds, $term, $limit, $offset, $sort);
+
+        return $this->enrichNotes($page, $userId);
+    }
+
+    /**
      * Note on $addressbookId: this is currently a dead field. The Contacts
      * manager only exposes a non-numeric address-book key (e.g. 'contacts'),
      * so no real numeric address-book id is available client-side; the value
