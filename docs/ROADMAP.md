@@ -29,7 +29,20 @@ thousands of notes, this is the single biggest gap.
 - **Also register a Unified Search provider** (`OCP\Search\IProvider`) so notes
   appear in Nextcloud's global search bar (top-right magnifier) and deep-link to
   the note. Big discoverability win and an app-store plus.
+- **v1 = DB only.** Use a case-insensitive `LIKE`/`iLike` query
+  (`IDBConnection::escapeLikeParameter`, portable MySQL+pgsql) — **no search
+  engine**, no admin setup. This is the chosen path.
 - *Verified absent: no search in NoteService/NoteMapper, no ISearchProvider.*
+
+#### 1a. Optional: Elasticsearch / Full Text Search integration  ·  **M** *(later, optional)*
+A **deferred, optional** enhancement layered on top of #1 once the DB search
+ships — only worthwhile for large deployments that want true full-text indexing
+and ranking. Integrate the Nextcloud **Full Text Search** app suite
+(`fulltextsearch` + `fulltextsearch_elasticsearch`) by implementing an
+`OCP\FullTextSearch\IFullTextSearchProvider` that indexes note title/content,
+**gated on the FTS app being installed** (degrade to the DB `iLike` search
+otherwise). Requires an admin-provided Elasticsearch backend, so it stays opt-in
+and never a hard dependency. Not part of the v1 search work.
 
 ### 2. Tasks via the official Tasks app (integration, not built-in)  ·  **M–L**
 Do **not** build a task engine into Touchpoint — Nextcloud already has an
