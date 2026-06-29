@@ -50,6 +50,9 @@ async function gotoSection(page, labelRegex) {
 // Reusable (EN|DE) label matchers.
 const RX = {
 	contacts: /^Kontakte$|^Contacts$/,
+	// The app's first nav section (the all-notes view that hosts the note-search
+	// box). Anchored so it does not also match "Notiztypen"/"Note types".
+	notes: /^Notizen$|^Notes$/,
 	noteTypes: /Note types|Notiztypen/,
 	settings: /^Einstellungen$|^Settings$/,
 	addNote: /Add note|Notiz hinzufügen/,

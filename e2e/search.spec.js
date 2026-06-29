@@ -99,7 +99,7 @@ test.describe('Touchpoint — search', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page);
 		await openApp(page);
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 	});
 
 	// ── (a) AllNotesView search box — matching and non-matching notes ──────
@@ -115,7 +115,7 @@ test.describe('Touchpoint — search', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 
 			// Type the match-title's unique prefix into the search box.
 			const searchField = page.locator(SEARCH_FIELD);
@@ -156,7 +156,7 @@ test.describe('Touchpoint — search', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 
 			const searchField = page.locator(SEARCH_FIELD);
 			await expect(searchField).toBeVisible({ timeout: 10000 });
@@ -229,7 +229,7 @@ test.describe('Touchpoint — search', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 
 			const searchField = page.locator(SEARCH_FIELD);
 			await expect(searchField).toBeVisible({ timeout: 10000 });
@@ -243,7 +243,7 @@ test.describe('Touchpoint — search', () => {
 
 			// Navigate to Note types (unmounts AllNotesView) and back.
 			await gotoSection(page, RX.noteTypes);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 
 			// The search box must be empty on remount...
 			const searchFieldAfter = page.locator(SEARCH_FIELD);
@@ -372,7 +372,7 @@ test.describe('Touchpoint — search', () => {
 		// Reload so the new contact is visible to the app session.
 		await page.reload();
 		await openApp(page);
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 
 		const noteTitle = unique('SpaceUIDNote');
 		const n = await apiCreateNote(page, { title: noteTitle, contactUid: uid, contactUids: [uid] });
