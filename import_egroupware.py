@@ -1474,7 +1474,7 @@ def import_contacts(egw, cur, owner_to_ab_id=None, default_ab_id=None, egw_to_nc
             nc_uid = (egw_to_nc.get(egw_acct_id) or '').lower()
             sys_card_id = system_card_by_uid.get(nc_uid)
             if sys_card_id:
-                etag = hashlib.md5(vcard_data.encode()).hexdigest()
+                etag = hashlib.md5(vcard_data.encode(), usedforsecurity=False).hexdigest()
                 size = len(vcard_data.encode('utf-8'))
                 cur.execute(
                     'UPDATE oc_cards SET carddata=%s, etag=%s, size=%s, lastmodified=%s WHERE id=%s',
@@ -1494,7 +1494,7 @@ def import_contacts(egw, cur, owner_to_ab_id=None, default_ab_id=None, egw_to_nc
         ab_id_for_contact = owner_to_ab_id.get(contact_owner, default_ab_id)
 
         uri = v(c, 'carddav_name') or f'{uid}.vcf'
-        etag = hashlib.md5(vcard_data.encode()).hexdigest()
+        etag = hashlib.md5(vcard_data.encode(), usedforsecurity=False).hexdigest()
         size = len(vcard_data.encode('utf-8'))
 
         if not DRY_RUN:
@@ -1953,7 +1953,7 @@ def import_calendar(egw, cur, owner_to_cal_id=None, default_cal_id=None,
 
         cal_id_egw = event.get('cal_id')
         uri = v(event, 'caldav_name') or f'{uid}.ics'
-        etag = hashlib.md5(ical.encode()).hexdigest()
+        etag = hashlib.md5(ical.encode(), usedforsecurity=False).hexdigest()
         size = len(ical.encode('utf-8'))
 
         date_rows = dates_by_id.get(cal_id_egw, [])
