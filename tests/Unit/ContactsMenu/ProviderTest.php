@@ -121,7 +121,9 @@ class ProviderTest extends TestCase {
             ->with(
                 $this->anything(),
                 $this->anything(),
-                'https://nc.test/apps/touchpoint/#contact/uid+with+spaces',
+                // rawurlencode: spaces are %20, not '+', so the JS decodeURIComponent
+                // on the fragment round-trips the UID correctly.
+                'https://nc.test/apps/touchpoint/#contact/uid%20with%20spaces',
             )
             ->willReturn($action);
 

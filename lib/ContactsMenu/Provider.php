@@ -37,7 +37,11 @@ class Provider implements IProvider {
         );
 
         $notesUrl = $this->urlGenerator->getAbsoluteURL(
-            $this->urlGenerator->linkToRoute('touchpoint.page.index') . '#contact/' . urlencode($uid)
+            // rawurlencode (RFC 3986, space -> %20), NOT urlencode (space -> '+'):
+            // the frontend reads this fragment with decodeURIComponent, which does
+            // not turn '+' back into a space, so a UID with a space would corrupt.
+            // Matches the encodeURIComponent used for contact UIDs on the JS side.
+            $this->urlGenerator->linkToRoute('touchpoint.page.index') . '#contact/' . rawurlencode($uid)
         );
 
         $action = $this->actionFactory->newLinkAction(
