@@ -8,235 +8,179 @@ declare(strict_types=1);
 namespace OCA\Touchpoint\Tests\Unit\Db;
 
 use OCA\Touchpoint\Db\NoteMapper;
-use OCP\DB\QueryBuilder\IExpressionBuilder;
-use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IDBConnection;
-use PHPUnit\Framework\TestCase;
 
 /**
- * Unit tests for NoteMapper::searchAccessiblePage().
+ * Behavioural tests for NoteMapper::searchAccessiblePage() against a real
+ * in-memory SQLite database (see SqliteTestCase).
  *
- * These tests use mock objects to verify query-builder interactions (which
- * expressions are built, which parameters are bound). They do NOT verify that
- * the resulting SQL is correctly scoped — that predicate-isolation guarantee
- * is provided by the integration test in tests/Integration/Db/NoteMapperSearchTest.php.
+ * These tests insert real rows and assert on the notes the SHIPPED
+ * searchAccessiblePage() method actually returns. Unlike the previous
+ * mock-based version, they prove the security-critical property directly:
+ * the visibility predicate (owned OR shared) and the search predicate
+ * (title/content match) are ANDed together, so a note that is shared but does
+ * not match the term is excluded, and a note that matches the term but is
+ * neither owned nor shared is never returned. A mock can only prove that
+ * where()/andWhere() were called; it cannot prove the resulting SQL is
+ * correctly parenthesised. The cross-engine equivalent of this suite lives in
+ * tests/Integration/Db/NoteMapperSearchTest.php.
+ *
+ * SQLite LIKE is case-insensitive for ASCII only; fixture terms here are
+ * ASCII-only so results are deterministic on SQLite.
  */
-class NoteMapperSearchTest extends TestCase {
+class NoteMapperSearchTest extends SqliteTestCase {
 
-    private NoteMapper $mapper;
-    private IDBConnection $db;
-    private IQueryBuilder $qb;
-    private IExpressionBuilder $expr;
+    public function testSearchMatchesTitle(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'quarterly-report-note', 'content' => 'body']);
 
-    /** Tracks every orX() return value in call order, reset per test via setUp. */
-    private array $orXInstances = [];
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'quarterly-report', null, null);
 
-    protected function setUp(): void {
-        $this->db   = $this->createMock(IDBConnection::class);
-        $this->qb   = $this->createMock(IQueryBuilder::class);
-        $this->expr = $this->createMock(IExpressionBuilder::class);
-
-        $this->orXInstances = [];
-
-        $this->db->method('getQueryBuilder')->willReturn($this->qb);
-        $this->qb->method('expr')->willReturn($this->expr);
-        $this->qb->method('select')->willReturnSelf();
-        $this->qb->method('from')->willReturnSelf();
-        $this->qb->method('where')->willReturnSelf();
-        $this->qb->method('andWhere')->willReturnSelf();
-        $this->qb->method('orderBy')->willReturnSelf();
-        $this->qb->method('addOrderBy')->willReturnSelf();
-        $this->qb->method('setMaxResults')->willReturnSelf();
-        $this->qb->method('setFirstResult')->willReturnSelf();
-        $this->qb->method('createNamedParameter')->willReturn(':param');
-        $this->expr->method('eq')->willReturn('eq_expr');
-        $this->expr->method('in')->willReturn('in_expr');
-        $this->expr->method('iLike')->willReturn('ilike_expr');
-
-        // orX stub creates a trackable sink object on each call. The created
-        // objects are captured into $this->orXInstances so tests can assert on
-        // add() call counts per orX instance (visibility vs. search predicate).
-        $instances = &$this->orXInstances;
-        $this->expr->method('orX')->willReturnCallback(function (...$args) use (&$instances) {
-            $obj = new class {
-                public int $added = 0;
-                public function add($expr): void {
-                    $this->added++;
-                }
-            };
-            $instances[] = $obj;
-            return $obj;
-        });
-
-        $this->mapper = new NoteMapper($this->db);
+        $this->assertCount(1, $notes);
+        $this->assertSame('quarterly-report-note', $notes[0]->getTitle());
     }
 
-    // -------------------------------------------------------------------------
-    // (a) iLike called on both 'title' and 'content' in searchAccessiblePage
-    // -------------------------------------------------------------------------
+    public function testSearchMatchesContent(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'plain-title', 'content' => 'findable-content-keyword']);
 
-    public function testSearchAccessiblePageCallsILikeOnTitleAndContent(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'findable-content', null, null);
 
-        $ilikeCalls = [];
-        $this->expr->method('iLike')->willReturnCallback(function ($col, $param) use (&$ilikeCalls) {
-            $ilikeCalls[] = $col;
-            return 'ilike_expr';
-        });
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null);
-
-        $this->assertContains('title',   $ilikeCalls, 'iLike must be called on the title column');
-        $this->assertContains('content', $ilikeCalls, 'iLike must be called on the content column');
-        $this->assertCount(2, $ilikeCalls, 'iLike must be called exactly twice (once per column)');
+        $this->assertCount(1, $notes);
+        $this->assertSame('plain-title', $notes[0]->getTitle());
     }
 
-    // -------------------------------------------------------------------------
-    // (b) escapeLikeParameter invoked via buildLikePattern in searchAccessiblePage
-    // -------------------------------------------------------------------------
+    /**
+     * The central security claim: userA searching for a term that only
+     * appears in userB's (non-shared) note must get zero results. A flat-OR
+     * mis-parenthesisation of visibility/search would leak this note.
+     */
+    public function testUserBNoteNotReturnedWhenSearchingAsUserA(): void {
+        $this->insertNote(['user_id' => 'userB', 'title' => 'userB-secret-note', 'content' => 'private content of userB']);
 
-    public function testSearchAccessiblePageCallsEscapeLikeParameter(): void {
-        $this->db->expects($this->atLeastOnce())
-            ->method('escapeLikeParameter')
-            ->with('hello')
-            ->willReturn('hello');
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'userB-secret', null, null);
 
-        $this->mapper->searchAccessiblePage('userA', [], 'hello', null, null);
+        $this->assertCount(0, $notes, 'userA must not see userB note via search');
     }
 
-    // -------------------------------------------------------------------------
-    // (c) createNamedParameter wraps the pattern at the iLike call site
-    //     iLike must never receive a raw PHP string as its $y argument.
-    //     We verify this by checking that the $y arg passed to iLike() equals
-    //     the return value of createNamedParameter() (i.e. ':param').
-    // -------------------------------------------------------------------------
+    /**
+     * AND-semantics proof: a note explicitly shared with userA must NOT
+     * appear when it does not match the search term. A flat-OR
+     * (visibility OR search) would return every shared note regardless of
+     * term.
+     */
+    public function testSharedNoteWithNonMatchingTermIsExcluded(): void {
+        $sharedId = $this->insertNote(['user_id' => 'userB', 'title' => 'no-keyword-here', 'content' => 'also-no-keyword']);
 
-    public function testSearchAccessiblePageILikeReceivesNamedParameter(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [$sharedId], 'findme-term', null, null);
 
-        // createNamedParameter returns ':param'; iLike $y must equal that value.
-        $this->qb->method('createNamedParameter')->willReturn(':param');
+        $this->assertCount(0, $notes, 'Shared-but-non-matching note must be excluded');
+    }
 
-        $iLikeYArgs = [];
-        $this->expr->method('iLike')->willReturnCallback(function ($col, $y) use (&$iLikeYArgs) {
-            $iLikeYArgs[] = $y;
-            return 'ilike_expr';
-        });
+    public function testSharedNoteWithMatchingTermIsReturned(): void {
+        $sharedId = $this->insertNote(['user_id' => 'userB', 'title' => 'shared-with-userA', 'content' => 'shared-keyword-value']);
 
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null);
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [$sharedId], 'shared-keyword', null, null);
 
-        foreach ($iLikeYArgs as $y) {
-            $this->assertSame(':param', $y,
-                'iLike $y must be the named parameter placeholder, not a raw PHP string');
+        $this->assertCount(1, $notes);
+        $this->assertSame('shared-with-userA', $notes[0]->getTitle());
+    }
+
+    public function testOwnNoteWithNonMatchingTermIsExcluded(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'irrelevant-title', 'content' => 'irrelevant-content']);
+
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'xyzzy-not-in-note', null, null);
+
+        $this->assertCount(0, $notes);
+    }
+
+    public function testEachUserSeesOnlyOwnMatchingNotes(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'common-search-tag from userA', 'content' => 'bodyA']);
+        $this->insertNote(['user_id' => 'userB', 'title' => 'common-search-tag from userB', 'content' => 'bodyB']);
+
+        $notesA = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'common-search-tag', null, null);
+        $notesB = $this->makeNoteMapper()->searchAccessiblePage('userB', [], 'common-search-tag', null, null);
+
+        $this->assertCount(1, $notesA);
+        $this->assertSame('userA', $notesA[0]->getUserId());
+        $this->assertCount(1, $notesB);
+        $this->assertSame('userB', $notesB[0]->getUserId());
+    }
+
+    /**
+     * A literal '%' term must never match all rows (production
+     * escapeLikeParameter()/buildLikePattern() path). The security-relevant
+     * invariant holds on every engine: even if metacharacter neutralisation
+     * behaves differently across engines, the search predicate is ANDed with
+     * the visibility predicate, so it can only ever over/under-match the
+     * caller's own/shared rows — never leak across users.
+     */
+    public function testLiteralPercentTermDoesNotMatchAllRows(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'regular-note-no-percent', 'content' => 'ordinary body text']);
+
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], '%', null, null);
+
+        $this->assertCount(0, $notes, "A literal '%' term must never match all rows");
+    }
+
+    public function testEmptyTermDoesNotThrowAndScopesToOwner(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'anything']);
+        $this->insertNote(['user_id' => 'userB', 'title' => 'something-else']);
+
+        // NoteService intercepts blank terms before the mapper is called, but
+        // the mapper itself must handle an empty string gracefully. An empty
+        // pattern ('%%') matches every accessible row, never a cross-user one.
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], '', null, null);
+
+        $this->assertCount(1, $notes);
+        $this->assertSame('anything', $notes[0]->getTitle());
+    }
+
+    public function testLimitAndOffsetAreApplied(): void {
+        for ($i = 1; $i <= 5; $i++) {
+            $this->insertNote([
+                'user_id' => 'userA',
+                'title' => "match-me-$i",
+                'created_at' => "2026-01-0{$i} 00:00:00",
+            ]);
         }
+
+        $page = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'match-me', 2, 1);
+
+        $this->assertCount(2, $page);
+        // Newest-first default: match-me-5, match-me-4, match-me-3, match-me-2, match-me-1.
+        // Offset 1 => match-me-4, match-me-3.
+        $this->assertSame('match-me-4', $page[0]->getTitle());
+        $this->assertSame('match-me-3', $page[1]->getTitle());
     }
 
-    // -------------------------------------------------------------------------
-    // (d) WHERE is structured as two separate andWhere() calls (visibility orX
-    //     passed to where(), search orX passed to andWhere())
-    // -------------------------------------------------------------------------
+    public function testOldestSortAscends(): void {
+        $this->insertNote(['user_id' => 'userA', 'title' => 'match-first', 'created_at' => '2026-01-01 00:00:00']);
+        $this->insertNote(['user_id' => 'userA', 'title' => 'match-second', 'created_at' => '2026-01-02 00:00:00']);
 
-    public function testSearchAccessiblePageUsesWhereAndAndWhere(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', [], 'match', null, null, NoteMapper::SORT_OLDEST);
 
-        $this->qb->expects($this->atLeastOnce())->method('where')->willReturnSelf();
-        $this->qb->expects($this->atLeastOnce())->method('andWhere')->willReturnSelf();
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null);
+        $this->assertSame('match-first', $notes[0]->getTitle());
+        $this->assertSame('match-second', $notes[1]->getTitle());
     }
 
-    // -------------------------------------------------------------------------
-    // (e) Non-empty sharedIds: visibility orX contains eq('user_id') AND at
-    //     least one in('id') clause
-    // -------------------------------------------------------------------------
+    /**
+     * A shared-id set larger than the per-IN cap (900) must be chunked into
+     * OR(IN ...) groups while still ANDing with the search predicate. Proven
+     * here by having real shared+matching notes surface despite heavy padding
+     * with nonexistent ids across chunk boundaries.
+     */
+    public function testChunksLargeSharedIdSetAndStillAppliesSearchPredicate(): void {
+        $sharedIds = [];
+        for ($i = 0; $i < 3; $i++) {
+            $sharedIds[] = $this->insertNote(['user_id' => 'userB', 'title' => "chunked-match-$i", 'content' => 'body']);
+        }
+        // A shared note that does NOT match the term must still be excluded
+        // even with the chunked IN(...) visibility predicate.
+        $nonMatching = $this->insertNote(['user_id' => 'userB', 'title' => 'no-match-here', 'content' => 'body']);
+        $paddedSharedIds = array_merge($sharedIds, [$nonMatching], range(4000000, 4001999));
 
-    public function testSearchAccessiblePageNonEmptySharedIdsAddsInClause(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
+        $notes = $this->makeNoteMapper()->searchAccessiblePage('userA', $paddedSharedIds, 'chunked-match', null, null);
 
-        $this->mapper->searchAccessiblePage('userA', [1, 2, 3], 'foo', null, null);
-
-        // $this->orXInstances[0] is the visibility predicate (first orX created).
-        $this->assertNotEmpty($this->orXInstances, 'orX must be called at least once');
-        $visibilityOrX = $this->orXInstances[0];
-        // add() must have been called once (one chunk of [1, 2, 3])
-        $this->assertSame(1, $visibilityOrX->added,
-            'Visibility orX must have one in() branch added for the non-empty shared-id list');
-    }
-
-    // -------------------------------------------------------------------------
-    // (f) Empty sharedIds: visibility predicate is only eq('user_id'), no in()
-    // -------------------------------------------------------------------------
-
-    public function testSearchAccessiblePageEmptySharedIdsNoInClause(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null);
-
-        $this->assertNotEmpty($this->orXInstances);
-        $visibilityOrX = $this->orXInstances[0];
-        $this->assertSame(0, $visibilityOrX->added,
-            'With no shared ids, no in() branch should be added to the visibility orX');
-    }
-
-    // -------------------------------------------------------------------------
-    // (g) limit, offset, orderBy wired correctly
-    // -------------------------------------------------------------------------
-
-    public function testSearchAccessiblePageLimitAndOffsetWired(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
-
-        $this->qb->expects($this->once())->method('setMaxResults')->with(25)->willReturnSelf();
-        $this->qb->expects($this->once())->method('setFirstResult')->with(50)->willReturnSelf();
-        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'DESC')->willReturnSelf();
-        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'DESC')->willReturnSelf();
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', 25, 50);
-    }
-
-    public function testSearchAccessiblePageOldestSortAscends(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
-
-        $this->qb->expects($this->once())->method('orderBy')->with('created_at', 'ASC')->willReturnSelf();
-        $this->qb->expects($this->once())->method('addOrderBy')->with('id', 'ASC')->willReturnSelf();
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null, NoteMapper::SORT_OLDEST);
-    }
-
-    public function testSearchAccessiblePageNullLimitAndOffsetNotSet(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
-
-        $this->qb->expects($this->never())->method('setMaxResults');
-        $this->qb->expects($this->never())->method('setFirstResult');
-
-        $this->mapper->searchAccessiblePage('userA', [], 'foo', null, null);
-    }
-
-    // -------------------------------------------------------------------------
-    // (i) Empty $term builds a valid query without throwing
-    // -------------------------------------------------------------------------
-
-    public function testSearchAccessiblePageEmptyTermDoesNotThrow(): void {
-        $this->db->method('escapeLikeParameter')->with('')->willReturn('');
-
-        // Should not throw; NoteService intercepts blank terms before the mapper
-        // is called, but the mapper itself must handle empty string gracefully.
-        $this->mapper->searchAccessiblePage('userA', [], '', null, null);
-        $this->addToAssertionCount(1); // reached without exception
-    }
-
-    // -------------------------------------------------------------------------
-    // Additional: large sharedIds list is chunked (mirrors findAccessiblePage)
-    // -------------------------------------------------------------------------
-
-    public function testSearchAccessiblePageChunksLargeSharedIdSet(): void {
-        $this->db->method('escapeLikeParameter')->willReturn('foo');
-
-        // 2000 ids => 3 chunks (900 + 900 + 200)
-        $this->mapper->searchAccessiblePage('userA', range(1, 2000), 'foo', null, null);
-
-        $this->assertNotEmpty($this->orXInstances);
-        $visibilityOrX = $this->orXInstances[0];
-        $this->assertSame(3, $visibilityOrX->added,
-            'Expected 2000 shared ids to be chunked into 3 IN branches');
+        $this->assertCount(3, $notes, 'All matching shared notes must be found across chunk boundaries');
+        $titles = array_map(fn ($n) => $n->getTitle(), $notes);
+        $this->assertNotContains('no-match-here', $titles);
     }
 }

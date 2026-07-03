@@ -37,10 +37,93 @@ declare(strict_types=1);
 namespace OCA\Touchpoint\Tests\Integration\Db;
 
 use OCA\Touchpoint\Db\NoteMapper;
+use OCP\DB\IResult;
 use OCP\DB\QueryBuilder\IExpressionBuilder;
+use OCP\DB\QueryBuilder\IFunctionBuilder;
 use OCP\DB\QueryBuilder\IQueryBuilder;
 use OCP\IDBConnection;
 use PDO;
+
+/**
+ * Marker for a SQL function call built via IQueryBuilder::func(), e.g.
+ * COUNT(*) AS cnt. Rendered inline by select() below.
+ */
+final class PdoFunctionCall {
+    public function __construct(public string $sql) {
+    }
+}
+
+final class PdoFunctionBuilder implements IFunctionBuilder {
+    public function count($count, $alias = ''): PdoFunctionCall {
+        $expr = is_array($count) ? implode(', ', $count) : (string) $count;
+        $sql = "COUNT({$expr})";
+        if ($alias !== '') {
+            $sql .= " AS {$alias}";
+        }
+        return new PdoFunctionCall($sql);
+    }
+
+    public function charLength($field, $alias = ''): PdoFunctionCall {
+        $sql = "LENGTH({$field})";
+        if ($alias !== '') {
+            $sql .= " AS {$alias}";
+        }
+        return new PdoFunctionCall($sql);
+    }
+}
+
+/**
+ * Minimal OCP\DB\IResult implementation backed by an already-fetched row set,
+ * so mapper code that calls executeQuery() directly (bypassing
+ * QBMapper::findEntities()/findEntity(), e.g. NoteMapper::findSortKeysByIds()/
+ * countByNoteType()/findIdsByContact() and NoteSharingMapper::queryNoteIds())
+ * can be driven exactly as in production: fetch()-in-a-loop, fetchOne(),
+ * fetchAll(), closeCursor().
+ */
+final class PdoResult implements IResult {
+    private int $pos = 0;
+
+    /** @param array<int, array<string, mixed>> $rows */
+    public function __construct(private array $rows) {
+    }
+
+    public function closeCursor(): bool {
+        return true;
+    }
+
+    public function fetch(int $fetchMode = 0) {
+        if ($this->pos >= count($this->rows)) {
+            return false;
+        }
+        return $this->rows[$this->pos++];
+    }
+
+    public function fetchAll(int $fetchMode = 0): array {
+        $remaining = array_slice($this->rows, $this->pos);
+        $this->pos = count($this->rows);
+        return $remaining;
+    }
+
+    public function fetchColumn() {
+        return $this->fetchOne();
+    }
+
+    public function fetchOne() {
+        $row = $this->fetch();
+        if ($row === false) {
+            return false;
+        }
+        return array_values($row)[0] ?? false;
+    }
+
+    public function rowCount(): int {
+        return count($this->rows);
+    }
+
+    public function columnCount(): int {
+        return count($this->rows) > 0 ? count($this->rows[0]) : 0;
+    }
+}
 
 /**
  * Marker/holder for a composed boolean group (orX/andX). Renders to a
@@ -150,13 +233,17 @@ final class PdoQueryBuilder implements IQueryBuilder {
         return new PdoExpressionBuilder($this, $this->dbType);
     }
 
-    public function func() {
-        throw new \BadMethodCallException('func() not supported in PdoQueryBuilder');
+    public function func(): PdoFunctionBuilder {
+        return new PdoFunctionBuilder();
     }
 
     public function select(...$columns): static {
         $cols = [];
         foreach ($columns as $c) {
+            if ($c instanceof PdoFunctionCall) {
+                $cols[] = $c->sql;
+                continue;
+            }
             $cols[] = is_array($c) ? implode(', ', $c) : (string) $c;
         }
         $this->select = implode(', ', $cols) ?: '*';
@@ -255,14 +342,17 @@ final class PdoQueryBuilder implements IQueryBuilder {
 
     /**
      * Assemble the rendered SELECT and run it against the integration PDO.
-     * Returns the raw associative rows; the test mapper hydrates them.
-     *
-     * @return array<int, array<string, mixed>>
+     * Returns an IResult-compatible wrapper around the fetched rows so both
+     * calling conventions used by the production mappers work unmodified:
+     * QBMapper::findEntities()/findEntity() (which read $result->fetchAll()/
+     * iterate) and mapper methods that call executeQuery() directly and
+     * fetch()-loop or fetchOne() (e.g. findSortKeysByIds(), countByNoteType(),
+     * findIdsByContact(), NoteSharingMapper::queryNoteIds()).
      */
-    public function executeQuery(): array {
+    public function executeQuery(): PdoResult {
         $stmt = $this->pdo->prepare($this->getSQL());
         $stmt->execute($this->binds);
-        return $stmt->fetchAll();
+        return new PdoResult($stmt->fetchAll());
     }
 
     public function getSQL(): string {
@@ -332,7 +422,7 @@ final class IntegrationNoteMapper extends NoteMapper {
      * @return \OCA\Touchpoint\Db\Note[]
      */
     protected function findEntities($query): array {
-        $rows = $query->executeQuery();
+        $rows = $query->executeQuery()->fetchAll();
         $entities = [];
         foreach ($rows as $row) {
             // Hydrate only the scalar string columns the assertions read. The

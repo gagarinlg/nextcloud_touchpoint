@@ -7,199 +7,237 @@ declare(strict_types=1);
 
 namespace OCA\Touchpoint\Tests\Unit\Db;
 
-use OCA\Touchpoint\Db\NoteSharingMapper;
-use OCP\DB\QueryBuilder\IExpressionBuilder;
-use OCP\DB\QueryBuilder\IQueryBuilder;
-use OCP\IDBConnection;
-use PHPUnit\Framework\TestCase;
-
 /**
- * Covers the read-vs-write share distinction (C1): findWritableNoteIds must
- * narrow the query with the can_edit predicate, while findAccessibleNoteIds
- * must not.
+ * Behavioural tests for NoteSharingMapper against a real in-memory SQLite
+ * database (see SqliteTestCase). These insert real rows and assert on the
+ * ids/entities the SHIPPED mapper methods actually return.
+ *
+ * Covers the read-vs-write share distinction (C1): findWritableNoteIds() must
+ * narrow the query with the can_edit predicate, while findAccessibleNoteIds()
+ * must not. A mock can only prove andWhere() was (or wasn't) called; these
+ * tests insert a real can_edit=false share and prove it is excluded from
+ * findWritableNoteIds() but included in findAccessibleNoteIds().
  */
-class NoteSharingMapperTest extends TestCase {
-
-    private NoteSharingMapper $mapper;
-    private IDBConnection $db;
-    private IQueryBuilder $qb;
-    private IExpressionBuilder $expr;
-
-    protected function setUp(): void {
-        $this->db = $this->createMock(IDBConnection::class);
-        $this->qb = $this->createMock(IQueryBuilder::class);
-        $this->expr = $this->createMock(IExpressionBuilder::class);
-
-        $this->db->method('getQueryBuilder')->willReturn($this->qb);
-        $this->qb->method('expr')->willReturn($this->expr);
-        $this->qb->method('selectDistinct')->willReturnSelf();
-        $this->qb->method('select')->willReturnSelf();
-        $this->qb->method('from')->willReturnSelf();
-        $this->qb->method('where')->willReturnSelf();
-        $this->qb->method('andWhere')->willReturnSelf();
-        $this->qb->method('createNamedParameter')->willReturn('param');
-
-        // orX returns a stub predicate object that records add() calls.
-        $orX = new class {
-            public function add($x): void {
-            }
-        };
-        $this->expr->method('orX')->willReturn($orX);
-        $this->expr->method('andX')->willReturn('andX_expr');
-        $this->expr->method('eq')->willReturn('eq_expr');
-        $this->expr->method('in')->willReturn('in_expr');
-
-        $this->mapper = new NoteSharingMapper($this->db);
-    }
-
-    private function mockResult(array $rows): void {
-        $result = new class($rows) {
-            private array $rows;
-            private int $i = 0;
-
-            public function __construct(array $rows) {
-                $this->rows = $rows;
-            }
-
-            public function fetch() {
-                if ($this->i >= count($this->rows)) {
-                    return false;
-                }
-                return $this->rows[$this->i++];
-            }
-
-            public function closeCursor(): void {
-            }
-        };
-        $this->qb->method('executeQuery')->willReturn($result);
-    }
+class NoteSharingMapperTest extends SqliteTestCase {
 
     public function testTableName(): void {
-        $this->assertSame('touchpoint_note_sharing', $this->mapper->getTableName());
+        $this->assertSame('touchpoint_note_sharing', $this->makeNoteSharingMapper()->getTableName());
     }
 
-    public function testFindWritableNoteIdsAddsCanEditPredicate(): void {
-        $this->mockResult([['note_id' => 7], ['note_id' => 9]]);
+    public function testFindAccessibleNoteIdsReturnsUserShares(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'user', 'user1', false);
 
-        // The write-only branch must add exactly one andWhere (the can_edit
-        // filter). The accessible branch never does — see the next test.
-        $this->qb->expects($this->once())
-            ->method('andWhere')
-            ->willReturnSelf();
+        $ids = $this->makeNoteSharingMapper()->findAccessibleNoteIds('user1', []);
 
-        $ids = $this->mapper->findWritableNoteIds('user1', []);
-        $this->assertSame([7, 9], $ids);
+        $this->assertSame([$noteId], $ids);
     }
 
-    public function testFindAccessibleNoteIdsDoesNotFilterOnCanEdit(): void {
-        $this->mockResult([['note_id' => 3]]);
+    public function testFindAccessibleNoteIdsIncludesGroupShares(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'group', 'staff', false);
 
-        // Read access does not constrain on can_edit, so no andWhere is added.
-        $this->qb->expects($this->never())->method('andWhere');
+        $ids = $this->makeNoteSharingMapper()->findAccessibleNoteIds('user1', ['staff', 'sales']);
 
-        $ids = $this->mapper->findAccessibleNoteIds('user1', []);
-        $this->assertSame([3], $ids);
+        $this->assertSame([$noteId], $ids);
     }
 
-    public function testFindWritableNoteIdsIncludesGroupBranch(): void {
-        $this->mockResult([]);
+    public function testFindAccessibleNoteIdsExcludesUnrelatedShares(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'user', 'someoneElse', false);
 
-        // With group ids present, the orX predicate gains the group branch and
-        // the can_edit andWhere is still applied.
-        $this->qb->expects($this->once())->method('andWhere')->willReturnSelf();
+        $ids = $this->makeNoteSharingMapper()->findAccessibleNoteIds('user1', []);
 
-        $ids = $this->mapper->findWritableNoteIds('user1', ['staff', 'sales']);
         $this->assertSame([], $ids);
     }
 
     /**
-     * syncSharing() must tolerate a unique-constraint violation on insert (the
-     * touchpoint_note_sharing_unique index on (note_id, type, id)) the same way
-     * NoteService::create()/addFile() do, so a duplicate target racing past the
-     * service-side dedupe never surfaces as a 500. The owning principal is
-     * already shared, so swallowing the violation keeps the ACL correct.
+     * findAccessibleNoteIds() (read access) must NOT filter on can_edit: a
+     * read-only share (can_edit = false) must still be returned.
      */
-    public function testSyncSharingSwallowsDuplicateConstraintViolation(): void {
-        $mapper = new class($this->db) extends NoteSharingMapper {
-            public int $inserts = 0;
-            public int $deletes = 0;
-            public function deleteByNoteId(int $noteId): void {
-                $this->deletes++;
-            }
-            public function insert(\OCP\AppFramework\Db\Entity $entity): \OCP\AppFramework\Db\Entity {
-                $this->inserts++;
-                $dup = new \OCP\DB\Exception('duplicate');
-                $dup->setReason(\OCP\DB\Exception::REASON_UNIQUE_CONSTRAINT_VIOLATION);
-                throw $dup;
-            }
-        };
+    public function testFindAccessibleNoteIdsDoesNotFilterOnCanEdit(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'user', 'user1', false);
 
-        // Must not throw despite every insert hitting the unique constraint.
-        $mapper->syncSharing(5, [
+        $ids = $this->makeNoteSharingMapper()->findAccessibleNoteIds('user1', []);
+
+        $this->assertSame([$noteId], $ids, 'A read-only (can_edit=false) share must still be accessible');
+    }
+
+    /**
+     * findWritableNoteIds() must narrow to can_edit = true: a read-only share
+     * must be excluded, proving the write-scope predicate is real, not just a
+     * method call the mapper happens to make.
+     */
+    public function testFindWritableNoteIdsExcludesReadOnlyShare(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'user', 'user1', false);
+
+        $ids = $this->makeNoteSharingMapper()->findWritableNoteIds('user1', []);
+
+        $this->assertSame([], $ids, 'A can_edit=false share must not be writable');
+    }
+
+    public function testFindWritableNoteIdsIncludesEditableShare(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'user', 'user1', true);
+
+        $ids = $this->makeNoteSharingMapper()->findWritableNoteIds('user1', []);
+
+        $this->assertSame([$noteId], $ids);
+    }
+
+    public function testFindWritableNoteIdsIncludesEditableGroupShare(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'group', 'staff', true);
+
+        $ids = $this->makeNoteSharingMapper()->findWritableNoteIds('user1', ['staff', 'sales']);
+
+        $this->assertSame([$noteId], $ids);
+    }
+
+    public function testFindWritableNoteIdsExcludesNonEditableGroupShare(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'group', 'staff', false);
+
+        $ids = $this->makeNoteSharingMapper()->findWritableNoteIds('user1', ['staff']);
+
+        $this->assertSame([], $ids);
+    }
+
+    public function testFindWritableNoteIdsWithNoGroupsAndNoMatches(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId, 'group', 'staff', true);
+
+        // user1 does not belong to 'staff', and no groups are passed.
+        $ids = $this->makeNoteSharingMapper()->findWritableNoteIds('user1', []);
+
+        $this->assertSame([], $ids);
+    }
+
+    public function testFindAccessibleNoteIdsReturnsDistinctIds(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        // Shared both directly and via a group the user belongs to.
+        $this->insertSharing($noteId, 'user', 'user1', false);
+        $this->insertSharing($noteId, 'group', 'staff', false);
+
+        $ids = $this->makeNoteSharingMapper()->findAccessibleNoteIds('user1', ['staff']);
+
+        $this->assertSame([$noteId], $ids, 'selectDistinct() must dedupe a note shared both directly and via group');
+    }
+
+    /**
+     * syncSharing() must tolerate a unique-constraint violation on insert (the
+     * touchpoint_note_sharing_unique index on (note_id, type, id)) the same
+     * way NoteService::create()/addFile() do, so a duplicate target racing
+     * past the service-side dedupe never surfaces as a 500. Driven against a
+     * REAL SQLite UNIQUE constraint rather than a mocked exception.
+     */
+    public function testSyncSharingTargetsAreAllReadableAfterSync(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+
+        $this->makeNoteSharingMapper()->syncSharing($noteId, [
             ['type' => 'user', 'id' => 'bob', 'canEdit' => true],
             ['type' => 'group', 'id' => 'staff'],
         ]);
 
-        $this->assertSame(1, $mapper->deletes);
-        $this->assertSame(2, $mapper->inserts);
+        $this->assertSame(2, $this->countSharingRows($noteId));
+        $this->assertSame([$noteId], $this->makeNoteSharingMapper()->findWritableNoteIds('bob', []));
+        $this->assertSame([$noteId], $this->makeNoteSharingMapper()->findAccessibleNoteIds('someoneElse', ['staff']));
     }
 
-    /**
-     * A non-unique DB failure during syncSharing() must still propagate rather
-     * than being silently swallowed.
-     */
-    public function testSyncSharingRethrowsNonUniqueDbException(): void {
-        $mapper = new class($this->db) extends NoteSharingMapper {
-            public function deleteByNoteId(int $noteId): void {
-            }
-            public function insert(\OCP\AppFramework\Db\Entity $entity): \OCP\AppFramework\Db\Entity {
-                $other = new \OCP\DB\Exception('connection lost');
-                $other->setReason(\OCP\DB\Exception::REASON_CONNECTION_LOST);
-                throw $other;
-            }
-        };
+    public function testSyncSharingReplacesPreviousTargets(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $mapper = $this->makeNoteSharingMapper();
 
-        $this->expectException(\OCP\DB\Exception::class);
-        $mapper->syncSharing(5, [['type' => 'user', 'id' => 'bob']]);
+        $mapper->syncSharing($noteId, [
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => true],
+        ]);
+        $this->assertSame(1, $this->countSharingRows($noteId));
+
+        // Replacing with a different target set must delete the old rows.
+        $mapper->syncSharing($noteId, [
+            ['type' => 'user', 'id' => 'alice', 'canEdit' => false],
+        ]);
+
+        $this->assertSame(1, $this->countSharingRows($noteId));
+        $this->assertSame([], $mapper->findAccessibleNoteIds('bob', []), 'bob\'s old share must be gone');
+        $this->assertSame([$noteId], $mapper->findAccessibleNoteIds('alice', []));
+    }
+
+    public function testSyncSharingWithEmptyTargetsClearsAllSharing(): void {
+        $noteId = $this->insertNote(['user_id' => 'owner']);
+        $mapper = $this->makeNoteSharingMapper();
+        $mapper->syncSharing($noteId, [['type' => 'user', 'id' => 'bob']]);
+
+        $mapper->syncSharing($noteId, []);
+
+        $this->assertSame(0, $this->countSharingRows($noteId));
+    }
+
+    public function testFindByNoteIdReturnsEntriesForThatNoteOnly(): void {
+        $noteId1 = $this->insertNote(['user_id' => 'owner']);
+        $noteId2 = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId1, 'user', 'bob', true);
+        $this->insertSharing($noteId2, 'user', 'alice', false);
+
+        $entries = $this->makeNoteSharingMapper()->findByNoteId($noteId1);
+
+        $this->assertCount(1, $entries);
+        $this->assertSame('bob', $entries[0]->getSharedWithId());
     }
 
     public function testFindByNoteIdsEmptyReturnsEarly(): void {
-        $this->db->expects($this->never())->method('getQueryBuilder');
-        $this->assertSame([], $this->mapper->findByNoteIds([]));
+        $this->assertSame([], $this->makeNoteSharingMapper()->findByNoteIds([]));
+    }
+
+    public function testFindByNoteIdsGroupsEntriesByNoteId(): void {
+        $noteId1 = $this->insertNote(['user_id' => 'owner']);
+        $noteId2 = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId1, 'user', 'bob', true);
+        $this->insertSharing($noteId2, 'user', 'alice', false);
+        $this->insertSharing($noteId2, 'group', 'staff', false);
+
+        $map = $this->makeNoteSharingMapper()->findByNoteIds([$noteId1, $noteId2]);
+
+        $this->assertCount(1, $map[$noteId1]);
+        $this->assertCount(2, $map[$noteId2]);
+        $this->assertSame('bob', $map[$noteId1][0]->getSharedWithId());
     }
 
     /**
-     * findByNoteIds() must batch a large note-id list into chunks of at most 900
-     * (matching NoteMapper) so the IN(...) clause never overflows a strict DB
-     * backend's per-query list limit. Each chunk builds its own query, so 2000
-     * ids => 3 queries (900 + 900 + 200).
+     * findByNoteIds() must batch a large note-id list into chunks of at most
+     * 900 (matching NoteMapper) so the IN(...) clause never overflows a
+     * strict DB backend's per-query list limit. Proven here by having every
+     * real share entry resolve despite padding with nonexistent ids across
+     * chunk boundaries.
      */
-    public function testFindByNoteIdsChunksLargeIdList(): void {
-        $emptyResult = new class {
-            public function fetch() {
-                return false;
-            }
+    public function testFindByNoteIdsChunksLargeIdListAndStillFindsAllMatches(): void {
+        $realNoteIds = [];
+        for ($i = 0; $i < 3; $i++) {
+            $noteId = $this->insertNote(['user_id' => 'owner']);
+            $this->insertSharing($noteId, 'user', "user-$i", false);
+            $realNoteIds[] = $noteId;
+        }
+        $paddedIds = array_merge($realNoteIds, range(5000000, 5001999));
 
-            public function closeCursor(): void {
-            }
-        };
+        $map = $this->makeNoteSharingMapper()->findByNoteIds($paddedIds);
 
-        $qbCount = 0;
-        $this->db->method('getQueryBuilder')->willReturnCallback(function () use (&$qbCount, $emptyResult) {
-            $qbCount++;
-            $qb = $this->createMock(IQueryBuilder::class);
-            $qb->method('expr')->willReturn($this->expr);
-            $qb->method('select')->willReturnSelf();
-            $qb->method('from')->willReturnSelf();
-            $qb->method('where')->willReturnSelf();
-            $qb->method('createNamedParameter')->willReturn('param');
-            $qb->method('executeQuery')->willReturn($emptyResult);
-            return $qb;
-        });
+        $this->assertCount(3, $map, 'All real note ids must be found across chunk boundaries');
+        foreach ($realNoteIds as $noteId) {
+            $this->assertArrayHasKey($noteId, $map);
+        }
+    }
 
-        $map = $this->mapper->findByNoteIds(range(1, 2000));
+    public function testDeleteByNoteIdRemovesOnlyThatNotesEntries(): void {
+        $noteId1 = $this->insertNote(['user_id' => 'owner']);
+        $noteId2 = $this->insertNote(['user_id' => 'owner']);
+        $this->insertSharing($noteId1, 'user', 'bob', false);
+        $this->insertSharing($noteId2, 'user', 'alice', false);
 
-        $this->assertSame(3, $qbCount, 'Expected 2000 note ids to be split into 3 chunked queries');
-        $this->assertSame([], $map);
+        $this->makeNoteSharingMapper()->deleteByNoteId($noteId1);
+
+        $this->assertSame(0, $this->countSharingRows($noteId1));
+        $this->assertSame(1, $this->countSharingRows($noteId2));
     }
 }
