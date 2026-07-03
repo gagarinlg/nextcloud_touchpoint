@@ -16,6 +16,7 @@ use OCA\Touchpoint\Db\NoteFileMapper;
 use OCA\Touchpoint\Db\NoteMapper;
 use OCA\Touchpoint\Db\NoteSharing;
 use OCA\Touchpoint\Db\NoteSharingMapper;
+use OCA\Touchpoint\Notification\NotificationService;
 use OCP\AppFramework\Db\DoesNotExistException;
 use OCP\AppFramework\Db\MultipleObjectsReturnedException;
 use OCP\DB\Exception as DBException;
@@ -49,6 +50,21 @@ class NoteService {
     public const MAX_CONTACT_PAGE_SIZE = 200;
     /** Default page size for findByContact() when the caller does not specify one. */
     public const DEFAULT_CONTACT_PAGE_SIZE = 50;
+    /**
+     * Maximum number of distinct share targets accepted in a single
+     * create()/update() `sharing` payload. Mirrors
+     * SettingsService::MAX_SHARE_TARGETS, but is enforced by REJECTING the
+     * request (NoteValidationException -> HTTP 400) rather than silently
+     * truncating: unlike a user's own saved defaults (harmless to trim
+     * silently), a note's sharing list is a security-relevant ACL, and a
+     * silent truncation here would leave the caller believing principals were
+     * shared with when they were not. Checked BEFORE the per-target
+     * principalExists() DB lookup loop runs, so the lookup cost itself is
+     * bounded — a payload listing thousands of distinct (real or fabricated)
+     * group/user ids cannot force thousands of sequential DB round-trips
+     * inside one HTTP request.
+     */
+    private const MAX_SHARE_TARGETS_PER_REQUEST = 100;
 
     public function __construct(
         private NoteMapper $mapper,
@@ -59,6 +75,7 @@ class NoteService {
         private NoteTypeService $noteTypeService,
         private IRootFolder $rootFolder,
         private LoggerInterface $logger,
+        private NotificationService $notificationService,
     ) {
     }
 
@@ -94,10 +111,29 @@ class NoteService {
         }
         try {
             $this->noteTypeService->find($noteTypeId, $userId);
-        } catch (NoteTypeNotFoundException $e) {
+        } catch (NoteTypeNotFoundException) {
             throw new NoteValidationException('Invalid note type');
         }
         return $noteTypeId;
+    }
+
+    /**
+     * Reject a `sharing` payload whose RAW entry count already exceeds
+     * MAX_SHARE_TARGETS_PER_REQUEST, before any per-target principalExists()
+     * DB lookup runs — see that constant's docblock. Called both up front in
+     * create()/update() (so an over-long list never leaves a half-completed
+     * note/share state behind) and defensively again inside
+     * sanitiseShareTargets().
+     *
+     * @param array<array{type?: string, id?: string, canEdit?: bool}>|null $targets
+     * @throws NoteValidationException
+     */
+    private function assertShareTargetCount(?array $targets): void {
+        if ($targets !== null && count($targets) > self::MAX_SHARE_TARGETS_PER_REQUEST) {
+            throw new NoteValidationException(
+                'Too many share targets: must not exceed ' . self::MAX_SHARE_TARGETS_PER_REQUEST
+            );
+        }
     }
 
     /**
@@ -107,8 +143,10 @@ class NoteService {
      *
      * @param array<array{type?: string, id?: string, canEdit?: bool}> $targets
      * @return array<array{type: string, id: string, canEdit: bool}>
+     * @throws NoteValidationException
      */
     private function sanitiseShareTargets(array $targets): array {
+        $this->assertShareTargetCount($targets);
         $clean = [];
         $seen  = [];
         foreach ($targets as $target) {
@@ -330,9 +368,79 @@ class NoteService {
             // id throws DoesNotExistException; surface it as a clean 404 rather
             // than letting it escape to the generic 500 handler.
             throw new NoteNotFoundException("Note $id not found");
-        } catch (MultipleObjectsReturnedException $e) {
+        } catch (MultipleObjectsReturnedException) {
             throw new NoteNotFoundException('Note not found');
         }
+    }
+
+    /**
+     * Whether note $id still exists at all, REGARDLESS of the caller's
+     * access rights to it (no user/sharing scoping, unlike find()). Used by
+     * Notifier's @mention self-cleanup check: an @mention notification must
+     * only be garbage-collected once the note is actually gone, never merely
+     * because the mentioned recipient lacks a share — @mention is
+     * deliberately usable on a user with no prior relationship to the note
+     * (see docs/API.md's Notifications policy note), so gating its
+     * self-cleanup on the same access check as note_shared would delete the
+     * notification before the mentioned user ever has a chance to see it.
+     */
+    public function noteExists(int $id): bool {
+        try {
+            $this->mapper->findByIdPublic($id);
+            return true;
+        } catch (DoesNotExistException) {
+            return false;
+        } catch (MultipleObjectsReturnedException) {
+            return true;
+        }
+    }
+
+    /**
+     * Whether $userId currently has read access to note $id (owner, public
+     * mode, or an outstanding user/group share) — a lighter-weight
+     * equivalent of find() succeeding, without the enrichNote() overhead
+     * (which pulls in the contact junction, file, and sharing mappers plus
+     * group-membership lookups for audit visibility, none of which this
+     * boolean check needs). Used by Notifier::assertNoteStillAccessible(),
+     * which is invoked once per stored note_shared notification on every
+     * bell/mobile fetch and previously discarded a fully-enriched Note just
+     * to check "did this throw".
+     *
+     * Mirrors find()'s access resolution exactly (public mode / ownership /
+     * outstanding share), loading only the bare note row plus, for the
+     * non-owner path, the same accessible-id lookup find() already performs
+     * — no enrichment step is added on top of that.
+     */
+    public function isAccessible(int $id, string $userId): bool {
+        try {
+            if ($this->settingsService->isNotesPublic()) {
+                $this->mapper->findByIdPublic($id);
+                return true;
+            }
+            try {
+                $this->mapper->findById($id, $userId);
+                return true;
+            } catch (DoesNotExistException) {
+                return $this->hasOutstandingShare($id, $userId);
+            }
+        } catch (DoesNotExistException) {
+            return false;
+        } catch (MultipleObjectsReturnedException) {
+            return false;
+        }
+    }
+
+    /**
+     * Whether $userId has an outstanding (user- or group-based) share on note
+     * $id — the common tail of isAccessible() and userHasAccessToNote() once
+     * their respective owner/public-mode fast paths have already ruled out a
+     * cheaper positive answer. Not a full access check on its own: callers
+     * must handle ownership and public-mode themselves first.
+     */
+    private function hasOutstandingShare(int $id, string $userId): bool {
+        $groupIds = $this->settingsService->getUserGroupIds($userId);
+        $accessible = $this->noteSharingMapper->findAccessibleNoteIds($userId, $groupIds);
+        return in_array($id, $accessible, true);
     }
 
     /**
@@ -555,6 +663,10 @@ class NoteService {
         foreach ($contactUids as $uid) {
             $this->assertMaxLength((string)$uid, self::MAX_CONTACT_UID_LENGTH, 'Contact');
         }
+        // Validate the share-target count up front too, before any row is
+        // inserted — same "no half-completed create" rationale as above. See
+        // MAX_SHARE_TARGETS_PER_REQUEST's docblock.
+        $this->assertShareTargetCount($sharing);
         $noteTypeId = $this->assertNoteTypeVisible($noteTypeId, $userId);
 
         $now = new DateTime();
@@ -582,16 +694,37 @@ class NoteService {
 
         $note = $this->mapper->insert($note);
 
-        // Link to contacts via junction table
+        // Link to contacts via junction table. touchpoint_note_contacts has no
+        // rows yet for a brand-new note, so the primary contact_uid must be
+        // folded into the set here (update()'s equivalent step instead starts
+        // from a full deleteByNoteId(), since it's resyncing an existing set).
         $allUids = $contactUids;
         if ($contactUid !== '' && !in_array($contactUid, $allUids, true)) {
             $allUids[] = $contactUid;
         }
-        // Deduplicate to avoid violating the (note_id, contact_uid) unique index
-        $allUids = array_values(array_unique(array_filter($allUids, fn ($u) => $u !== '')));
-        foreach ($allUids as $uid) {
+        $this->syncNoteContacts($note->getId(), $addressbookId, $allUids);
+
+        $this->applyInitialSharingAndNotify($note, $userId, $sharing);
+        $this->notifyMentions($note, $userId, $note->getContent(), $note->getTitle());
+
+        return $this->enrichNote($note, $userId);
+    }
+
+    /**
+     * Replace the full junction-table contact set for $noteId with $uids
+     * (deduplicated; blanks filtered). Used identically by create() (seeding
+     * the initial set, including the primary contact) and update() (resyncing
+     * an edited set) — the (note_id, contact_uid) unique index is enforced at
+     * the DB level, so a duplicate insert attempt is swallowed rather than
+     * treated as an error.
+     *
+     * @param list<string> $uids
+     */
+    private function syncNoteContacts(int $noteId, int $addressbookId, array $uids): void {
+        $uids = array_values(array_unique(array_filter($uids, fn ($u) => $u !== '')));
+        foreach ($uids as $uid) {
             $nc = new NoteContact();
-            $nc->setNoteId($note->getId());
+            $nc->setNoteId($noteId);
             $nc->setContactUid($uid);
             $nc->setAddressbookId($addressbookId);
             try {
@@ -603,17 +736,87 @@ class NoteService {
                 // Duplicate link — ignore, the contact is already attached.
             }
         }
+    }
 
-        // Apply explicit sharing if provided, otherwise use user defaults.
-        // Validate principals so no bogus type or phantom id is persisted.
+    /**
+     * create()'s sharing step: apply explicit sharing if provided, otherwise
+     * fall back to the user's configured defaults, then notify every
+     * resulting target (group targets expanded to their current members) —
+     * on create every target is by definition newly added. Best-effort:
+     * NotificationService swallows and logs its own failures, so a
+     * notification error can never fail the create.
+     */
+    private function applyInitialSharingAndNotify(Note $note, string $userId, ?array $sharing): void {
         $targets = $this->sanitiseShareTargets(
             $sharing ?? $this->settingsService->getUserShareTargets($userId)
         );
         if (!empty($targets)) {
             $this->noteSharingMapper->syncSharing($note->getId(), $targets);
         }
+        $this->notifyShareTargets($note->getId(), $userId, $targets, $note->getTitle());
+    }
 
-        return $this->enrichNote($note, $userId);
+    /**
+     * Notify the individual users behind a set of {type, id} share targets
+     * (groups expanded to members) that $actorUserId shared note $noteId with
+     * them. The actor themselves is never notified — enforced both here
+     * (defense in depth) and inside NotificationService.
+     *
+     * @param array<array{type: string, id: string, canEdit?: bool}> $targets
+     */
+    private function notifyShareTargets(int $noteId, string $actorUserId, array $targets, string $noteTitle = ''): void {
+        if (empty($targets)) {
+            return;
+        }
+        $userIds = $this->notificationService->expandShareTargetsToUserIds($targets, $actorUserId);
+        foreach ($userIds as $targetUserId) {
+            $this->notificationService->sendShareNotification($noteId, $actorUserId, $targetUserId, $noteTitle);
+        }
+    }
+
+    /**
+     * Scan note content for @userId mentions and notify each one that resolves
+     * to a real, existing user. The actor is never notified about mentioning
+     * themselves — enforced both here and inside NotificationService.
+     *
+     * @mention is deliberately usable on a user with no prior share/ownership
+     * relationship to the note (see docs/API.md's Notifications policy note)
+     * — but the note's TITLE must not be disclosed to such a user via the
+     * notification's subject/push-preview text, since they cannot yet open
+     * the note to see it themselves. The title is included only for a
+     * mentioned user who already has access (owner, public mode, or an
+     * outstanding share); a user without access instead gets the title-less
+     * fallback wording (Notifier::prepareActorSubject()'s $fallbackFormat).
+     */
+    private function notifyMentions(Note $note, string $actorUserId, ?string $content, string $noteTitle = ''): void {
+        $mentioned = $this->notificationService->extractMentionedUserIds($content, $actorUserId);
+        foreach ($mentioned as $mentionedUserId) {
+            $titleForRecipient = $this->userHasAccessToNote($note, $mentionedUserId) ? $noteTitle : '';
+            $this->notificationService->sendMentionNotification($note->getId(), $actorUserId, $mentionedUserId, $titleForRecipient);
+        }
+    }
+
+    /**
+     * Whether $userId currently has read access to $note (owner, public
+     * mode, or an outstanding user/group share) — a lighter-weight
+     * equivalent of find() succeeding, without the enrichNote() overhead,
+     * since this is evaluated once per mentioned user (up to
+     * NotificationService::MAX_MENTIONS_PER_NOTE times per save). Used to
+     * decide whether it is safe to disclose the note's title to a mentioned
+     * user who has not yet been granted access.
+     *
+     * Query cost: when notes are not public and $userId is not the owner,
+     * this issues up to 2 DB queries (getUserGroupIds() + findAccessibleNoteIds()),
+     * so a single create()/update() call can add up to
+     * 2 * NotificationService::MAX_MENTIONS_PER_NOTE synchronous round-trips
+     * in the worst case (many distinct non-owner mentions). Bounded by that
+     * cap; not memoized since 50 is already a hard ceiling per save.
+     */
+    private function userHasAccessToNote(Note $note, string $userId): bool {
+        if ($this->settingsService->isNotesPublic() || $note->getUserId() === $userId) {
+            return true;
+        }
+        return $this->hasOutstandingShare($note->getId(), $userId);
     }
 
     /**
@@ -646,6 +849,21 @@ class NoteService {
                 $this->assertMaxLength((string)$uid, self::MAX_CONTACT_UID_LENGTH, 'Contact');
             }
         }
+        // Only validated up front when the caller can actually manage sharing
+        // (owner, or public mode) — mirrors the gate around sanitiseShareTargets()
+        // below: a non-owner's sharing field is silently ignored regardless of
+        // its shape, so it must not fail an otherwise-valid content/title edit.
+        if ($sharing !== null && $this->canManageSharing($note, $userId)) {
+            $this->assertShareTargetCount($sharing);
+        }
+
+        // Snapshot the content BEFORE it is overwritten, so mention-notification
+        // dispatch below can tell an actual edit from a byte-identical resave.
+        // Without this diff, any write-access caller could re-POST the same
+        // content over and over and re-trigger a fresh note_mention
+        // notification to up to 50 mentioned users on every call — a
+        // notification-spam primitive against users who never asked for it.
+        $previousContent = $note->getContent();
 
         if ($title !== null) {
             $note->setTitle($title);
@@ -670,23 +888,11 @@ class NoteService {
 
         $note = $this->mapper->update($note);
 
-        // Sync contacts if provided
+        // Sync contacts if provided — unlike create(), this resyncs an
+        // existing set, so the junction table is cleared first.
         if ($contactUids !== null) {
-            $uids = array_values(array_unique(array_filter($contactUids, fn ($u) => $u !== '')));
             $this->noteContactMapper->deleteByNoteId($note->getId());
-            foreach ($uids as $uid) {
-                $nc = new NoteContact();
-                $nc->setNoteId($note->getId());
-                $nc->setContactUid($uid);
-                $nc->setAddressbookId($note->getAddressbookId());
-                try {
-                    $this->noteContactMapper->insert($nc);
-                } catch (DBException $e) {
-                    if ($e->getReason() !== DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION) {
-                        throw $e;
-                    }
-                }
-            }
+            $this->syncNoteContacts($note->getId(), $note->getAddressbookId(), $contactUids);
         }
 
         // Sync sharing if provided — but managing a note's sharing/ACL is an
@@ -695,13 +901,59 @@ class NoteService {
         // own share to can_edit, or strip the owner's other shares. Silently
         // ignore the sharing field for non-owners (unless notes are public).
         if ($sharing !== null && $this->canManageSharing($note, $userId)) {
-            $this->noteSharingMapper->syncSharing(
-                $note->getId(),
-                $this->sanitiseShareTargets($sharing)
-            );
+            $this->syncSharingAndNotifyAdded($note, $userId, $sharing);
+        }
+
+        // Only rescan/notify when the content actually changed — a resubmit of
+        // byte-identical content (e.g. a save that only touches the title,
+        // pinned flag, or contact list, since the frontend always includes
+        // `content` in its payload) must not re-notify every mentioned user.
+        if ($content !== null && $content !== $previousContent) {
+            $this->notifyMentions($note, $userId, $content, $note->getTitle());
         }
 
         return $this->enrichNote($note, $userId);
+    }
+
+    /**
+     * update()'s sharing step: replace the note's sharing set with $sharing,
+     * then notify only the targets newly added in this call (a recipient
+     * re-saved into the same share list, or one whose canEdit flag merely
+     * changed, must not be re-notified). Only called when the caller is
+     * already confirmed to be allowed to manage sharing.
+     */
+    private function syncSharingAndNotifyAdded(Note $note, string $userId, array $sharing): void {
+        // Snapshot the pre-update sharing set BEFORE syncSharing() replaces
+        // it, so newly-added targets can be diffed out below and only those
+        // get a notification.
+        $before = $this->noteSharingMapper->findByNoteId($note->getId());
+        $newTargets = $this->sanitiseShareTargets($sharing);
+
+        $this->noteSharingMapper->syncSharing($note->getId(), $newTargets);
+
+        $addedTargets = $this->diffNewShareTargets($before, $newTargets);
+        $this->notifyShareTargets($note->getId(), $userId, $addedTargets, $note->getTitle());
+    }
+
+    /**
+     * Return the subset of $newTargets that were NOT already present in
+     * $before, keyed by (type, id) — a target already shared is not "newly
+     * added" even if its canEdit flag changed, so recipients are not
+     * re-notified every time the owner tweaks edit permissions.
+     *
+     * @param NoteSharing[] $before
+     * @param array<array{type: string, id: string, canEdit?: bool}> $newTargets
+     * @return array<array{type: string, id: string, canEdit?: bool}>
+     */
+    private function diffNewShareTargets(array $before, array $newTargets): array {
+        $existing = [];
+        foreach ($before as $ns) {
+            $existing[$ns->getSharedWithType() . ':' . $ns->getSharedWithId()] = true;
+        }
+        return array_values(array_filter(
+            $newTargets,
+            fn (array $t) => !isset($existing[$t['type'] . ':' . $t['id']])
+        ));
     }
 
     /**
@@ -723,6 +975,12 @@ class NoteService {
         $this->noteFileMapper->deleteByNoteId($note->getId());
         $this->noteSharingMapper->deleteByNoteId($note->getId());
         $this->mapper->delete($note);
+        // Best-effort: any note_shared/note_mention notification still
+        // pointing at this now-deleted note is dismissed for every recipient,
+        // rather than left as a dead-end bell/mobile entry. Swallows and logs
+        // its own failures (see NotificationService), so this can never fail
+        // the delete that triggered it.
+        $this->notificationService->dismissNoteNotifications($note->getId());
         return $note;
     }
 

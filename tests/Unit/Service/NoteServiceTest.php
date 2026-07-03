@@ -14,8 +14,10 @@ use OCA\Touchpoint\Db\NoteContactMapper;
 use OCA\Touchpoint\Db\NoteFile;
 use OCA\Touchpoint\Db\NoteFileMapper;
 use OCA\Touchpoint\Db\NoteMapper;
+use OCA\Touchpoint\Db\NoteSharing;
 use OCA\Touchpoint\Db\NoteSharingMapper;
 use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Notification\NotificationService;
 use OCA\Touchpoint\Service\NoteForbiddenException;
 use OCA\Touchpoint\Service\NoteNotFoundException;
 use OCA\Touchpoint\Service\NoteService;
@@ -42,6 +44,7 @@ class NoteServiceTest extends TestCase {
     private NoteTypeService $noteTypeService;
     private IRootFolder $rootFolder;
     private LoggerInterface $logger;
+    private NotificationService $notificationService;
 
     protected function setUp(): void {
         $this->mapper = $this->createMock(NoteMapper::class);
@@ -52,6 +55,7 @@ class NoteServiceTest extends TestCase {
         $this->noteTypeService = $this->createMock(NoteTypeService::class);
         $this->rootFolder = $this->createMock(IRootFolder::class);
         $this->logger = $this->createMock(LoggerInterface::class);
+        $this->notificationService = $this->createMock(NotificationService::class);
 
         // Default: any referenced note type is visible to the caller.
         $this->noteTypeService->method('find')->willReturn(new NoteType());
@@ -86,6 +90,7 @@ class NoteServiceTest extends TestCase {
             $this->noteTypeService,
             $this->rootFolder,
             $this->logger,
+            $this->notificationService,
         );
     }
 
@@ -186,6 +191,86 @@ class NoteServiceTest extends TestCase {
 
         $this->expectException(NoteNotFoundException::class);
         $this->service->find(1, 'user1');
+    }
+
+    // ── isAccessible(): lighter-weight boolean equivalent of find() succeeding ─
+
+    public function testIsAccessibleTrueForOwner(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('user1');
+
+        $this->mapper->expects($this->once())
+            ->method('findById')
+            ->with(1, 'user1')
+            ->willReturn($note);
+
+        $this->assertTrue($this->service->isAccessible(1, 'user1'));
+    }
+
+    public function testIsAccessibleFalseWhenNotOwnerAndNotShared(): void {
+        $this->mapper->expects($this->once())
+            ->method('findById')
+            ->willThrowException(new DoesNotExistException('Not found'));
+        $this->noteSharingMapper->method('findAccessibleNoteIds')->willReturn([]);
+
+        $this->assertFalse($this->service->isAccessible(1, 'user2'));
+    }
+
+    public function testIsAccessibleTrueWhenSharedWithCaller(): void {
+        // setUp() already registers an unconstrained findAccessibleNoteIds()
+        // => [] stub; PHPUnit resolves an unconstrained ->method() stub to the
+        // FIRST one registered, so re-stubbing $this->noteSharingMapper here
+        // would be silently ignored. Use a fresh mapper mock + fresh service.
+        $this->mapper->expects($this->once())
+            ->method('findById')
+            ->willThrowException(new DoesNotExistException('Not found'));
+        $this->noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $this->noteSharingMapper->method('findAccessibleNoteIds')->willReturn([1]);
+        $this->service = $this->makeService();
+
+        $this->assertTrue($this->service->isAccessible(1, 'user2'));
+    }
+
+    public function testIsAccessibleTrueWhenNotesArePublic(): void {
+        $this->settingsService = $this->createMock(SettingsService::class);
+        $this->settingsService->method('isNotesPublic')->willReturn(true);
+        $this->service = $this->makeService();
+
+        $note = new Note();
+        $note->setId(1);
+        $this->mapper->expects($this->once())
+            ->method('findByIdPublic')
+            ->with(1)
+            ->willReturn($note);
+
+        $this->assertTrue($this->service->isAccessible(1, 'anyone'));
+    }
+
+    public function testIsAccessibleFalseWhenNoteDoesNotExistAtAllInPublicMode(): void {
+        $this->settingsService = $this->createMock(SettingsService::class);
+        $this->settingsService->method('isNotesPublic')->willReturn(true);
+        $this->service = $this->makeService();
+
+        $this->mapper->expects($this->once())
+            ->method('findByIdPublic')
+            ->willThrowException(new DoesNotExistException('Not found'));
+
+        $this->assertFalse($this->service->isAccessible(999, 'anyone'));
+    }
+
+    public function testIsAccessibleDoesNotEnrichNote(): void {
+        // Regression: isAccessible() must never touch the contact/file/sharing
+        // enrichment mappers — only the boolean access result is needed.
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('user1');
+        $this->mapper->expects($this->once())->method('findById')->willReturn($note);
+        $this->noteContactMapper->expects($this->never())->method('findByNoteId');
+        $this->noteFileMapper->expects($this->never())->method('findByNoteId');
+        $this->noteSharingMapper->expects($this->never())->method('findByNoteId');
+
+        $this->assertTrue($this->service->isAccessible(1, 'user1'));
     }
 
     public function testFindByContact(): void {
@@ -429,6 +514,7 @@ class NoteServiceTest extends TestCase {
             $noteTypeService,
             $rootFolder,
             $logger,
+            $this->notificationService,
         );
 
         $result = $service->findByContact('contact-x', 'recipient');
@@ -437,7 +523,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testFindByContactDoesNotRefetchOwnedSortKeys(): void {
-        // GRUMPY DEV #2: in private mode the owner-scoped sort-key lookup already
+        // In private mode the owner-scoped sort-key lookup already
         // returns the caller's rows WITH their sort keys. The second (unscoped)
         // pass must only fetch the shared-but-not-owned remainder, never re-query
         // the owned ids. Candidates: 1 (owned), 2 (owned), 42 (shared, not owned).
@@ -496,6 +582,7 @@ class NoteServiceTest extends TestCase {
         $service = new NoteService(
             $mapper, $noteContactMapper, $noteFileMapper, $noteSharingMapper,
             $settingsService, $noteTypeService, $rootFolder, $logger,
+            $this->notificationService,
         );
 
         $result = $service->findByContact('c', 'recipient');
@@ -637,6 +724,30 @@ class NoteServiceTest extends TestCase {
         $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
     }
 
+    public function testCreateRejectsShareTargetListAboveCap(): void {
+        // NoteService::MAX_SHARE_TARGETS_PER_REQUEST = 100. The cap must be
+        // enforced on the RAW input count before any per-target
+        // principalExists() DB lookup, so it rejects even when every listed
+        // principal would otherwise resolve (principalExists() mocked true
+        // in setUp()). The note row itself is inserted before sharing is
+        // sanitised, so this only asserts the sharing side effects (rows +
+        // notifications) never happen — not that the whole create() is a
+        // no-op.
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(10); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $sharing = [];
+        for ($i = 0; $i < 101; $i++) {
+            $sharing[] = ['type' => 'user', 'id' => 'user' . $i, 'canEdit' => false];
+        }
+
+        $this->noteSharingMapper->expects($this->never())->method('syncSharing');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
+    }
+
     public function testUpdateTitle(): void {
         $note = new Note();
         $note->setId(1);
@@ -705,6 +816,25 @@ class NoteServiceTest extends TestCase {
 
         $result = $this->service->delete(1, 'user1');
         $this->assertSame('To delete', $result->getTitle());
+    }
+
+    /**
+     * delete() dismisses any outstanding note_shared/note_mention notification
+     * for the deleted note, so a recipient does not keep a dead-end bell entry
+     * pointing at a note that no longer exists.
+     */
+    public function testDeleteDismissesOutstandingNotifications(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('user1');
+
+        $this->mapper->method('findById')->with(1, 'user1')->willReturn($note);
+
+        $this->notificationService->expects($this->once())
+            ->method('dismissNoteNotifications')
+            ->with(1);
+
+        $this->service->delete(1, 'user1');
     }
 
     public function testDeleteNotFound(): void {
@@ -950,7 +1080,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testAddFileRejectsNonOwnerWriteShareRecipient(): void {
-        // GRUMPY DEV #3: a write-share recipient may edit content, but must NOT
+        // A write-share recipient may edit content, but must NOT
         // attach a file from their own storage — the stored path would be
         // unresolvable to the note owner. Attaching is owner-only.
         $note = new Note();
@@ -976,7 +1106,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testAddFileResolvesAgainstNoteOwnerStorage(): void {
-        // GRUMPY DEV #3: attachments are resolved in (and stored relative to) the
+        // Attachments are resolved in (and stored relative to) the
         // note OWNER's storage, so the persisted row belongs to the owner — even
         // when, in public mode, a different caller performs the attach.
         $note = new Note();
@@ -1087,7 +1217,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testRemoveFileRejectsNonOwnerWriteShareRecipient(): void {
-        // GRUMPY DEV #2 (round 2): file attachments can only be ADDED by the note
+        // File attachments can only be ADDED by the note
         // owner (addFile is owner-only), so detaching is symmetrically owner-only.
         // A write-share recipient — who can never attach a file — must not be able
         // to permanently destroy the owner's attachment rows. Removing is owner-
@@ -1124,7 +1254,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testRemoveFileAllowedForOwnerInPublicMode(): void {
-        // GRUMPY DEV #2 (round 2, control): in global public mode every caller is
+        // In global public mode every caller is
         // effectively an owner (mirroring addFile), so detaching is permitted.
         $settings = $this->createMock(SettingsService::class);
         $settings->method('isNotesPublic')->willReturn(true);
@@ -1240,7 +1370,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testCreateRejectsNullNoteType(): void {
-        // GRUMPY DEV #1: an omitted noteTypeId arrives as null. It must surface as
+        // An omitted noteTypeId arrives as null. It must surface as
         // a clean validation error (400) rather than a TypeError -> opaque 500,
         // and no note row may be inserted.
         $this->mapper->expects($this->never())->method('insert');
@@ -1288,7 +1418,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testUpdateValidatesNoteTypeAgainstOwnerNotEditor(): void {
-        // GRUMPY DEV #4: when a write-share recipient changes the note type, the
+        // When a write-share recipient changes the note type, the
         // chosen type must be validated against the OWNER's visibility, not the
         // editor's — otherwise the editor could set a private type the owner
         // cannot resolve, blanking the badge for everyone else.
@@ -1322,7 +1452,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testUpdateRejectsNoteTypeNotVisibleToOwner(): void {
-        // GRUMPY DEV #4 (negative): an editor cannot set a type the owner can't see.
+        // An editor cannot set a type the owner can't see.
         $note = new Note();
         $note->setId(1);
         $note->setUserId('owner');
@@ -1353,7 +1483,7 @@ class NoteServiceTest extends TestCase {
     // ── Sharing/ACL visibility for non-owner recipients ─────────────────────────
 
     public function testNonOwnerRecipientSeesOnlyOwnShareEntry(): void {
-        // GRUMPY DEV #2: a read-only recipient must not learn the full ACL. The
+        // A read-only recipient must not learn the full ACL. The
         // serialized 'sharing' list is reduced to the viewer's own entry (their
         // user share plus any group share they belong to), and audit fields are
         // hidden.
@@ -1409,7 +1539,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testSingleNoteNonOwnerResolvesGroupsOncePerEnrich(): void {
-        // GRUMPY DEV #4.2: enrichNote() must resolve the caller's group
+        // enrichNote() must resolve the caller's group
         // memberships itself and hand them to applyAuditVisibility(), mirroring
         // the batch path, rather than letting applyAuditVisibility() re-query
         // getUserGroupIds() a second time. A non-owner find() therefore performs
@@ -1455,7 +1585,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testOwnerSeesFullShareList(): void {
-        // GRUMPY DEV #2 (control): the owner still sees the complete ACL.
+        // The owner still sees the complete ACL.
         $note = new Note();
         $note->setId(1);
         $note->setUserId('owner');
@@ -1481,7 +1611,7 @@ class NoteServiceTest extends TestCase {
         $this->assertCount(2, $json['sharing']);
     }
 
-    // ── File path / ID disclosure to share recipients (GRUMPY DEV #2) ──────────
+    // ── File path / ID disclosure to share recipients ───────────────────────────
 
     private function makeNoteFile(int $id, int $noteId, ?int $fileId, string $path): NoteFile {
         $nf = new NoteFile();
@@ -1555,7 +1685,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testShareRecipientFileRecordWithEmptyPathYieldsEmptyName(): void {
-        // GRUMPY DEV #1 (round 1): when the stored file_path is empty, the
+        // When the stored file_path is empty, the
         // recipient-filtered record carries name => '' and still drops
         // filePath/fileId. This is the exact server payload that makes the
         // frontend fallback `f.name || f.filePath.split(...)` reachable with a
@@ -1621,7 +1751,7 @@ class NoteServiceTest extends TestCase {
     // ── find() in public mode maps missing id to 404, not 500 ────────────────────
 
     public function testFindPublicModeMissingIdThrowsNotFound(): void {
-        // GRUMPY DEV #4.1: in public mode find() calls findByIdPublic(), which
+        // In public mode find() calls findByIdPublic(), which
         // throws DoesNotExistException for an unknown id. That must surface as a
         // NoteNotFoundException (404), not escape to the generic 500 handler.
         $settings = $this->createMock(SettingsService::class);
@@ -1638,7 +1768,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testFindPostShareFallbackMissingIdThrowsNotFound(): void {
-        // GRUMPY DEV #4.1: the private-mode post-share fallback also calls
+        // The private-mode post-share fallback also calls
         // findByIdPublic() (after confirming the id is in the accessible set).
         // A race in which the row vanishes before the second load throws
         // DoesNotExistException, which must also map to a 404.
@@ -1664,7 +1794,7 @@ class NoteServiceTest extends TestCase {
     // ── Over-length junction contact UIDs yield a clean 400 ──────────────────────
 
     public function testCreateRejectsOverLengthJunctionContactUid(): void {
-        // GRUMPY DEV #4.2: an over-length entry in the additional contactUids
+        // An over-length entry in the additional contactUids
         // array must be rejected with a NoteValidationException (400) before any
         // row is inserted — never an opaque DB-truncation 500, and never an
         // orphan note left behind from a half-completed create.
@@ -1699,7 +1829,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testUpdateRejectsOverLengthJunctionContactUid(): void {
-        // GRUMPY DEV #4.2: the same length validation applies to update()'s
+        // The same length validation applies to update()'s
         // synced contactUids, and must run before the note row or the junction
         // table is mutated.
         $longUid = str_repeat('z', 256);
@@ -1719,7 +1849,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testCreateRejectsOverLengthContent(): void {
-        // GRUMPY DEV #1: content is written into touchpoint.content (Types::TEXT,
+        // Content is written into touchpoint.content (Types::TEXT,
         // 64 KiB on MySQL/MariaDB). An over-length body must be rejected with a
         // NoteValidationException (400) BEFORE the row is inserted, mirroring the
         // title/contact_uid guards — never an opaque DB-truncation 500 or silent
@@ -1749,7 +1879,7 @@ class NoteServiceTest extends TestCase {
     }
 
     public function testUpdateRejectsOverLengthContent(): void {
-        // GRUMPY DEV #1: the same content guard applies to update()'s $content
+        // The same content guard applies to update()'s $content
         // branch, and must run before the note row is mutated.
         $longContent = str_repeat('c', 16001);
 
@@ -1779,5 +1909,390 @@ class NoteServiceTest extends TestCase {
 
         $result = $this->service->update(1, 'user1', null, $maxContent);
         $this->assertSame($maxContent, $result->getContent());
+    }
+
+    // -------------------------------------------------------------------------
+    // Notification dispatch — create()/update() call NotificationService for
+    // newly-added share targets (group targets expanded to individual users)
+    // and for @userId mentions found in the note content.
+    // -------------------------------------------------------------------------
+
+    public function testCreateNotifiesEachNewShareTarget(): void {
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(10); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $sharing = [['type' => 'user', 'id' => 'bob', 'canEdit' => false]];
+
+        $this->notificationService->expects($this->once())
+            ->method('expandShareTargetsToUserIds')
+            ->with($sharing, 'user1')
+            ->willReturn(['bob']);
+        $this->notificationService->expects($this->once())
+            ->method('sendShareNotification')
+            ->with(10, 'user1', 'bob');
+
+        $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
+    }
+
+    public function testCreateExpandsGroupShareTargetToMultipleUsers(): void {
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(11); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $sharing = [['type' => 'group', 'id' => 'staff', 'canEdit' => false]];
+
+        $this->notificationService->method('expandShareTargetsToUserIds')
+            ->with($sharing, 'user1')
+            ->willReturn(['bob', 'carol']);
+        $this->notificationService->expects($this->exactly(2))
+            ->method('sendShareNotification')
+            ->with(11, 'user1', $this->logicalOr('bob', 'carol'));
+
+        $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1', false, [], $sharing);
+    }
+
+    public function testCreateDoesNotDispatchShareNotificationsWhenNoTargets(): void {
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(12); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        // No explicit sharing and no default share targets configured.
+        $this->notificationService->expects($this->never())->method('expandShareTargetsToUserIds');
+        $this->notificationService->expects($this->never())->method('sendShareNotification');
+
+        $this->service->create('uid', 1, 1, 'Title', 'Body', 'user1');
+    }
+
+    public function testCreateScansContentForMentionsAndNotifies(): void {
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(13); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $this->notificationService->expects($this->once())
+            ->method('extractMentionedUserIds')
+            ->with('Please review @dave', 'user1')
+            ->willReturn(['dave']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(13, 'user1', 'dave');
+
+        $this->service->create('uid', 1, 1, 'Title', 'Please review @dave', 'user1');
+    }
+
+    public function testCreateMentionNotificationOmitsTitleWhenMentionedUserHasNoAccess(): void {
+        // 'dave' is not the owner, notes are not public, and he has no
+        // outstanding share (setUp() defaults: findAccessibleNoteIds => []).
+        // The note's title must not be disclosed to him via the notification
+        // subject/push-preview before he has any way to open the note.
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(20); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $this->notificationService->method('extractMentionedUserIds')->willReturn(['dave']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(20, 'user1', 'dave', '');
+
+        $this->service->create('uid', 1, 1, 'Sensitive title', 'Please review @dave', 'user1');
+    }
+
+    public function testCreateMentionNotificationIncludesTitleWhenMentionedUserAlreadyHasShare(): void {
+        // A mentioned user who already has an outstanding share (unlike the
+        // no-access case above) may safely see the note's title.
+        // Fresh noteSharingMapper mock: PHPUnit resolves an unconstrained
+        // ->method() stub to the FIRST one registered, and setUp() already
+        // registers findAccessibleNoteIds() => [] on $this->noteSharingMapper.
+        $noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([21]);
+        $noteSharingMapper->method('findWritableNoteIds')->willReturn([]);
+        $noteSharingMapper->method('findByNoteId')->willReturn([]);
+        $noteSharingMapper->method('findByNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $noteSharingMapper;
+
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(21); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $this->notificationService->method('extractMentionedUserIds')->willReturn(['carol']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(21, 'user1', 'carol', 'Kickoff call');
+
+        $this->makeService()->create('uid', 1, 1, 'Kickoff call', 'cc @carol', 'user1');
+    }
+
+    public function testCreateWithNoMentionsDoesNotDispatchMentionNotifications(): void {
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(14); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $this->notificationService->method('extractMentionedUserIds')->willReturn([]);
+        $this->notificationService->expects($this->never())->method('sendMentionNotification');
+
+        $this->service->create('uid', 1, 1, 'Title', 'No mentions here', 'user1');
+    }
+
+    public function testUpdateNotifiesOnlyNewlyAddedShareTargets(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('owner');
+
+        $this->mapper->method('findById')->with(1, 'owner')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        // Already shared with bob; owner adds carol. Use a fresh mock (rather
+        // than re-stubbing $this->noteSharingMapper) because PHPUnit mocks
+        // resolve to the FIRST matching stub when multiple ->method() calls
+        // lack a with() constraint — setUp()'s default findByNoteId() => []
+        // would otherwise win over this test's override.
+        $existing = new NoteSharing();
+        $existing->setNoteId(1);
+        $existing->setSharedWithType('user');
+        $existing->setSharedWithId('bob');
+        $noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $noteSharingMapper->method('findByNoteId')->willReturn([$existing]);
+        $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([]);
+        $noteSharingMapper->method('findWritableNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $noteSharingMapper;
+
+        $newSharing = [
+            ['type' => 'user', 'id' => 'bob', 'canEdit' => false],
+            ['type' => 'user', 'id' => 'carol', 'canEdit' => false],
+        ];
+
+        $this->notificationService->expects($this->once())
+            ->method('expandShareTargetsToUserIds')
+            ->with([['type' => 'user', 'id' => 'carol', 'canEdit' => false]], 'owner')
+            ->willReturn(['carol']);
+        $this->notificationService->expects($this->once())
+            ->method('sendShareNotification')
+            ->with(1, 'owner', 'carol');
+
+        $this->makeService()->update(1, 'owner', null, null, null, null, null, $newSharing);
+    }
+
+    /**
+     * Pins down a deliberately ordering-dependent behavior: update() syncs
+     * sharing (which grants carol access) BEFORE it scans for mentions, so
+     * newly-sharing a note with carol and @mentioning carol in the very same
+     * update() call must see carol as having access already and include the
+     * real title in her mention notification — not the title-less fallback a
+     * mention-with-no-access would get. A future refactor that reorders these
+     * two steps (e.g. to batch DB writes) must not silently flip this.
+     */
+    public function testUpdateIncludesTitleForMentionOfUserSharedInSameCall(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Kickoff call');
+        $note->setUserId('owner');
+        $note->setContent('');
+
+        $this->mapper->method('findById')->with(1, 'owner')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        // Fresh mock: carol has no share before this call (findByNoteId => []),
+        // but findAccessibleNoteIds() must reflect her post-sync access when
+        // notifyMentions() checks it — see the comment above for why ordering
+        // makes this observable.
+        $noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $noteSharingMapper->method('findByNoteId')->willReturn([]);
+        $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([1]);
+        $noteSharingMapper->method('findWritableNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $noteSharingMapper;
+
+        $newSharing = [['type' => 'user', 'id' => 'carol', 'canEdit' => false]];
+
+        $this->notificationService->method('expandShareTargetsToUserIds')
+            ->with($newSharing, 'owner')
+            ->willReturn(['carol']);
+        $this->notificationService->method('extractMentionedUserIds')
+            ->with('cc @carol', 'owner')
+            ->willReturn(['carol']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(1, 'owner', 'carol', 'Kickoff call');
+
+        $this->makeService()->update(1, 'owner', null, 'cc @carol', null, null, null, $newSharing);
+    }
+
+    public function testUpdateDoesNotReNotifyForAlreadySharedTarget(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('owner');
+
+        $this->mapper->method('findById')->with(1, 'owner')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        $existing = new NoteSharing();
+        $existing->setNoteId(1);
+        $existing->setSharedWithType('user');
+        $existing->setSharedWithId('bob');
+        $noteSharingMapper = $this->createMock(NoteSharingMapper::class);
+        $noteSharingMapper->method('findByNoteId')->willReturn([$existing]);
+        $noteSharingMapper->method('findAccessibleNoteIds')->willReturn([]);
+        $noteSharingMapper->method('findWritableNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $noteSharingMapper;
+
+        // Owner re-saves the identical share list (e.g. only toggling canEdit) —
+        // bob was already shared with, so no new-target notification should fire.
+        // No newly-added targets means NoteService short-circuits before ever
+        // calling expandShareTargetsToUserIds().
+        $sameSharing = [['type' => 'user', 'id' => 'bob', 'canEdit' => true]];
+
+        $this->notificationService->expects($this->never())->method('expandShareTargetsToUserIds');
+        $this->notificationService->expects($this->never())->method('sendShareNotification');
+
+        $this->makeService()->update(1, 'owner', null, null, null, null, null, $sameSharing);
+    }
+
+    public function testUpdateDoesNotDispatchShareNotificationsWhenSharingNotProvided(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('owner');
+
+        $this->mapper->method('findById')->with(1, 'owner')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        $this->notificationService->expects($this->never())->method('expandShareTargetsToUserIds');
+        $this->notificationService->expects($this->never())->method('sendShareNotification');
+
+        $this->service->update(1, 'owner', 'New title');
+    }
+
+    public function testUpdateNonOwnerCannotTriggerShareNotifications(): void {
+        // A write-share recipient's sharing payload is silently ignored by
+        // canManageSharing(); dispatch must likewise never fire for it.
+        $note = new Note();
+        $note->setId(1);
+        $note->setUserId('owner');
+
+        $this->mapper->method('findById')->willThrowException(new DoesNotExistException('nope'));
+        $this->mapper->method('findByIdPublic')->with(1)->willReturn($note);
+
+        $sharing = $this->createMock(NoteSharingMapper::class);
+        $sharing->method('findAccessibleNoteIds')->willReturn([1]);
+        $sharing->method('findWritableNoteIds')->willReturn([1]);
+        $sharing->method('findByNoteId')->willReturn([]);
+        $sharing->method('findByNoteIds')->willReturn([]);
+        $this->noteSharingMapper = $sharing;
+
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        $this->notificationService->expects($this->never())->method('expandShareTargetsToUserIds');
+        $this->notificationService->expects($this->never())->method('sendShareNotification');
+
+        $this->makeService()->update(
+            1, 'editor', 'Edited', null, null, null, null,
+            [['type' => 'user', 'id' => 'editor', 'canEdit' => true]],
+        );
+    }
+
+    public function testUpdateScansNewContentForMentionsAndNotifies(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Title');
+        $note->setUserId('user1');
+
+        $this->mapper->method('findById')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        $this->notificationService->expects($this->once())
+            ->method('extractMentionedUserIds')
+            ->with('cc @erin', 'user1')
+            ->willReturn(['erin']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(1, 'user1', 'erin');
+
+        $this->service->update(1, 'user1', null, 'cc @erin');
+    }
+
+    public function testUpdateWithoutContentChangeDoesNotRescanMentions(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Title');
+        $note->setUserId('user1');
+
+        $this->mapper->method('findById')->willReturn($note);
+        $this->mapper->method('update')->willReturnArgument(0);
+
+        // content is null (not being changed) — must not re-scan/re-notify.
+        $this->notificationService->expects($this->never())->method('extractMentionedUserIds');
+        $this->notificationService->expects($this->never())->method('sendMentionNotification');
+
+        $this->service->update(1, 'user1', 'New title only');
+    }
+
+    /**
+     * Resubmitting byte-identical content (the frontend always sends
+     * `content` in every save payload, even for a title/pinned/contacts-only
+     * edit) must not re-trigger mention notifications on the second call —
+     * only an actual change to the stored content should. Without this guard,
+     * any writer could re-POST the same content repeatedly and re-notify up
+     * to 50 mentioned users on every call.
+     */
+    public function testUpdateWithSameContentTwiceOnlyNotifiesOnFirstCall(): void {
+        $note = new Note();
+        $note->setId(1);
+        $note->setTitle('Title');
+        $note->setUserId('user1');
+        $note->setContent('');
+
+        $this->mapper->method('findById')->willReturn($note);
+        $this->mapper->method('update')->willReturnCallback(function (Note $n) {
+            return $n;
+        });
+
+        $this->notificationService->expects($this->once())
+            ->method('extractMentionedUserIds')
+            ->with('cc @erin', 'user1')
+            ->willReturn(['erin']);
+        $this->notificationService->expects($this->once())
+            ->method('sendMentionNotification')
+            ->with(1, 'user1', 'erin');
+
+        // First call: content actually changes ('' -> 'cc @erin') — notify.
+        $this->service->update(1, 'user1', null, 'cc @erin');
+        // Second call: same content resubmitted — must not re-scan/re-notify.
+        $this->service->update(1, 'user1', null, 'cc @erin');
+    }
+
+    public function testCreateNeverNotifiesActorEvenIfListedAsShareTargetOrMentioned(): void {
+        // Defense-in-depth check: NoteService passes the actor id through to
+        // NotificationService, which is responsible for filtering out
+        // self-notification. This test locks the actor id actually passed.
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(15); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $sharing = [['type' => 'user', 'id' => 'user1', 'canEdit' => false]];
+
+        $this->notificationService->expects($this->once())
+            ->method('expandShareTargetsToUserIds')
+            ->with($sharing, 'user1');
+        $this->notificationService->expects($this->once())
+            ->method('extractMentionedUserIds')
+            ->with('hi @user1', 'user1');
+
+        $this->service->create('uid', 1, 1, 'Title', 'hi @user1', 'user1', false, [], $sharing);
+    }
+
+    public function testNotificationDispatchFailureDoesNotFailCreate(): void {
+        // NotificationService is documented to swallow its own exceptions, but
+        // NoteService must remain correct even if a call unexpectedly throws —
+        // the note is already persisted by the time dispatch runs, and a
+        // still-thrown exception here would be a NotificationService bug, not
+        // something create() should paper over. This test locks the ordering:
+        // persistence happens before dispatch is attempted.
+        $this->mapper->method('insert')
+            ->willReturnCallback(function (Note $n) { $n->setId(16); return $n; });
+        $this->noteContactMapper->method('insert')->willReturnArgument(0);
+
+        $this->notificationService->method('extractMentionedUserIds')->willReturn(['dave']);
+        $this->notificationService->expects($this->once())->method('sendMentionNotification');
+
+        $result = $this->service->create('uid', 1, 1, 'Title', 'hi @dave', 'user1');
+        $this->assertSame(16, $result->getId());
     }
 }

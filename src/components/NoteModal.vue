@@ -17,7 +17,8 @@
 					:aria-label-combobox="t('touchpoint', 'Contacts')"
 					label="name"
 					track-by="uid"
-					:placeholder="t('touchpoint', 'Add contact…')" />
+					:placeholder="t('touchpoint', 'Add contact…')"
+				/>
 			</div>
 
 			<!-- Note type -->
@@ -33,7 +34,8 @@
 					:aria-label-combobox="t('touchpoint', 'Type')"
 					label="name"
 					:reduce="o => o.id"
-					:placeholder="t('touchpoint', 'Select type…')" />
+					:placeholder="t('touchpoint', 'Select type…')"
+				/>
 			</div>
 
 			<!-- Title -->
@@ -48,7 +50,8 @@
 					label-outside
 					required
 					:placeholder="t('touchpoint', 'Note title')"
-					maxlength="255" />
+					maxlength="255"
+				/>
 			</div>
 
 			<!-- Content -->
@@ -58,7 +61,8 @@
 					<NcButton type="tertiary"
 						size="small"
 						:aria-pressed="previewMode"
-						@click="togglePreview">
+						@click="togglePreview"
+					>
 						<template #icon>
 							<IconEye v-if="!previewMode" :size="16" />
 							<IconPencil v-else :size="16" />
@@ -67,14 +71,15 @@
 					</NcButton>
 				</div>
 				<!-- ARIA toolbar pattern: a single Tab stop into the group, with
-				     Left/Right (and Home/End) arrow keys moving focus between the
-				     controls via roving tabindex. -->
+				Left/Right (and Home/End) arrow keys moving focus between the
+				controls via roving tabindex. -->
 				<div v-if="!previewMode"
 					ref="toolbarRef"
 					class="crm-md-toolbar"
 					role="toolbar"
 					:aria-label="t('touchpoint', 'Text formatting')"
-					@keydown="onToolbarKeydown">
+					@keydown="onToolbarKeydown"
+				>
 					<template v-for="(tool, idx) in mdTools" :key="tool.type">
 						<!-- Visual separators between the format groups (3 / 3 / 3). -->
 						<span v-if="idx === 3 || idx === 6" class="crm-md-sep" />
@@ -83,9 +88,10 @@
 							:title="tool.label"
 							:aria-label="tool.label"
 							:tabindex="idx === activeToolIndex ? 0 : -1"
-							@click="onToolClick(tool.type, idx)">
+							@click="onToolClick(tool.type, idx)"
+						>
 							<!-- Tools with a real icon component render it in the icon
-							     slot (no emoji); the rest use a typographic glyph. -->
+							slot (no emoji); the rest use a typographic glyph. -->
 							<template v-if="tool.icon" #icon>
 								<component :is="tool.icon" :size="16" />
 							</template>
@@ -100,22 +106,23 @@
 					v-model="form.content"
 					rows="8"
 					class="crm-markdown-editor"
-					:placeholder="t('touchpoint', 'Write your note here… (Markdown supported)')" />
+					:placeholder="t('touchpoint', 'Write your note here… (Markdown supported)')"
+				/>
 				<!-- eslint-disable-next-line vue/no-v-html -->
-				<div v-else
-					class="crm-markdown-preview"
-					role="region"
-					aria-labelledby="note-content-label"
-					v-html="previewContent" />
+				<div v-else class="crm-markdown-preview" role="region" aria-labelledby="note-content-label" v-html="previewContent" />
+				<p v-if="!previewMode" class="crm-content-hint">
+					{{ t('touchpoint', 'Tip: type @username to notify a colleague about this note.') }}
+				</p>
 			</div>
 
 			<!-- Files -->
 			<!-- Not a <label>: this names a button + list group, not a single
-			     form control, so it would be a dangling <label>. A labelled group
-			     announces the files region to assistive tech instead. -->
+			form control, so it would be a dangling <label>. A labelled group
+			announces the files region to assistive tech instead. -->
 			<div class="crm-form-row"
 				role="group"
-				aria-labelledby="note-files-label">
+				aria-labelledby="note-files-label"
+			>
 				<span id="note-files-label" class="crm-group-label">{{ t('touchpoint', 'Linked files') }}</span>
 				<div class="crm-files-list">
 					<div v-for="(f, i) in notesStore.pendingFiles" :key="i" class="crm-file-item">
@@ -123,7 +130,8 @@
 						<span class="crm-file-name">{{ fileLabel(f) }}</span>
 						<NcButton type="tertiary"
 							:aria-label="t('touchpoint', 'Remove file')"
-							@click="notesStore.removePendingFile(i)">
+							@click="notesStore.removePendingFile(i)"
+						>
 							<template #icon><IconClose :size="14" /></template>
 						</NcButton>
 					</div>
@@ -142,7 +150,8 @@
 			<p v-if="missingFieldsHint"
 				class="crm-save-hint"
 				role="status"
-				aria-live="polite">
+				aria-live="polite"
+			>
 				{{ missingFieldsHint }}
 			</p>
 
@@ -156,7 +165,8 @@
 				<NcButton :disabled="notesStore.saving" @click="notesStore.closeModal()">{{ t('touchpoint', 'Cancel') }}</NcButton>
 				<NcButton type="primary"
 					:disabled="!canSave || notesStore.saving"
-					@click="onSave">
+					@click="onSave"
+				>
 					<template v-if="notesStore.saving" #icon>
 						<NcLoadingIcon :size="16" />
 					</template>
@@ -499,6 +509,12 @@ async function onSave() {
 	justify-content: space-between;
 }
 
+.crm-content-hint {
+	margin: 0;
+	font-size: var(--font-size-small, 13px);
+	color: var(--color-text-maxcontrast);
+}
+
 .crm-md-toolbar {
 	display: flex;
 	flex-wrap: wrap;
@@ -567,7 +583,7 @@ async function onSave() {
 	color: var(--color-main-text);
 	line-height: var(--default-line-height, 1.6);
 	/* Break long unbroken strings (pasted URLs/tokens) so the preview wraps inside
-	   the modal instead of overflowing horizontally. */
+	the modal instead of overflowing horizontally. */
 	overflow-wrap: anywhere;
 }
 

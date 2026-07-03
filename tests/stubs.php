@@ -233,6 +233,8 @@ namespace OCP {
     interface IUserManager {
         public function get(string $uid): ?IUser;
         public function searchDisplayName(string $pattern, ?int $limit = null, ?int $offset = null): array;
+        public function getDisplayName(string $uid): ?string;
+        public function userExists(string $uid): bool;
     }
 
     interface IConfig {
@@ -442,6 +444,7 @@ namespace OCP\AppFramework\Bootstrap {
         public function registerEventListener(string $event, string $listener, int $priority = 0): void;
         public function registerService(string $name, callable $factory, bool $shared = true): void;
         public function registerSearchProvider(string $class): void;
+        public function registerNotifierService(string $class): void;
     }
     interface IBootContext {
         public function getAppContainer();
@@ -637,6 +640,98 @@ namespace OCP\Search {
             public readonly string $icon = '',
             public readonly bool $rounded = false,
         ) {}
+    }
+}
+
+// --- OCP\L10N ---
+namespace OCP\L10N {
+    interface IFactory {
+        public function get($app, $lang = null, $locale = null);
+        public function findLanguage(?string $appId = null): string;
+    }
+}
+
+// --- OCP\Notification ---
+namespace OCP\Notification {
+    interface IAction {
+        public function setLabel(string $label): IAction;
+        public function getLabel(): string;
+        public function setParsedLabel(string $label): IAction;
+        public function getParsedLabel(): string;
+        public function setPrimary(bool $primary): IAction;
+        public function isPrimary(): bool;
+        public function setLink(string $link, string $requestType): IAction;
+        public function getLink(): string;
+        public function getRequestType(): string;
+        public function isValid(): bool;
+        public function isValidParsed(): bool;
+    }
+
+    interface INotification {
+        public function setApp(string $app): INotification;
+        public function getApp(): string;
+        public function setUser(string $user): INotification;
+        public function getUser(): string;
+        public function setDateTime(\DateTime $dateTime): INotification;
+        public function getDateTime(): \DateTime;
+        public function setObject(string $type, string $id): INotification;
+        public function getObjectType(): string;
+        public function getObjectId(): string;
+        public function setSubject(string $subject, array $parameters = []): INotification;
+        public function getSubject(): string;
+        public function getSubjectParameters(): array;
+        public function setParsedSubject(string $subject): INotification;
+        public function getParsedSubject(): string;
+        public function setRichSubject(string $subject, array $parameters = []): INotification;
+        public function getRichSubject(): string;
+        public function getRichSubjectParameters(): array;
+        public function setMessage(string $message, array $parameters = []): INotification;
+        public function getMessage(): string;
+        public function getMessageParameters(): array;
+        public function setParsedMessage(string $message): INotification;
+        public function getParsedMessage(): string;
+        public function setRichMessage(string $message, array $parameters = []): INotification;
+        public function getRichMessage(): string;
+        public function getRichMessageParameters(): array;
+        public function setLink(string $link): INotification;
+        public function getLink(): string;
+        public function setIcon(string $icon): INotification;
+        public function getIcon(): string;
+        public function setPriorityNotification(bool $priorityNotification): INotification;
+        public function isPriorityNotification(): bool;
+        public function createAction(): IAction;
+        public function addAction(IAction $action): INotification;
+        public function getActions(): array;
+        public function addParsedAction(IAction $action): INotification;
+        public function getParsedActions(): array;
+        public function isValid(): bool;
+        public function isValidParsed(): bool;
+    }
+
+    interface INotifier {
+        public function getID(): string;
+        public function getName(): string;
+        public function prepare(INotification $notification, string $languageCode): INotification;
+    }
+
+    interface IManager {
+        public function createNotification(): INotification;
+        public function notify(INotification $notification): void;
+        public function registerNotifierService(string $notifierService): void;
+        public function dismissNotification(INotification $notification): void;
+        public function markProcessed(INotification $notification): void;
+    }
+
+    class InvalidValueException extends \InvalidArgumentException {
+    }
+
+    class UnknownNotificationException extends \InvalidArgumentException {
+    }
+
+    class AlreadyProcessedException extends \RuntimeException {
+        public function __construct() {
+            parent::__construct('Notification is processed already');
+        }
     }
 }
 

@@ -14,13 +14,13 @@ test.describe('Touchpoint — app page shell', () => {
 	test('app page loads with the three navigation sections', async ({ page }) => {
 		const nav = page.locator('#app-navigation, .app-navigation').first();
 		await expect(nav).toBeVisible();
-		await expect(nav.getByText(RX.contacts).first()).toBeVisible();
+		await expect(nav.getByText(RX.notes).first()).toBeVisible();
 		await expect(nav.getByText(RX.noteTypes).first()).toBeVisible();
 		await expect(nav.getByText(RX.settings).first()).toBeVisible();
 	});
 
 	test('Contacts section renders the contact list and search', async ({ page }) => {
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		// Search field for contacts.
 		await expect(page.getByPlaceholder(/Search contacts|Kontakte suchen/i)).toBeVisible({ timeout: 10000 });
 		// At least one contact item (the instance has thousands), or a documented empty state.
@@ -31,7 +31,7 @@ test.describe('Touchpoint — app page shell', () => {
 	});
 
 	test('All-notes view is shown when no contact is selected', async ({ page }) => {
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		// With no contact selected the detail pane shows the All-notes view: either a
 		// list of note cards (.crm-note-item) or the "No notes yet" empty content.
 		const allNotes = page.locator('.crm-all-notes-view');

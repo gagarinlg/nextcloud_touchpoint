@@ -76,7 +76,9 @@ test.describe('Touchpoint — Contacts app integration', () => {
 			return;
 		}
 		// When present, it exposes a labelled toggle and an "open in app" link.
-		await expect(page.locator('.crm-contacts-notes-toggle')).toContainText(/CRM/i);
+		// The app was renamed from "CRM Notes" to "Touchpoint" (see the rename
+		// commit); the toggle label follows suit.
+		await expect(page.locator('.crm-contacts-notes-toggle')).toContainText(/Touchpoint/i);
 		const openLink = page.locator('.crm-contacts-open-app');
 		await expect(openLink).toHaveAttribute('aria-label', /Touchpoint|neuen Tab|new tab/i);
 		await expect(openLink).toHaveAttribute('href', /touchpoint.*#contact\//);

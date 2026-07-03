@@ -116,6 +116,7 @@ $inv[] = '| Entities | ' . bnames($entities) . ' |';
 $inv[] = '| Migrations | ' . bnames(rel('lib/Migration/*.php')) . ' |';
 $inv[] = '| Listeners | ' . bnames(rel('lib/Listener/*.php')) . ' |';
 $inv[] = '| Search providers | ' . bnames(rel('lib/Search/*.php')) . ' |';
+$inv[] = '| Notifiers | ' . bnames(rel('lib/Notification/*.php')) . ' |';
 $inv[] = '| ContactsMenu | ' . bnames(rel('lib/ContactsMenu/*.php')) . ' |';
 $inv[] = '| Settings | ' . bnames(rel('lib/Settings/*.php')) . ' |';
 $inv[] = '| Vue entries | ' . bnames(rel('src/*.js')) . ' |';

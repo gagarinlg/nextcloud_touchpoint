@@ -57,7 +57,7 @@ test.describe('Touchpoint — notes CRUD', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 			const card = page.locator('.crm-note-item').filter({ hasText: title }).first();
 			await expect(card).toBeVisible({ timeout: 10000 });
 			// Title and rendered markdown content.
@@ -80,7 +80,7 @@ test.describe('Touchpoint — notes CRUD', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 			const card = page.locator('.crm-note-item').filter({ hasText: title }).first();
 			await expect(card).toBeVisible({ timeout: 10000 });
 
@@ -101,7 +101,7 @@ test.describe('Touchpoint — notes CRUD', () => {
 	});
 
 	test('the Add-note modal validates required fields (Save disabled until filled)', async ({ page }) => {
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		// Open a contact so the contact-scoped Add note button is available, then open the modal.
 		const firstContact = page.locator('.crm-contacts-list li').first();
 		await firstContact.click();
@@ -126,7 +126,7 @@ test.describe('Touchpoint — notes CRUD', () => {
 	test('create a note end-to-end through the UI', async ({ page }) => {
 		const title = unique('E2E-UICreate');
 		try {
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 			await page.locator('.crm-contacts-list li').first().click();
 			await page.getByRole('button', { name: RX.addNote }).first().click();
 			await page.getByPlaceholder(/Note title|Notiztitel/i).fill(title);
@@ -155,7 +155,7 @@ test.describe('Touchpoint — notes CRUD', () => {
 		const seed = await seedNote(page, { title });
 		await page.reload();
 		await openApp(page);
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		const card = page.locator('.crm-note-item').filter({ hasText: title }).first();
 		await expect(card).toBeVisible({ timeout: 10000 });
 

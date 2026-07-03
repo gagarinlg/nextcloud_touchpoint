@@ -18,6 +18,10 @@ export const useNotesStore = defineStore('notes', {
 		// Contact UID the loaded contactNotes page belongs to, so loadMore can
 		// keep paging the right contact.
 		contactNotesUid: null,
+		// Note id to visually highlight and scroll to once its contact's notes
+		// are rendered — set by a #note/{id} deep link (App.vue), consumed and
+		// cleared by ContactNotesView once the scroll/highlight has been applied.
+		highlightNoteId: null,
 		// Sort direction for both the all-notes and contact-notes lists:
 		// 'newest' (created_at descending, default) or 'oldest' (ascending).
 		// Threaded to the API; defaults to newest on each load.
@@ -166,6 +170,20 @@ export const useNotesStore = defineStore('notes', {
 		// Legacy non-reactive helper; new computed state goes in getters: not here.
 		isDeleting(id) {
 			return this.pendingDeleteIds.includes(id)
+		},
+		// Record the note id a #note/{id} deep link should scroll to and
+		// highlight once ContactNotesView renders its notes for the matching
+		// contact. ids are always positive integers (server-issued autoincrement
+		// PKs); coerce defensively so a stray string id still compares equal to
+		// note.id (a number) in NoteItem's strict-equality check.
+		setHighlightNote(id) {
+			this.highlightNoteId = id != null ? Number(id) : null
+		},
+		// Consumed once the highlight has been applied (or the target note turned
+		// out not to be in the list), so re-rendering the same contact later does
+		// not keep re-triggering the highlight/scroll.
+		clearHighlightNote() {
+			this.highlightNoteId = null
 		},
 		async remove(id, currentContactUid) {
 			if (this.pendingDeleteIds.includes(id)) return

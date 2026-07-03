@@ -29,7 +29,8 @@
 			<NcButton type="tertiary"
 				:aria-expanded="showCard ? 'true' : 'false'"
 				aria-controls="crm-contact-card-region"
-				@click="showCard = !showCard">
+				@click="showCard = !showCard"
+			>
 				<template #icon>
 					<IconChevronDown v-if="showCard" :size="20" />
 					<IconChevronRight v-else :size="20" />
@@ -37,8 +38,8 @@
 				{{ showCard ? t('touchpoint', 'Hide contact details') : t('touchpoint', 'Show contact details') }}
 			</NcButton>
 			<!-- The region is always present so aria-controls always resolves to a
-			     real element; the embedded Contacts card is lazily mounted inside it
-			     only once expanded (keyed by uid so switching contacts remounts). -->
+			real element; the embedded Contacts card is lazily mounted inside it
+			only once expanded (keyed by uid so switching contacts remounts). -->
 			<div id="crm-contact-card-region">
 				<ContactCard v-if="showCard" :key="contact.uid" :email="contact.email" />
 			</div>
@@ -47,7 +48,8 @@
 		<NcLoadingIcon v-if="notesStore.loading && !notesStore.contactNotes.length" :size="32" />
 		<NcEmptyContent v-else-if="notesStore.contactNotesError && !notesStore.contactNotes.length"
 			:name="t('touchpoint', 'Could not load notes')"
-			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
+			:description="t('touchpoint', 'Something went wrong while loading. Please try again.')"
+		>
 			<template #icon><IconAlert :size="48" /></template>
 			<template #action>
 				<NcButton @click="reload">{{ t('touchpoint', 'Retry') }}</NcButton>
@@ -55,7 +57,8 @@
 		</NcEmptyContent>
 		<NcEmptyContent v-else-if="!notesStore.contactNotes.length"
 			:name="t('touchpoint', 'No notes yet')"
-			:description="t('touchpoint', 'Add a note for this contact')">
+			:description="t('touchpoint', 'Add a note for this contact')"
+		>
 			<template #icon><IconNote :size="48" /></template>
 		</NcEmptyContent>
 		<template v-else>
@@ -63,16 +66,19 @@
 				:key="note.id"
 				:note="note"
 				:deleting="notesStore.isDeleting(note.id)"
+				:highlighted="note.id === notesStore.highlightNoteId"
 				@edit="notesStore.openModal(note)"
-				@delete="onDelete(note)" />
+				@delete="onDelete(note)"
+			/>
 			<div v-if="notesStore.contactNotesHasMore" class="crm-load-more">
 				<NcButton :disabled="notesStore.loadingMore" @click="onLoadMore">
 					{{ notesStore.loadingMore ? t('touchpoint', 'Loading…') : t('touchpoint', 'Load more') }}
 				</NcButton>
 			</div>
 		</template>
-		<!-- Announce newly-loaded notes to screen readers (no visual change). -->
-		<p class="crm-visually-hidden" aria-live="polite" role="status">{{ loadMoreStatus }}</p>
+		<!-- Announce newly-loaded notes, and #note/{id} deep-link outcomes, to
+		screen readers (no visual change). -->
+		<p class="crm-visually-hidden" aria-live="polite" role="status">{{ viewStatus }}</p>
 
 		<NoteModal v-if="notesStore.showModal" :default-contact="contact" />
 		<ConfirmDialog ref="confirmDialog" />
@@ -80,7 +86,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { translate as t, translatePlural as n } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
 import { withScrollPreserved } from '../utils/scroll.js'
@@ -136,15 +142,108 @@ function toggleSort() {
 	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
 }
 
-// Live-region text announced to screen readers after "Load more" appends notes.
-const loadMoreStatus = ref('')
+// Live-region text announced to screen readers: after "Load more" appends
+// notes, and after a #note/{id} deep link finishes locating (or fails to
+// locate) its target note. Named generically (not loadMoreStatus) since it now
+// serves both purposes — only one is ever relevant at a time.
+const viewStatus = ref('')
+
+// Safety cap on how many extra pages applyHighlight() will fetch while
+// hunting for a #note/{id} deep-link target that isn't on the first page —
+// bounds worst-case network calls for a note buried deep in a large history
+// instead of looping until contactNotesHasMore turns false naturally.
+const MAX_HIGHLIGHT_LOAD_PAGES = 20
+
+// Guards the highlight pagination loop and its trailing timer against a
+// contact switch (watch() below) or component unmount that happens while
+// applyHighlight() is still paging: without this, a stale run could resolve
+// after the store has already moved on to a different contact's notes and
+// wrongly scroll/focus/clear-highlight on top of the new contact's view, or
+// leave its setTimeout firing after the component is gone.
+let highlightRunSeq = 0
+let pendingClearHighlightTimer = null
+
+async function loadAndApplyHighlight(uid) {
+	const seq = ++highlightRunSeq
+	await notesStore.loadForContact(uid)
+	if (seq !== highlightRunSeq) return // superseded by a newer contact switch
+	await applyHighlight(seq)
+}
+
+// If a #note/{id} deep link targets a note that isn't on the first loaded
+// page, keep paging (bounded) until it's found or there is no more to load.
+// Once found (or given up), scroll it into view and clear the store flag so
+// the highlight/scroll never re-triggers on a later re-render of this contact.
+async function applyHighlight(seq) {
+	const targetId = notesStore.highlightNoteId
+	if (targetId == null) return
+	let pages = 0
+	while (
+		!notesStore.contactNotes.some(nt => nt.id === targetId)
+		&& notesStore.contactNotesHasMore
+		&& pages < MAX_HIGHLIGHT_LOAD_PAGES
+	) {
+		await notesStore.loadMoreContactNotes()
+		if (seq !== highlightRunSeq) return // superseded mid-loop; let the newer run own the flag
+		pages++
+	}
+	if (seq !== highlightRunSeq) return
+	await nextTick()
+	const el = document.getElementById('crm-note-' + targetId)
+	if (el) {
+		// Respect prefers-reduced-motion, matching the established convention in
+		// this codebase (AdminSettings.vue, NoteItem.vue, contacts-integration.js):
+		// jump straight there instead of animating the scroll.
+		const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+		el.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'center' })
+		// The visual highlight (border/background wash, see NoteItem.vue's
+		// .is-highlighted) is the only feedback a mouse user needs, but a
+		// keyboard-only or screen-reader user who opened this via a
+		// notification link has no other way to know "this is the note the
+		// notification was about" — move DOM focus there (NoteItem.vue gives
+		// the highlighted note tabindex="-1" for exactly this) and announce it
+		// via the existing live region.
+		el.focus({ preventScroll: true })
+		const targetNote = notesStore.contactNotes.find(nt => nt.id === targetId)
+		viewStatus.value = t('touchpoint', 'Opened note "{title}"', { title: targetNote?.title || '' })
+	} else {
+		// Not found even after exhausting pagination (deleted since, or belongs
+		// to a different contact than expected) — nothing to scroll/focus to,
+		// but still tell AT users the deep link didn't resolve rather than
+		// leaving them to wonder why nothing happened.
+		viewStatus.value = t('touchpoint', 'The note from this link could not be found.')
+	}
+	// The highlight flag is cleared after a delay so it doesn't linger
+	// indefinitely. The clear itself is deferred so the highlighted prop has
+	// had a render frame to apply first; the CSS transition (1.5s) then fades
+	// visibly instead of the class flipping off before paint. Tracked in
+	// pendingClearHighlightTimer so onUnmounted can cancel it if the view goes
+	// away first, and guarded by `seq` so a superseded run's timer can't clear
+	// a highlight that a newer run just set.
+	if (pendingClearHighlightTimer != null) window.clearTimeout(pendingClearHighlightTimer)
+	pendingClearHighlightTimer = window.setTimeout(() => {
+		pendingClearHighlightTimer = null
+		if (seq === highlightRunSeq) notesStore.clearHighlightNote()
+	}, 2000)
+}
 
 onMounted(() => {
-	if (contact.value) notesStore.loadForContact(contact.value.uid).catch(() => {})
+	if (contact.value) loadAndApplyHighlight(contact.value.uid).catch(() => {})
 })
 watch(() => contactsStore.currentContact, (c) => {
 	notesStore.contactNotes = []
-	if (c) notesStore.loadForContact(c.uid).catch(() => {})
+	if (c) loadAndApplyHighlight(c.uid).catch(() => {})
+})
+onUnmounted(() => {
+	// Invalidate any in-flight pagination-hunt loop or trailing clear-timer so
+	// they cannot act on this (now-gone) view's DOM or another contact's notes
+	// after this component is torn down (e.g. navigating away from the
+	// Contacts tab entirely while applyHighlight() is still paging).
+	highlightRunSeq++
+	if (pendingClearHighlightTimer != null) {
+		window.clearTimeout(pendingClearHighlightTimer)
+		pendingClearHighlightTimer = null
+	}
 })
 
 function reload() {
@@ -161,7 +260,7 @@ async function onLoadMore() {
 		await withScrollPreserved(rootEl.value, () => notesStore.loadMoreContactNotes())
 		const added = notesStore.contactNotes.length - before
 		if (added > 0) {
-			loadMoreStatus.value = n('touchpoint', '%n more note loaded', '%n more notes loaded', added)
+			viewStatus.value = n('touchpoint', '%n more note loaded', '%n more notes loaded', added)
 		}
 	} catch {
 		showError(t('touchpoint', 'Failed to load more notes.'))

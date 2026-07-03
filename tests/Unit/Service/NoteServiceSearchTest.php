@@ -13,6 +13,7 @@ use OCA\Touchpoint\Db\NoteFileMapper;
 use OCA\Touchpoint\Db\NoteMapper;
 use OCA\Touchpoint\Db\NoteSharingMapper;
 use OCA\Touchpoint\Db\NoteType;
+use OCA\Touchpoint\Notification\NotificationService;
 use OCA\Touchpoint\Service\NoteService;
 use OCA\Touchpoint\Service\NoteTypeService;
 use OCA\Touchpoint\Service\SettingsService;
@@ -53,6 +54,8 @@ class NoteServiceSearchTest extends TestCase {
     private IRootFolder $rootFolder;
     /** @var LoggerInterface&MockObject */
     private LoggerInterface $logger;
+    /** @var NotificationService&MockObject */
+    private NotificationService $notificationService;
 
     protected function setUp(): void {
         $this->mapper              = $this->createMock(NoteMapper::class);
@@ -63,6 +66,7 @@ class NoteServiceSearchTest extends TestCase {
         $this->noteTypeService     = $this->createMock(NoteTypeService::class);
         $this->rootFolder          = $this->createMock(IRootFolder::class);
         $this->logger              = $this->createMock(LoggerInterface::class);
+        $this->notificationService = $this->createMock(NotificationService::class);
 
         // Defaults: private mode, no groups, no shares.
         $this->settingsService->method('isNotesPublic')->willReturn(false);
@@ -93,6 +97,7 @@ class NoteServiceSearchTest extends TestCase {
             $this->noteTypeService,
             $this->rootFolder,
             $this->logger,
+            $this->notificationService,
         );
     }
 
@@ -147,6 +152,7 @@ class NoteServiceSearchTest extends TestCase {
             $this->noteTypeService,
             $this->rootFolder,
             $this->logger,
+            $this->notificationService,
         );
 
         $result = $service->search('user1', 'hello');
@@ -317,6 +323,7 @@ class NoteServiceSearchTest extends TestCase {
             $this->noteTypeService,
             $this->rootFolder,
             $this->logger,
+            $this->notificationService,
         );
 
         $result = $service->search('user1', 'foo', null, null, 'newest');
@@ -347,6 +354,7 @@ class NoteServiceSearchTest extends TestCase {
             $this->noteTypeService,
             $this->rootFolder,
             $this->logger,
+            $this->notificationService,
         );
 
         $result = $service->search('user1', 'hello');

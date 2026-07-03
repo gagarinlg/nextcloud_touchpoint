@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\Touchpoint\Tests\Unit\AppInfo;
 
 use OCA\Touchpoint\AppInfo\Application;
+use OCA\Touchpoint\Notification\Notifier;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use PHPUnit\Framework\TestCase;
@@ -25,10 +26,12 @@ class ApplicationTest extends TestCase {
 
     public function testRegister(): void {
         $context = $this->createMock(IRegistrationContext::class);
+        $context->expects($this->once())
+            ->method('registerNotifierService')
+            ->with(Notifier::class);
+
         $app = new Application();
         $app->register($context);
-        // Empty method — just ensure it doesn't throw
-        $this->assertTrue(true);
     }
 
     public function testBoot(): void {

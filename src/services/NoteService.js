@@ -18,6 +18,11 @@ export async function getAllNotes(limit, offset, sort) {
 	return data
 }
 
+export async function getNote(id) {
+	const { data } = await axios.get(`${baseUrl}/${id}`)
+	return data
+}
+
 export async function getNotesByContact(contactUid, limit, offset, sort) {
 	const params = {}
 	if (limit != null) params.limit = limit

@@ -10,6 +10,79 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Notification dispatch** (`OCA\Touchpoint\Notification\NotificationService`):
+  `NoteService::create()`/`update()` now dispatch real notifications via
+  `OCP\Notification\IManager`. `create()` notifies every share target (group
+  targets expanded to their current members via `IGroupManager`, capped at 200
+  distinct recipients per note — truncated with a logged warning beyond that)
+  since all of them are by definition new. `update()` diffs the note's sharing
+  set before vs. after the save and notifies only the targets newly added in
+  this call — a recipient who was already shared with is not re-notified just
+  because the owner re-saved the share list or tweaked a `canEdit` flag.
+  `create()` always scans the note body for `@userId` mention patterns;
+  `update()` scans only when the submitted content actually differs from the
+  note's previously-stored content (a resubmission of byte-identical content
+  does not re-scan/re-notify). Each candidate that resolves to a real user via
+  `IUserManager::userExists()` is notified, capped at 50 distinct valid
+  mentions per note and additionally capped at 200 distinct candidate tokens
+  scanned (valid or not), bounding `userExists()` calls against a pathological
+  body full of fabricated `@token`s. A mentioned user who does not yet have
+  read access to the note (no share/ownership) is notified WITHOUT the note's
+  title in the notification text — only a mentioned user who already has
+  access sees the title — so a potentially sensitive title is never disclosed
+  via a bell/push preview to someone who cannot yet open the note. The acting
+  user is never notified about their own share/mention. A `sharing` payload is
+  capped at 100 distinct targets per request
+  (`NoteService::MAX_SHARE_TARGETS_PER_REQUEST`, HTTP 400 beyond that), checked
+  before any per-target principal lookup so an oversized payload cannot force
+  many sequential DB/`IGroupManager` round-trips. `note#create`/`note#update`
+  are both rate-limited (`#[UserRateLimit(limit: 30, period: 60)]`) as defense
+  in depth. Deleting a note deletes any outstanding stored notification still
+  referencing it, for every recipient
+  (`NotificationService::dismissNoteNotifications()`, via
+  `IManager::markProcessed()`). All dispatch is best-effort: `NotificationService`
+  catches and logs any exception from
+  `IManager::createNotification()`/`notify()`/`markProcessed()` (or
+  group/user lookups) so a notification failure can never fail the note
+  save/delete that triggered it.
+- **Notifications** (`OCA\Touchpoint\Notification\Notifier`): implements
+  `OCP\Notification\INotifier`, registered in `Application::register()`. Handles
+  `note_shared` and `note_mention` subjects with a parsed subject (including
+  the note's title, truncated to 60 characters, when available), a rich
+  subject carrying a `user` RichObjectString parameter, an icon (`app-dark.svg`),
+  and a deep link (`rawurlencode`'d) to `#note/{noteId}`. Before rendering,
+  self-cleanup strictness differs by subject: `note_shared` re-verifies the
+  recipient can still access the referenced note; `note_mention` only checks
+  that the note still exists at all (not the recipient's access — @mention is
+  deliberately usable on a user with no prior relationship to the note, so
+  gating self-cleanup on access would delete the notification before that user
+  ever sees it). Either throws `OCP\Notification\AlreadyProcessedException` if
+  its check fails, so the notification is garbage-collected instead of left as
+  a dead-end bell entry. Task due/overdue notifications are deferred until the
+  Tasks integration ships. `note_mention`'s title-disclosure decision is
+  re-evaluated on every render (not just at dispatch time): a mentioned user
+  who had access when the title was persisted, but whose access is later
+  revoked while the notification is still outstanding, now sees the
+  title-less fallback wording on every subsequent bell/mobile fetch instead
+  of the stale, now-inappropriate title.
+- **Frontend `#note/{noteId}` deep link** (`src/App.vue`): resolves a
+  `#note/{noteId}` hash (from a notification) on initial load and on
+  `hashchange` — fetches the note via `GET /api/notes/{id}`, switches to the
+  contact the note belongs to, highlights and scrolls to the note once rendered
+  (`src/components/ContactNotesView.vue`, `src/components/NoteItem.vue`,
+  respecting `prefers-reduced-motion`), then normalises the URL to
+  `#contact/{uid}`. A missing or inaccessible note shows a toast instead of
+  navigating. The highlighted note also receives DOM focus
+  (`tabindex="-1"`, `preventScroll`) and an `aria-live` announcement of its
+  title, so keyboard/screen-reader users get the same "this is the note the
+  notification was about" confirmation sighted users get from the visual
+  highlight.
+- **`GET /api/notes/{id}` rate limit**: added `#[UserRateLimit(limit: 60,
+  period: 60)]` to `NoteController::show()`, matching the pattern already used
+  on `search`/`create`/`update`. Bounds a scripted sweep across sequential note
+  IDs — access control itself was already sound (nonexistent and inaccessible
+  IDs both 404 uniformly) but this endpoint is also what the notification
+  deep-link fetches, making it a more attractive probing target.
 - **Full-text note search** (`GET /api/notes/search?q=<term>`): case-insensitive
   iLike query across note title and content, scoped to owned and explicitly-shared
   notes. Returns HTTP 400 for `q` longer than 500 characters (not silently

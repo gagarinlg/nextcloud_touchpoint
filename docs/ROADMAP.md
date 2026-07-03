@@ -73,12 +73,25 @@ frontend — but Nextcloud's **public `OCP\Calendar` API fully supports this**
 - *Rationale: avoids duplicating the Tasks app and keeps tasks where users
   already manage them; Touchpoint stays the relationship/notes layer.*
 
-### 3. Notifications  ·  **M**
+### 3. Notifications  ·  **M**  ·  **shipped (note-shared / @mention); task due/overdue deferred**
 Today, sharing a note with someone is silent.
-- Implement `OCP\Notification\INotifier`; notify on: note **shared with you**,
-  (optionally) **@mention**, and **task due/overdue**.
-- Deep-link the notification to the note.
-- *Verified absent: no INotifier / notifications wiring.*
+- ✅ `lib/Notification/Notifier` implements `OCP\Notification\INotifier`,
+  registered in `Application::register()`. Handles `note_shared` and
+  `note_mention` subjects; deep-links to `#note/{noteId}` via `IURLGenerator`
+  (`rawurlencode`'d).
+- ✅ `lib/Notification/NotificationService` dispatches via `OCP\Notification\IManager`.
+  `NoteService::create()` notifies every share target (groups expanded to
+  members via `IGroupManager`); `NoteService::update()` diffs old vs. new
+  sharing and notifies only newly-added targets. Both scan note content for
+  `@userId` mentions (validated via `IUserManager::userExists()`) and notify
+  each one. The actor is never notified about their own action; dispatch
+  failures are caught and logged, never failing the note save.
+- ✅ Frontend: `App.vue` handles the `#note/{noteId}` hash (`applyNoteDeepLink()`)
+  — fetches the note, selects its contact, highlights/scrolls to the note in
+  `ContactNotesView`, and normalises the URL to `#contact/{uid}`. A missing or
+  inaccessible note shows a toast instead of navigating.
+- ⬜ Task **due/overdue** notifications — deferred until Tasks integration (#2)
+  ships (see that item).
 
 ---
 
@@ -368,9 +381,9 @@ land.
 ## Suggested first milestone
 If picking a single coherent release: **"Find & Act v1"** —
 1. ~~Full-text note search + Unified Search provider (#1)~~ ✅ **Done**
-2. Tasks-app integration — create/link follow-up VTODOs from a note (#2) + share
-   notifications (#3)
-3. Dashboard "Recent notes" / "Follow-ups" widget (#4)
+2. Tasks-app integration — create/link follow-up VTODOs from a note (#2)
+3. ~~Share notifications (#3)~~ ✅ **Done**
+4. Dashboard "Recent notes" / "Follow-ups" widget (#4)
 
 That set is what converts *notes on contacts* into something a team would run a
 CRM on, and every piece is a clean, app-store-rewarded Nextcloud integration.

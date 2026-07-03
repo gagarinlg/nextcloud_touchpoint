@@ -18,7 +18,7 @@
 			<section class="crm-settings-section">
 				<h2>{{ t('touchpoint', 'Default sharing') }}</h2>
 				<p class="crm-settings-hint">
-					{{ t('touchpoint', 'New notes are automatically shared with the following users and groups:') }}
+					{{ t('touchpoint', 'New notes are automatically shared with the following users and groups, who will be notified:') }}
 				</p>
 
 				<!-- Selected targets list -->
@@ -50,9 +50,9 @@
 				</div>
 
 				<!-- Search / add target. NcSelect with async search gives a real,
-				     accessible combobox (the ARIA roles, keyboard handling and
-				     active-descendant wiring live on the actual focusable input)
-				     and matches every other selector in the app. -->
+				accessible combobox (the ARIA roles, keyboard handling and
+				active-descendant wiring live on the actual focusable input)
+				and matches every other selector in the app. -->
 				<div class="crm-share-search">
 					<label for="crm-share-search-input" class="crm-group-label">
 						{{ t('touchpoint', 'Search users or groups') }}
@@ -89,10 +89,10 @@
 					{{ settingsStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
 				</NcButton>
 				<!-- When a load error coexists with already-loaded targets the form
-				     still renders, so explain why Save is greyed out instead of
-				     leaving it silently disabled (mirrors NoteModal's missing-field
-				     hint). Saving over a partially-failed load could clobber real
-				     settings, so Save stays disabled until a successful reload. -->
+				still renders, so explain why Save is greyed out instead of
+				leaving it silently disabled (mirrors NoteModal's missing-field
+				hint). Saving over a partially-failed load could clobber real
+				settings, so Save stays disabled until a successful reload. -->
 				<p v-if="settingsStore.error && !settingsStore.saving"
 					class="crm-save-hint"
 					role="status"
@@ -258,7 +258,7 @@ async function save() {
 	flex: 1;
 	font-size: var(--default-font-size, 14px);
 	/* Clamp long user/group names so the 'Can edit' switch and Remove button
-	   stay in view, matching the dropdown option row (.crm-share-option-name). */
+	stay in view, matching the dropdown option row (.crm-share-option-name). */
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;

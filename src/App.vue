@@ -6,17 +6,20 @@
 			<template #list>
 				<NcAppNavigationItem :name="t('touchpoint', 'Notes')"
 					:active="activeSection === 'contacts'"
-					@click="setSection('contacts')">
+					@click="setSection('contacts')"
+				>
 					<template #icon><IconNotes :size="20" /></template>
 				</NcAppNavigationItem>
 				<NcAppNavigationItem :name="t('touchpoint', 'Note types')"
 					:active="activeSection === 'note-types'"
-					@click="setSection('note-types')">
+					@click="setSection('note-types')"
+				>
 					<template #icon><IconLabel :size="20" /></template>
 				</NcAppNavigationItem>
 				<NcAppNavigationItem :name="t('touchpoint', 'Settings')"
 					:active="activeSection === 'settings'"
-					@click="setSection('settings')">
+					@click="setSection('settings')"
+				>
 					<template #icon><IconSettings :size="20" /></template>
 				</NcAppNavigationItem>
 			</template>
@@ -24,7 +27,8 @@
 
 		<NcAppContent v-if="activeSection === 'contacts'"
 			:show-details="!!contactsStore.currentContact"
-			@update:showDetails="onHideDetails">
+			@update:show-details="onHideDetails"
+		>
 			<template #list>
 				<div class="crm-list-header">
 					<NcTextField :model-value="contactsStore.searchQuery"
@@ -33,12 +37,14 @@
 						:placeholder="t('touchpoint', 'Search contacts\u2026')"
 						:trailing-button-label="t('touchpoint', 'Clear search')"
 						@trailing-button-click="contactsStore.searchQuery = ''"
-						@update:model-value="contactsStore.searchQuery = $event" />
+						@update:model-value="contactsStore.searchQuery = $event"
+					/>
 				</div>
 				<NcLoadingIcon v-if="contactsStore.loading" :size="32" class="crm-loading" />
 				<NcEmptyContent v-else-if="contactsStore.error && !contactsStore.contacts.length"
 					:name="t('touchpoint', 'Could not load contacts')"
-					:description="t('touchpoint', 'Something went wrong while loading. Please try again.')">
+					:description="t('touchpoint', 'Something went wrong while loading. Please try again.')"
+				>
 					<template #icon><IconAlert :size="48" /></template>
 					<template #action>
 						<NcButton @click="contactsStore.load()">{{ t('touchpoint', 'Retry') }}</NcButton>
@@ -47,13 +53,15 @@
 				<NcEmptyContent v-else-if="contactsStore.searchQuery && !displayedContacts.length"
 					class="crm-contacts-no-results"
 					:name="t('touchpoint', 'No contacts found')"
-					:description="t('touchpoint', 'No contacts match “{query}”', { query: contactsStore.searchQuery })">
+					:description="t('touchpoint', 'No contacts match “{query}”', { query: contactsStore.searchQuery })"
+				>
 					<template #icon><IconSearch :size="48" /></template>
 				</NcEmptyContent>
 				<NcEmptyContent v-else-if="!displayedContacts.length"
 					class="crm-contacts-no-results"
 					:name="t('touchpoint', 'No contacts')"
-					:description="t('touchpoint', 'Add contacts to your address book to start taking notes.')">
+					:description="t('touchpoint', 'Add contacts to your address book to start taking notes.')"
+				>
 					<template #icon><IconContacts :size="48" /></template>
 				</NcEmptyContent>
 				<ul v-else class="crm-contacts-list">
@@ -62,12 +70,13 @@
 						class="crm-contact-row"
 						:name="contact.name"
 						:active="isSelected(contact)"
-						@click="contactsStore.select(contact)">
+						@click="contactsStore.select(contact)"
+					>
 						<template #icon>
 							<ContactAvatar :uid="contact.uid" :name="contact.name" :photo="contact.photo" :is-user="contact.isUser" :size="44" />
 						</template>
 						<!-- Match the Contacts app's list row subline: the email, or the
-						     first phone number when there is no email. -->
+							first phone number when there is no email. -->
 						<template #subname>{{ contactSubline(contact) }}</template>
 					</NcListItem>
 				</ul>
@@ -93,6 +102,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
+import { showError } from '@nextcloud/dialogs'
 import NcContent from '@nextcloud/vue/components/NcContent'
 import NcAppNavigation from '@nextcloud/vue/components/NcAppNavigation'
 import NcAppNavigationItem from '@nextcloud/vue/components/NcAppNavigationItem'
@@ -116,10 +126,13 @@ import SettingsView from './components/SettingsView.vue'
 import { useContactsStore } from './stores/contacts.js'
 import { useNoteTypesStore } from './stores/noteTypes.js'
 import { useSettingsStore } from './stores/settings.js'
+import { useNotesStore } from './stores/notes.js'
+import * as NoteService from './services/NoteService.js'
 
 const contactsStore = useContactsStore()
 const noteTypesStore = useNoteTypesStore()
 const settingsStore = useSettingsStore()
+const notesStore = useNotesStore()
 const activeSection = ref('contacts')
 
 // Mirror the Contacts app: show the entire (client-side filtered) address book,
@@ -184,8 +197,99 @@ function applyContactDeepLink() {
 	}
 }
 
+// Deep link from a notification (note-shared / @mention): /apps/touchpoint#note/<id>.
+// The id is server-issued and numeric (matches the note#show route's '\d+'
+// requirement), so anything else is treated as absent rather than sent to the API.
+function noteIdFromHash() {
+	const match = window.location.hash.match(/^#note\/(\d+)$/)
+	return match ? Number(match[1]) : null
+}
+
+// Guards applyNoteDeepLink() against overlapping runs: a hashchange firing
+// again while a fetch is in flight must not let the older call apply its
+// now-stale result on top of the newer navigation.
+let noteDeepLinkSeq = 0
+
+// Strips the '#note/<id>' fragment from the URL bar without adding a history
+// entry. Used on both the success and failure paths of applyNoteDeepLink()
+// so a reload/reshare of the same tab never re-triggers the same fetch (and,
+// on failure, the same toast) indefinitely.
+function clearNoteDeepLinkHash() {
+	window.history.replaceState(null, '', window.location.pathname + window.location.search)
+}
+
+// Shared wording for both applyNoteDeepLink() failure paths (fetch failure,
+// missing contactUid): deliberately generic — does not distinguish "gone"
+// from "no access" to avoid an information leak — but still actionable, since
+// a user who arrived here via a share/mention notification has no other way
+// to know whom to ask. Extracted to a single call site so a future wording
+// tweak cannot miss one of the two paths and split the translated string.
+function noteInaccessibleMessage() {
+	return t('touchpoint', 'This note could not be found or you no longer have access to it. If you received a notification about it, ask the person who shared or mentioned you in it for access.')
+}
+
+// Apply the #note/<id> deep link: fetch the note, resolve its contact, select
+// that contact, highlight/scroll to the note, then normalise the URL to
+// #contact/<uid> so reloading or sharing the link lands on the contact view
+// rather than re-running this fetch. Shows a toast and leaves the app on its
+// current view if the note does not exist or the caller cannot access it,
+// clearing the '#note/<id>' hash first so a reload doesn't repeat the same
+// failed fetch/toast indefinitely.
+async function applyNoteDeepLink() {
+	const id = noteIdFromHash()
+	if (id == null) return
+	const seq = ++noteDeepLinkSeq
+	let note
+	try {
+		note = await NoteService.getNote(id)
+	} catch (e) {
+		if (seq !== noteDeepLinkSeq) return // superseded by a newer hashchange
+		// Any failure (404 not found, 403 forbidden, network error) is shown
+		// identically: the caller cannot distinguish "doesn't exist" from "no
+		// access" without an information leak, so a single generic message
+		// covers both per the acceptance criteria. The underlying cause is only
+		// logged at info level (not shown to the user) so support/diagnosis can
+		// still tell the failures apart from the browser console if needed.
+		console.info('Touchpoint: note deep link could not be resolved', id, e)
+		showError(noteInaccessibleMessage())
+		clearNoteDeepLinkHash()
+		return
+	}
+	if (seq !== noteDeepLinkSeq) return // superseded by a newer hashchange
+	const uid = note.contactUid
+	if (!uid) {
+		// Defensive: every note created through NoteService.create() has a
+		// non-empty primary contactUid, but a malformed/legacy row must not send
+		// the user to a meaningless "#contact/" hash.
+		console.info('Touchpoint: note deep link target has no contactUid', note)
+		showError(noteInaccessibleMessage())
+		clearNoteDeepLinkHash()
+		return
+	}
+	activeSection.value = 'contacts'
+	notesStore.setHighlightNote(note.id)
+	if (!contactsStore.selectByUid(uid)) {
+		// Contacts may still be loading (startup race, same as the #contact/
+		// deep link) — the onMounted caller awaits contactsStore.load() before
+		// calling us, but leave the highlight flag set so ContactNotesView
+		// still picks it up once the contact is eventually selected.
+		contactsStore.deselect()
+	}
+	// Normalise the URL so refreshing/sharing this link afterwards lands on
+	// the plain contact deep link instead of re-fetching the note every time.
+	window.history.replaceState(null, '', '#contact/' + encodeURIComponent(uid))
+}
+
 function onHashChange() {
-	applyContactDeepLink()
+	// A #note/<id> hash always wins when present: it is only ever produced by a
+	// notification link, and applyNoteDeepLink() itself rewrites the hash to
+	// #contact/<uid> afterwards, so the two never legitimately fire for the same
+	// navigation.
+	if (noteIdFromHash() != null) {
+		applyNoteDeepLink()
+	} else {
+		applyContactDeepLink()
+	}
 }
 
 onMounted(async () => {
@@ -195,9 +299,14 @@ onMounted(async () => {
 	// re-throws on failure, so Promise.all would otherwise produce an unhandled
 	// rejection here.
 	await Promise.allSettled([contactsStore.load(), noteTypesStore.load(), settingsStore.load()])
-	// Now that contacts are loaded, honour any #contact/<uid> deep link the user
-	// arrived with (e.g. the "Open in Touchpoint" link on the Contacts tab).
-	applyContactDeepLink()
+	// Now that contacts are loaded, honour any #contact/<uid> or #note/<id> deep
+	// link the user arrived with (e.g. the "Open in Touchpoint" link on the
+	// Contacts tab, or a notification for a shared note / @mention).
+	if (noteIdFromHash() != null) {
+		await applyNoteDeepLink()
+	} else {
+		applyContactDeepLink()
+	}
 })
 
 onBeforeUnmount(() => {
@@ -232,8 +341,8 @@ onBeforeUnmount(() => {
 
 .crm-contacts-list {
 	/* The scroll region: take the remaining height and scroll within it.
-	   min-height:0 lets a flex child shrink below its content height so
-	   overflow can actually kick in. */
+		min-height:0 lets a flex child shrink below its content height so
+		overflow can actually kick in. */
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;

@@ -1,34 +1,40 @@
 <!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
-	<div class="crm-note-item" :class="{ 'is-pinned': note.isPinned }">
+	<div :id="'crm-note-' + note.id"
+		class="crm-note-item"
+		:class="{ 'is-pinned': note.isPinned, 'is-highlighted': highlighted }"
+		:tabindex="highlighted ? -1 : undefined"
+	>
 		<!-- Only a resolvable contact (present in the loaded contacts list) gets a
-		     clickable button, because activating it selects that contact — which is
-		     impossible when we have no contact record for the UID. For an
-		     unresolvable contact (e.g. beyond the loaded cap, deleted, or foreign)
-		     we render the fallback label as plain, non-interactive text so the user
-		     isn't offered a dead, button-shaped control. -->
+		clickable button, because activating it selects that contact — which is
+		impossible when we have no contact record for the UID. For an
+		unresolvable contact (e.g. beyond the loaded cap, deleted, or foreign)
+		we render the fallback label as plain, non-interactive text so the user
+		isn't offered a dead, button-shaped control. -->
 		<button v-if="showContact && contactResolved"
 			type="button"
 			class="crm-note-contact-name"
-			@click.stop="$emit('contact-click', note.contactUid)">
+			@click.stop="$emit('contact-click', note.contactUid)"
+		>
 			{{ contactName }}
 		</button>
 		<span v-else-if="showContact && contactName"
-			class="crm-note-contact-name crm-note-contact-name--static">
+			class="crm-note-contact-name crm-note-contact-name--static"
+		>
 			{{ contactName }}
 		</span>
 		<div class="crm-note-item-header">
 			<NoteTypeBadge v-if="noteType" :type="noteType" />
 			<!-- Heading (not a plain span) so screen-reader users can traverse the
-			     note list heading-by-heading; styled below to the 14px/600 token
-			     so the visual is unchanged. -->
+			note list heading-by-heading; styled below to the 14px/600 token
+			so the visual is unchanged. -->
 			<h2 class="crm-note-title">{{ note.title }}</h2>
 			<IconPin v-if="note.isPinned"
 				class="crm-pin-indicator"
 				:size="16"
-				role="img"
-				:aria-label="t('touchpoint', 'Pinned')" />
+				:title="t('touchpoint', 'Pinned')"
+			/>
 		</div>
 		<!-- eslint-disable-next-line vue/no-v-html -->
 		<div v-if="note.content" class="crm-note-content" v-html="renderedContent" />
@@ -81,6 +87,9 @@ const props = defineProps({
 	note: { type: Object, required: true },
 	showContact: { type: Boolean, default: false },
 	deleting: { type: Boolean, default: false },
+	// True when this note is the target of a #note/{id} deep link — draws a
+	// temporary highlight border so the user can spot it after the scroll.
+	highlighted: { type: Boolean, default: false },
 })
 
 defineEmits(['edit', 'delete', 'contact-click'])
@@ -180,6 +189,37 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	border-color: var(--color-primary-element);
 }
 
+/* The note item is only ever given a tabindex when it's the target of a
+   #note/{id} deep-link (see :tabindex in the template) and is then focused
+   programmatically by ContactNotesView's applyHighlight() — give that
+   programmatic focus the same visible ring convention used elsewhere in this
+   app (e.g. .crm-note-contact-name:focus-visible below) so sighted keyboard
+   users can see where focus landed, not just AT users. */
+.crm-note-item:focus-visible {
+	outline: 2px solid var(--color-primary-element);
+	outline-offset: 2px;
+}
+
+/* Temporary highlight for the target of a #note/{id} deep link. Uses the same
+   accent as .is-pinned plus a background wash so it reads clearly even when
+   the note is also pinned; fades out on its own via the transition below once
+   NoteItem re-renders without the highlighted prop (ContactNotesView clears the
+   store flag shortly after applying it). */
+.crm-note-item.is-highlighted {
+	border-color: var(--color-primary-element);
+	border-width: 2px;
+	background: var(--color-primary-element-light);
+	transition: background-color 1.5s ease-out;
+}
+
+/* Honour reduced-motion: the highlight still appears/disappears, it just
+   snaps instead of fading. Matches .crm-note-actions below. */
+@media (prefers-reduced-motion: reduce) {
+	.crm-note-item.is-highlighted {
+		transition: none;
+	}
+}
+
 .crm-note-contact-name {
 	display: block;
 	font-size: var(--font-size-small, 13px);
@@ -192,7 +232,7 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	padding: 0;
 	text-align: start;
 	/* Break a long unbroken contact name or a raw UID fallback inside the card
-	   instead of pushing the card width, matching .crm-note-title/.crm-note-content. */
+	instead of pushing the card width, matching .crm-note-title/.crm-note-content. */
 	max-width: 100%;
 	overflow-wrap: anywhere;
 }
@@ -227,13 +267,13 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 
 .crm-note-title {
 	/* Reset the UA heading defaults (margin, large bold size) so this <h2>
-	   renders identically to the former <span> at the design-system token. */
+	renders identically to the former <span> at the design-system token. */
 	margin: 0;
 	font-weight: 600;
 	font-size: var(--default-font-size, 14px);
 	line-height: inherit;
 	/* Allow long unbroken titles (pasted URLs/filenames) to wrap inside the card
-	   instead of pushing the layout or clipping at the flex boundary. */
+	instead of pushing the layout or clipping at the flex boundary. */
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
@@ -245,14 +285,14 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 
 .crm-note-content {
 	/* Primary note substance — full reading contrast. --color-text-maxcontrast is
-	   reserved for secondary meta/byline and linked-contacts rows. */
+	reserved for secondary meta/byline and linked-contacts rows. */
 	color: var(--color-main-text);
 	font-size: var(--font-size-small, 13px);
 	margin: calc(var(--default-grid-baseline, 4px) * 1) 0 calc(var(--default-grid-baseline, 4px) * 2);
 	line-height: 1.6;
 	/* Break long unbroken strings (pasted URLs/tokens/filenames) inside the card
-	   instead of letting a paragraph push the layout and cause horizontal body
-	   scroll on narrow viewports — matching the .crm-note-title treatment. */
+	instead of letting a paragraph push the layout and cause horizontal body
+	scroll on narrow viewports — matching the .crm-note-title treatment. */
 	overflow-wrap: anywhere;
 }
 
@@ -324,8 +364,8 @@ const renderedContent = computed(() => renderMarkdown(props.note.content))
 	padding: 2px calc(var(--default-grid-baseline, 4px) * 2);
 	font-size: var(--font-size-small, 13px);
 	/* Clamp very long unbroken filenames with an ellipsis (matching the modal's
-	   .crm-file-name) so a single chip cannot stretch past the card's content
-	   width on narrow viewports. */
+	.crm-file-name) so a single chip cannot stretch past the card's content
+	width on narrow viewports. */
 	max-width: 100%;
 	min-width: 0;
 }

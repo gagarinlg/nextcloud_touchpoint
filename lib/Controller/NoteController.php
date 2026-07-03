@@ -68,6 +68,7 @@ class NoteController extends Controller {
     }
 
     #[NoAdminRequired]
+    #[UserRateLimit(limit: 60, period: 60)]
     public function show(int $id): JSONResponse {
         return $this->handleNotFound(fn () => $this->noteService->find($id, $this->getUserId()));
     }
@@ -135,6 +136,12 @@ class NoteController extends Controller {
     }
 
     #[NoAdminRequired]
+    // Bounds the note-save rate, which indirectly bounds notification fan-out
+    // (note_shared / note_mention dispatch on create/update): without this,
+    // any writer could repeatedly save a note naming up to 50 @mentioned users
+    // as fast as HTTP allows, spamming every one of them with a fresh
+    // notification per call. Mirrors search()'s existing rate limit.
+    #[UserRateLimit(limit: 30, period: 60)]
     public function create(
         // Default '' (like the other optional params) so a request that omits
         // contactUid entirely does NOT feed null into a non-nullable string
@@ -176,6 +183,9 @@ class NoteController extends Controller {
     }
 
     #[NoAdminRequired]
+    // See create()'s #[UserRateLimit] comment: bounds note-save rate, which
+    // indirectly bounds note_shared/note_mention notification fan-out.
+    #[UserRateLimit(limit: 30, period: 60)]
     public function update(
         int $id,
         ?string $title = null,

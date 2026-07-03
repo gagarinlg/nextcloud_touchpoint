@@ -37,7 +37,7 @@ test.describe('Touchpoint — accessibility smoke', () => {
 	});
 
 	test('the markdown toolbar is a labelled ARIA toolbar with named buttons', async ({ page }) => {
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		await page.locator('.crm-contacts-list li').first().click();
 		await page.getByRole('button', { name: RX.addNote }).first().click();
 		const toolbar = page.getByRole('toolbar', { name: /Text formatting|Textformatierung/i });
@@ -53,7 +53,7 @@ test.describe('Touchpoint — accessibility smoke', () => {
 	});
 
 	test('the note modal labels its contact, type and title fields and marks them required', async ({ page }) => {
-		await gotoSection(page, RX.contacts);
+		await gotoSection(page, RX.notes);
 		await page.locator('.crm-contacts-list li').first().click();
 		await page.getByRole('button', { name: RX.addNote }).first().click();
 		const modal = page.locator('.crm-modal-body');
@@ -73,7 +73,7 @@ test.describe('Touchpoint — accessibility smoke', () => {
 		try {
 			await page.reload();
 			await openApp(page);
-			await gotoSection(page, RX.contacts);
+			await gotoSection(page, RX.notes);
 			const card = page.locator('.crm-note-item').filter({ hasText: title }).first();
 			await expect(card).toBeVisible({ timeout: 10000 });
 			// The actions reveal on hover/focus; assert they are present and named.

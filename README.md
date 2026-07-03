@@ -18,6 +18,8 @@ can be **pinned**, carry **file attachments**, render **Markdown**, and can be
 - **Pin** important notes; **Markdown** bodies (sanitised via DOMPurify).
 - **File attachments** from your Nextcloud Files.
 - **Sharing** with users/groups, with per-recipient edit permission.
+- **Notifications** — recipients get a Nextcloud notification when a note is
+  newly shared with them, or when they're `@mentioned` in a note's content.
 - **Contacts app integration** (when the Contacts app is installed):
   - a **Touchpoint panel** injected into the contact detail view, with inline
     note creation;

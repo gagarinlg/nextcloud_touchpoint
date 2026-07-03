@@ -70,6 +70,135 @@ talks to the same backend API directly.
   fatal error in `NoteSearchProvider`), run: `occ app:disable touchpoint`, revert
   to the previous release tarball, then `occ app:enable touchpoint`. This is
   standard NC app recovery.
+- **Notification** — `lib/Notification/Notifier` implements `OCP\Notification\INotifier`
+  and is registered in `Application::register()` via
+  `$context->registerNotifierService(Notifier::class)`. Handles two subjects:
+  `note_shared` (dispatched when a note's sharing targets gain a user) and
+  `note_mention` (dispatched when note content contains an `@userId` pattern).
+  Both render a parsed subject (the actor's display name, plus the note's
+  title truncated to 60 characters when available, via a `noteTitle` subject
+  parameter — falls back to the title-less phrasing when absent), a rich
+  subject with a `user` RichObjectString parameter (`type`/`id`/`name`; there
+  is no rich-object type for a free-text note title, so the rich variant omits
+  it), an icon (`app-dark.svg` — see the icon-variant note below; this is
+  **not** the same variant used by every registration point), and a link
+  built via `IURLGenerator` to `#note/{noteId}` in the Touchpoint app page —
+  `rawurlencode()`'d, matching the convention used by `NoteSearchProvider`.
+  **Icon variant:** the app deliberately uses two icon variants, chosen by the
+  background the icon renders against — `app-dark.svg` for light-background
+  surfaces (this notification bell dropdown, and `AdminSection`'s admin
+  settings sidebar), and the light `app.svg` for tinted/dark surfaces
+  (`NoteSearchProvider`'s Unified Search results, and `ContactsMenu\Provider`'s
+  hover card). Not drift — keep this split when adding a new integration point.
+  Both subject variants share one private helper (`prepareActorSubject()`) to
+  avoid the near-duplication two hand-written copies would otherwise carry.
+  Before rendering, `prepare()` runs a self-cleanup check whose STRICTNESS
+  differs by subject, via `prepareActorSubject()`'s `$requireRecipientAccess`
+  flag: for `note_shared` it calls the lightweight `NoteService::isAccessible()`
+  for the notification's recipient/note pair and self-cleans when it returns
+  `false` (note deleted, or the recipient's access since revoked) — chosen over
+  the heavier `NoteService::find()` because `prepare()` runs once per stored
+  notification on every bell/mobile fetch and the enriched `Note` `find()`
+  would return is never used here; for `note_mention`
+  it instead calls the lighter `NoteService::noteExists()` (existence only, no
+  recipient scoping) and self-cleans only if the note itself is gone. This
+  split exists because `@mention` is deliberately usable on a recipient with
+  no prior share (see the Notifications section's policy note below) — using
+  the same access-scoped check for both subjects would delete a fresh mention
+  notification the first time it renders, before the mentioned user ever sees
+  it. Either path throws `OCP\Notification\AlreadyProcessedException` so
+  `IManager` garbage-collects the notification instead of leaving a dead-end
+  bell entry. `prepare()` throws `OCP\Notification\UnknownNotificationException` (the non-deprecated
+  successor to `\InvalidArgumentException` for this purpose, per `INotifier`'s
+  `@since 30.0.0` note) for any app other than `touchpoint` or any subject it
+  does not recognise.
+  `lib/Notification/NotificationService` is the dispatch side: it wraps
+  `OCP\Notification\IManager` to build and send notifications shaped
+  `app='touchpoint'`, `user=<target>`, `object_type='note'`, `object_id=<noteId>`,
+  `subject='note_shared'|'note_mention'` with `actorUid` and `noteTitle`
+  subject parameters (consumed by `Notifier::prepare()` above); both public
+  dispatch methods (`sendShareNotification()`/`sendMentionNotification()`)
+  delegate to one private `dispatch()` helper to avoid near-duplicated
+  guard/try/catch/log bodies. It also holds the group-expansion helper
+  (`expandShareTargetsToUserIds()`, via `IGroupManager`, capped at 200 distinct
+  recipients per note — `MAX_NOTIFY_RECIPIENTS_PER_NOTE` — truncated with a
+  logged warning beyond that so sharing with a very large group cannot turn a
+  single HTTP request into thousands of sequential synchronous `notify()`
+  calls). `NoteService::MAX_SHARE_TARGETS_PER_REQUEST` (100) separately bounds
+  the number of distinct entries accepted in one `sharing` payload — checked
+  before any per-target `principalExists()` DB/`IGroupManager` lookup runs, so
+  a request listing many distinct (real or fabricated) group/user ids cannot
+  force many sequential lookups even though no single group is large; an
+  over-cap payload is rejected outright (`NoteValidationException` -> HTTP
+  400), not silently truncated, since a note's sharing list is a
+  security-relevant ACL. It also holds the `@userId` mention scanner (`extractMentionedUserIds()`,
+  validated via `IUserManager::userExists()`, capped at 50 distinct **valid**
+  mentions per note — `MAX_MENTIONS_PER_NOTE` — and additionally capped at 200
+  distinct **candidate** tokens scanned regardless of validity —
+  `MAX_CANDIDATES_SCANNED` — so a body packed with thousands of fabricated,
+  never-resolving `@token`s cannot turn into thousands of `userExists()`
+  lookups against a potentially remote identity backend). It also exposes
+  `dismissNoteNotifications(int $noteId)`, called from `NoteService::delete()`,
+  which builds a filter notification (`app`+`object_type`/`object_id` only) and
+  hands it to `IManager::markProcessed()` (inherited from `IApp`) so any
+  outstanding, stored `note_shared`/`note_mention` notification for the
+  deleted note is deleted for every recipient rather than left dangling. This
+  is deliberately not `IManager::dismissNotification()`, which only invokes
+  the optional per-notifier `IDismissableNotifier` hook and never touches
+  persisted rows — Touchpoint's `Notifier` does not implement that interface,
+  so calling it would be a no-op. Every public method swallows
+  and logs its own exceptions — a broken notification dispatch/dismissal must
+  never fail the note save/delete that triggered it. `NoteService` is the only
+  caller: `create()` notifies every share target (all of them are new on
+  create); `update()` snapshots the sharing set before `syncSharing()`
+  overwrites it and notifies only the targets newly added in that call (a
+  recipient re-saved into the same share list, or one whose `canEdit` flag
+  merely changed, is not re-notified). `create()` always scans the new content
+  for mentions; `update()` snapshots the note's previous content before
+  overwriting it and only rescans/notifies when the submitted content actually
+  differs from that snapshot — a resave that resubmits byte-identical content
+  (the frontend always includes `content` in its save payload, even for a
+  title/pinned/contacts-only edit) does not re-trigger mention notifications.
+  `NoteService::notifyMentions()` withholds the note's title from a mentioned
+  user who does not yet have read access to the note (checked via the
+  lightweight `userHasAccessToNote()`: owner, public mode, or an outstanding
+  share — no `enrichNote()` overhead since this runs once per mentioned user,
+  up to `MAX_MENTIONS_PER_NOTE` times per save), so a potentially sensitive
+  title is never disclosed via the bell/push preview to someone who cannot yet
+  open the note; `Notifier` falls back to its title-less wording in that case.
+  Query cost: for a non-owner mentioned user when notes are not public,
+  `userHasAccessToNote()` issues up to 2 DB queries
+  (`getUserGroupIds()` + `findAccessibleNoteIds()`), so a single `create()`/
+  `update()` call can add up to `2 * MAX_MENTIONS_PER_NOTE` synchronous
+  round-trips in the worst case — bounded by that same cap, not memoized.
+  `NoteController::create()`/`update()` both carry
+  `#[UserRateLimit(limit: 30, period: 60)]` as defense in depth, bounding the
+  note-save rate (and therefore notification fan-out) regardless of content.
+  The actor is never notified about their own share/mention (enforced in both
+  `NoteService` and `NotificationService`, defense in depth). The frontend
+  resolves the `#note/{noteId}` hash in `App.vue` (`applyNoteDeepLink()`,
+  wired into the `hashchange` listener and the initial `onMounted`): it
+  fetches the note via `GET /api/notes/{id}`, switches to the contacts
+  section, selects the note's `contactUid`, sets `notesStore.highlightNoteId`
+  so `ContactNotesView` scrolls to and highlights the note once rendered
+  (paging further if the note isn't on the first loaded page, respecting
+  `prefers-reduced-motion` for the scroll/highlight animation), then
+  normalises the URL to `#contact/{uid}` via `history.replaceState`. A note
+  that is missing or inaccessible shows a `showError()` toast instead of
+  navigating (the failure cause is additionally logged at `console.info` level
+  for diagnosis, without being shown to the user). The pagination hunt itself
+  (`ContactNotesView.applyHighlight()`) is bounded by `MAX_HIGHLIGHT_LOAD_PAGES`
+  (20) `loadMoreContactNotes()` calls, mirroring the caps applied elsewhere in
+  the notification pipeline (`MAX_MENTIONS_PER_NOTE`,
+  `MAX_NOTIFY_RECIPIENTS_PER_NOTE`) — it stops paging once the target note is
+  found, once `contactNotesHasMore` goes `false` (the contact's notes are
+  exhausted), or once the cap is hit, whichever comes first. Either give-up
+  case (note absent from every loaded page, e.g. deleted after the initial
+  fetch but before the hunt reaches its page) surfaces a "could not be found"
+  message via the same `role="status"` live region used for "N more notes
+  loaded" announcements, and the transient `highlightNoteId` flag is cleared
+  either way (via a 2s timer, cancelled on unmount) so a later re-render of
+  the same contact never re-triggers the scroll/highlight.
 - **Listener** — `LoadContactsTabListener` handles `BeforeTemplateRenderedEvent`,
   and when the rendered app is `contacts` injects the
   `touchpoint-contacts-integration` bundle. (The Contacts app exposes no real
@@ -200,6 +329,7 @@ talks to the same backend API directly.
 | Migrations | `Version1000Date20260627000000.php` |
 | Listeners | `LoadContactsTabListener.php` |
 | Search providers | `NoteSearchProvider.php` |
+| Notifiers | `NotificationService.php`, `Notifier.php` |
 | ContactsMenu | `Provider.php` |
 | Settings | `Admin.php`, `AdminSection.php` |
 | Vue entries | `adminSettings.js`, `contacts-integration.js`, `main.js` |

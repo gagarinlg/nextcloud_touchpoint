@@ -56,7 +56,7 @@ The photo endpoint only reads vCards from address books whose key `is_numeric()`
 |---|---|---|---|
 | GET | `/api/notes` | `sort` (`newest`\|`oldest`), `limit`, `offset` | All notes accessible to the user (owned + shared). Returns [`Note[]`](#note). |
 | GET | `/api/notes/search` | `q` (string, max 500 chars), `sort`, `limit` (1–200, default 50), `offset` | Case-insensitive full-text search across note title and content. Returns [`Note[]`](#note) on 200; `400 { "message": … }` if `q` exceeds 500 characters. Blank or whitespace-only `q` returns 200 `[]`. Public mode returns 200 `[]`. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
-| GET | `/api/notes/{id}` | `id` numeric (`\d+`) | A single accessible note. The `\d+` requirement keeps `/api/notes/search` (and other literal sub-routes) from ever being captured by this wildcard. |
+| GET | `/api/notes/{id}` | `id` numeric (`\d+`) | A single accessible note. The `\d+` requirement keeps `/api/notes/search` (and other literal sub-routes) from ever being captured by this wildcard. Rate-limited to 60 requests per 60 seconds per user (`#[UserRateLimit]`), bounding a scripted sweep across sequential note IDs (access itself is sound — nonexistent and inaccessible IDs both 404 uniformly — but this is also the endpoint the `note_shared`/`note_mention` notification deep-link fetches). |
 | POST | `/api/notes` | see [create body](#note-create--update-body) | Create a note. |
 | PUT | `/api/notes/{id}` | see [update body](#note-create--update-body) | Update a note (only supplied fields change; `null` = leave as-is). |
 | DELETE | `/api/notes/{id}` | — | Delete a note and its child rows (files, contacts, sharing). |
@@ -75,7 +75,7 @@ The photo endpoint only reads vCards from address books whose key `is_numeric()`
 | `addressbookId` | int | optional (`0`) | — | Currently stored but unused for auth/lookup. |
 | `isPinned` | bool | optional (`false`) | optional | |
 | `contactUids` | string[] | optional (`[]`) | optional | Additional linked contacts (junction rows). |
-| `sharing` | array\|null | optional | optional | ACL entries: `{ sharedWithType, sharedWithId, canEdit }`. |
+| `sharing` | array\|null | optional | optional | ACL entries: `{ type: 'user'\|'group', id: string, canEdit?: bool }`. Capped at 100 distinct entries per request (`NoteService::MAX_SHARE_TARGETS_PER_REQUEST`) — a payload listing more is rejected with HTTP 400 before any principal is looked up. Note: this is the **input** shape; the [`Note`](#note) response's `sharing` array uses the entity's own field names (`sharedWithType`/`sharedWithId`) — see below. |
 
 Both return the resulting [`Note`](#note).
 
@@ -220,6 +220,120 @@ above:
 - In **public mode** the box renders an explicit "Search is unavailable while
   notes are shared publicly" empty state and fires no request (the endpoint would
   return `[]` anyway), instead of a misleading generic "No notes found".
+
+---
+
+## Notifications
+
+Server-side only — **no new HTTP routes**. Touchpoint dispatches native
+Nextcloud notifications (the bell icon / desktop & mobile push, via
+`OCP\Notification\IManager`) for two subjects:
+
+| Subject | Dispatched when | Recipients |
+|---|---|---|
+| `note_shared` | A note's sharing targets gain a user (`NoteService::create()`: every share target; `NoteService::update()`: only targets newly added compared to the note's previous sharing set). | The newly-added target user(s); group targets are expanded to their current members via `IGroupManager`, capped at 200 distinct recipients per note (`MAX_NOTIFY_RECIPIENTS_PER_NOTE`) — truncated with a logged warning beyond that. The `sharing` payload itself is additionally capped at 100 distinct targets per request (`NoteService::MAX_SHARE_TARGETS_PER_REQUEST`, HTTP 400 beyond that), checked before any per-target principal lookup runs — bounding both the number of `IGroupManager`/DB round-trips a single request can trigger and the notification fan-out itself, not just fan-out from one oversized group. |
+| `note_mention` | Note content, on create, or on update **only when the content actually changed** from the note's previously-stored value (a resubmission of byte-identical content does not re-scan/re-notify), contains an `@userId` token that resolves to a real user via `IUserManager::userExists()`. Capped at 50 distinct valid mentions per note (`MAX_MENTIONS_PER_NOTE`); the scan also stops after inspecting 200 distinct candidate tokens (`MAX_CANDIDATES_SCANNED`), valid or not, to bound `userExists()` calls against a pathological body full of fabricated `@token`s. | Each mentioned user. |
+
+The acting user is never notified about their own share/mention. `note#create`
+and `note#update` are both rate-limited (`#[UserRateLimit(limit: 30, period: 60)]`)
+so the note-save rate — and therefore notification fan-out — is bounded per
+user regardless of note content.
+
+**Policy note (deliberate, not a gap):** `@mention` notifications are NOT
+gated on the mentioned user having any prior relationship (share/ownership) to
+the note. This is by design — the feature's purpose is to loop in a colleague
+who does not yet have access, mirroring `@mention`-to-invite patterns in
+comparable Nextcloud apps; a share-only gate would make it impossible to
+mention someone into a note for the first time. The combination of the
+per-note valid-mention cap (50), the per-note candidate-scan cap (200), and
+the per-user rate limit above bounds the abuse surface (spam/enumeration-via-notification)
+without removing the capability. Revisit only as an explicit product decision,
+not as a silent behavior change.
+
+Two corollaries of this policy, both implemented in `NoteService`/`Notifier`:
+
+- **Self-cleanup is existence-only for `note_mention`.** `Notifier::prepare()`
+  self-cleans (`AlreadyProcessedException`) a `note_shared` notification when
+  the recipient's access is gone (share revoked or note deleted), but for
+  `note_mention` it only self-cleans when the note itself no longer exists.
+  Checking full recipient access for `note_mention` would delete the
+  notification the very first time it renders for exactly the intended
+  "mention someone with no access yet" case, before they ever see it.
+- **The note title is withheld from a mentioned user with no access yet.**
+  `NoteService::notifyMentions()` only passes the note's title into the
+  `note_mention` dispatch when the mentioned user already has read access
+  (owner, public mode, or an outstanding share); otherwise the notification
+  uses `Notifier`'s title-less fallback wording. This avoids disclosing
+  potentially sensitive note content via a push/bell preview to a user who
+  cannot yet open the note to see it themselves — once the mentioning author
+  (or someone else) actually grants that user a share, subsequent mentions
+  include the title as normal.
+- **Title visibility is re-checked on every render, not just at dispatch
+  time.** The `noteTitle` subject parameter persisted with a `note_mention`
+  notification only reflects the recipient's access AT DISPATCH TIME. If a
+  mentioned user DID have access when mentioned (so the title was persisted),
+  and that access is later revoked (share removed, public mode turned off)
+  before they read the still-outstanding notification, `Notifier::prepare()`
+  re-checks the recipient's CURRENT access (via the same lightweight
+  `NoteService::isAccessible()` used for `note_shared`) on every render and
+  falls back to the title-less wording if access is no longer present — even
+  though the notification itself is not self-cleaned (existence-only
+  self-cleanup for `note_mention` still applies; only the title-disclosure
+  decision is access-gated).
+
+Dispatch is best-effort:
+`OCA\Touchpoint\Notification\NotificationService` catches and logs any failure
+(bad group lookup, `IManager` exception, etc.) so a notification problem can
+never fail the note save that triggered it. Deleting a note
+(`NoteService::delete()`) dismisses any outstanding `note_shared`/`note_mention`
+notification that still references it, via
+`NotificationService::dismissNoteNotifications()`.
+
+`OCA\Touchpoint\Notification\Notifier` (`OCP\Notification\INotifier`, registered
+in `Application::register()`) renders both subjects into a parsed subject (the
+acting user's display name, plus the note's title when available — truncated
+to 60 characters — so several same-day notifications are distinguishable at a
+glance), a rich subject (`user` RichObjectString parameter), an icon
+(`app-dark.svg`), and a link to `#note/{noteId}` in the
+Touchpoint app page (`rawurlencode()`'d, same convention as the search
+deep-links above).
+
+**Icon variant convention:** the app uses two icon variants across its four
+registration points, chosen by the background the icon renders against —
+`app-dark.svg` for surfaces with a light background (the notification bell
+dropdown here, and the admin settings sidebar in `Settings\AdminSection`), and
+`app.svg` (the light variant) for surfaces with a tinted/dark background
+(Unified Search results in `NoteSearchProvider`, and the contacts hover card
+in `ContactsMenu\Provider`). This is a deliberate per-surface choice, not
+drift — do not "fix" all four to the same variant.
+
+Before rendering, `Notifier::prepare()` re-checks that the
+notification is still relevant: for `note_shared` it verifies the recipient
+can still access the note (via the lightweight `NoteService::isAccessible()`,
+which mirrors `find()`'s access resolution without its enrichment overhead —
+`prepare()` runs once per stored notification on every bell/mobile fetch, and
+the enriched `Note` `find()` would return is never used here); for
+`note_mention` it
+only verifies the note still exists (via `NoteService::noteExists()`), since
+`@mention` is deliberately usable before the recipient has any access to the
+note (see the Policy note above). Either way, if the check fails it throws
+`OCP\Notification\AlreadyProcessedException`
+so `IManager` garbage-collects the now-dead-end notification instead of
+leaving it in the recipient's bell/mobile list. Separately from that
+self-cleanup check, `note_mention` also re-evaluates `NoteService::isAccessible()`
+on every render solely to decide whether the persisted `noteTitle` may be
+shown (see the corollary above) — a `note_mention` notification whose
+recipient's access was revoked after dispatch keeps rendering (no
+self-clean) but falls back to the title-less wording. An unknown app or subject
+throws `OCP\Notification\UnknownNotificationException` (the non-deprecated
+successor to throwing `\InvalidArgumentException` directly). The frontend
+(`src/App.vue`) resolves the `#note/{noteId}` hash on load/`hashchange`: it
+fetches the note, switches to its contact, and highlights/scrolls to it in
+`ContactNotesView`, then normalises the URL to `#contact/{uid}`. A missing or
+inaccessible note shows a toast instead of navigating.
+
+Task **due/overdue** notifications are deferred until the Tasks integration
+(`ROADMAP.md` item 2) ships.
 
 ---
 

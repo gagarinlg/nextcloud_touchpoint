@@ -1,3 +1,6 @@
+<!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+
 # CLAUDE.md
 
 Guidance for working in this repository.
@@ -38,9 +41,10 @@ than pinning a number here.
 - **PHP:** 8.1–8.5.
 - **`@nextcloud/vue`:** 9.x line targets NC 33/34 styling and is fine on 32. There
   is no v10 yet.
-- The controllers still use **legacy PHPDoc annotations** (`@NoAdminRequired`,
-  `@NoCSRFRequired`) rather than PHP attributes. These work on 32–34 but are
-  deprecated; prefer `#[NoAdminRequired]` etc. for new controllers.
+- All controllers already use **PHP attributes** exclusively
+  (`#[NoAdminRequired]`, `#[NoCSRFRequired]`, `#[UserRateLimit]`) — no
+  controller uses the legacy PHPDoc-annotation form. Keep using attributes for
+  any new controller/route.
 
 ## Layout
 
@@ -49,7 +53,8 @@ appinfo/
   info.xml            App manifest: id, version, deps, navigation, contactsmenu, settings.
   routes.php          All HTTP routes (array-based routing).
 lib/
-  AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener and NoteSearchProvider.
+  AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener, NoteSearchProvider,
+                                and Notifier.
   Controller/                   Thin controllers; errors funneled through ErrorHandler.
   Service/                      Business logic (NoteService, NoteTypeService, SettingsService).
   Db/                           QBMapper mappers + Entities (Note, NoteType, NoteContact,
@@ -58,6 +63,15 @@ lib/
   ContactsMenu/Provider.php     Contacts hover-menu entry.
   Listener/                     LoadContactsTabListener (injects the Contacts tab assets).
   Search/                       NoteSearchProvider — Unified Search integration (OCP\Search\IProvider).
+  Notification/Notifier.php     OCP\Notification\INotifier — 'note_shared' / 'note_mention' subjects,
+                                deep-links to #note/{noteId}.
+  Notification/NotificationService.php
+                                Dispatch side (OCP\Notification\IManager). Called from
+                                NoteService::create()/update(): notifies newly-added share targets
+                                (groups expanded via IGroupManager) and @userId mentions in note
+                                content (validated via IUserManager::userExists()). Never notifies
+                                the acting user; swallows and logs its own exceptions. The frontend
+                                resolves the #note/{noteId} hash in App.vue (see src/ below).
   Settings/                     Admin + AdminSection.
 src/
   main.js                       App page entry.
@@ -92,6 +106,9 @@ npm run lint            # eslint src/
 # Backend tests
 composer install
 ./vendor/bin/phpunit            # uses phpunit.xml (tests/Unit, excludes Migration)
+# SQLite drivers (pdo_sqlite) are installed on the dev machine.
+# Tests should use a real SQLite database instead of mocking DB layers.
+# Integration tests under tests/Integration/ already use SQLite via PdoQueryBuilder.
 
 # E2E (needs a running Nextcloud at localhost with the app installed)
 npx playwright test
@@ -127,6 +144,12 @@ prebuilt bundles under `js/`/`css/`, not the sources.
 - **`GET /api/notes/search`** returns HTTP 400 for `q` > 500 characters —
   consistent with `assertMaxLength` validation elsewhere. Do not switch to
   silent truncation.
+- **`vue-material-design-icons`** icons compute their own `aria-hidden`/`aria-label`
+  from a `title` **prop**, not from raw `aria-label`/`role` attributes passed by
+  the caller — the component's template binds those internally and overrides
+  whatever `v-bind="$attrs"` receives, so `<IconFoo aria-label="…" role="img" />`
+  silently renders `aria-hidden="true"` (the icon vanishes from the a11y tree).
+  Pass `:title="t('touchpoint', '…')"` instead to label an icon-only glyph.
 
 ## Keep documentation in sync with changes
 
