@@ -10,6 +10,29 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Dashboard widget** (`OCA\Touchpoint\Dashboard\RecentNotesWidget`): a "Recent
+  notes" card on the Nextcloud dashboard home screen, implementing
+  `OCP\Dashboard\IAPIWidgetV2` + `OCP\Dashboard\IButtonWidget` +
+  `OCP\Dashboard\IIconWidget`. Shows the current user's up to 7 most recent
+  notes (owned + shared, same access scope as `NoteService::findAll()`, pinned
+  notes prioritized ahead of unpinned ones), each with the note's title
+  (truncated to 60 characters), a subtitle combining the linked contact's name
+  and note type label (also truncated to 60 characters), a deep link straight
+  to the note itself (`#note/<id>`, the same convention used by the
+  note_shared/note_mention notification deep-links), the app icon, and a
+  small pin badge overlay for pinned notes. A "Show all" button links to the
+  Touchpoint app page. Degrades gracefully (omits the affected subtitle half)
+  when a note has no linked contact or its contact/note type can no longer be
+  resolved. `getItemsV2()` also wraps its note/note-type/contact lookups in a
+  try/catch: since Nextcloud core's dashboard batch endpoint has no per-widget
+  error boundary of its own, an uncaught exception here would 500 every other
+  app's dashboard widget on the page too — a failure is logged and degrades to
+  an empty, distinctly-worded widget instead. A caller-supplied `$limit` is
+  clamped to `[1, 30]`. When the admin's "public notes" setting is enabled, the
+  widget shows no items with a distinct "hidden while public notes mode is
+  enabled" message (rather than surfacing every user's notes on every
+  dashboard, and rather than the generic "no notes" message, which would be
+  misleading here).
 - **Notification dispatch** (`OCA\Touchpoint\Notification\NotificationService`):
   `NoteService::create()`/`update()` now dispatch real notifications via
   `OCP\Notification\IManager`. `create()` notifies every share target (group

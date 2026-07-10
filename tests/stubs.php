@@ -445,6 +445,7 @@ namespace OCP\AppFramework\Bootstrap {
         public function registerService(string $name, callable $factory, bool $shared = true): void;
         public function registerSearchProvider(string $class): void;
         public function registerNotifierService(string $class): void;
+        public function registerDashboardWidget(string $widgetClass): void;
     }
     interface IBootContext {
         public function getAppContainer();
@@ -640,6 +641,136 @@ namespace OCP\Search {
             public readonly string $icon = '',
             public readonly bool $rounded = false,
         ) {}
+    }
+}
+
+// --- OCP\Dashboard ---
+namespace OCP\Dashboard {
+    interface IWidget {
+        public function getId(): string;
+        public function getTitle(): string;
+        public function getOrder(): int;
+        public function getIconClass(): string;
+        public function getUrl(): ?string;
+        public function load(): void;
+    }
+
+    interface IAPIWidgetV2 extends IWidget {
+        public function getItemsV2(string $userId, ?string $since = null, int $limit = 7): \OCP\Dashboard\Model\WidgetItems;
+    }
+
+    interface IButtonWidget extends IWidget {
+        /** @return list<\OCP\Dashboard\Model\WidgetButton> */
+        public function getWidgetButtons(string $userId): array;
+    }
+
+    interface IIconWidget extends IWidget {
+        public function getIconUrl(): string;
+    }
+}
+
+namespace OCP\Dashboard\Model {
+    final class WidgetItem implements \JsonSerializable {
+        public function __construct(
+            private string $title = '',
+            private string $subtitle = '',
+            private string $link = '',
+            private string $iconUrl = '',
+            private string $sinceId = '',
+            private string $overlayIconUrl = '',
+        ) {
+        }
+
+        public function getTitle(): string {
+            return $this->title;
+        }
+
+        public function getSubtitle(): string {
+            return $this->subtitle;
+        }
+
+        public function getLink(): string {
+            return $this->link;
+        }
+
+        public function getIconUrl(): string {
+            return $this->iconUrl;
+        }
+
+        public function getSinceId(): string {
+            return $this->sinceId;
+        }
+
+        public function getOverlayIconUrl(): string {
+            return $this->overlayIconUrl;
+        }
+
+        public function jsonSerialize(): array {
+            return [
+                'subtitle' => $this->getSubtitle(),
+                'title' => $this->getTitle(),
+                'link' => $this->getLink(),
+                'iconUrl' => $this->getIconUrl(),
+                'overlayIconUrl' => $this->getOverlayIconUrl(),
+                'sinceId' => $this->getSinceId(),
+            ];
+        }
+    }
+
+    class WidgetItems implements \JsonSerializable {
+        /** @param WidgetItem[] $items */
+        public function __construct(
+            private array $items = [],
+            private string $emptyContentMessage = '',
+            private string $halfEmptyContentMessage = '',
+        ) {
+        }
+
+        /** @return WidgetItem[] */
+        public function getItems(): array {
+            return $this->items;
+        }
+
+        public function getEmptyContentMessage(): string {
+            return $this->emptyContentMessage;
+        }
+
+        public function getHalfEmptyContentMessage(): string {
+            return $this->halfEmptyContentMessage;
+        }
+
+        public function jsonSerialize(): array {
+            return [
+                'items' => array_map(static fn (WidgetItem $item) => $item->jsonSerialize(), $this->items),
+                'emptyContentMessage' => $this->emptyContentMessage,
+                'halfEmptyContentMessage' => $this->halfEmptyContentMessage,
+            ];
+        }
+    }
+
+    class WidgetButton {
+        public const TYPE_NEW = 'new';
+        public const TYPE_MORE = 'more';
+        public const TYPE_SETUP = 'setup';
+
+        public function __construct(
+            private string $type,
+            private string $link,
+            private string $text,
+        ) {
+        }
+
+        public function getType(): string {
+            return $this->type;
+        }
+
+        public function getLink(): string {
+            return $this->link;
+        }
+
+        public function getText(): string {
+            return $this->text;
+        }
     }
 }
 

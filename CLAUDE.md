@@ -54,7 +54,7 @@ appinfo/
   routes.php          All HTTP routes (array-based routing).
 lib/
   AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener, NoteSearchProvider,
-                                and Notifier.
+                                Notifier, and RecentNotesWidget.
   Controller/                   Thin controllers; errors funneled through ErrorHandler.
   Service/                      Business logic (NoteService, NoteTypeService, SettingsService).
   Db/                           QBMapper mappers + Entities (Note, NoteType, NoteContact,
@@ -63,6 +63,11 @@ lib/
   ContactsMenu/Provider.php     Contacts hover-menu entry.
   Listener/                     LoadContactsTabListener (injects the Contacts tab assets).
   Search/                       NoteSearchProvider — Unified Search integration (OCP\Search\IProvider).
+  Dashboard/RecentNotesWidget.php
+                                OCP\Dashboard\IAPIWidgetV2 + IButtonWidget — "Recent notes" dashboard
+                                card (owned + shared, up to 7, via NoteService::findAll()); subtitle
+                                resolves the linked contact's name (OCP\Contacts\IManager::search())
+                                and note type label, degrading gracefully if either is unresolvable.
   Notification/Notifier.php     OCP\Notification\INotifier — 'note_shared' / 'note_mention' subjects,
                                 deep-links to #note/{noteId}.
   Notification/NotificationService.php

@@ -15,6 +15,17 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# pin-badge-light.svg's path geometry is copied verbatim from
+# vue-material-design-icons' Pin.vue (an MDI/Material Design Icons glyph), not
+# an original Touchpoint asset — see RecentNotesWidget.php's
+# getPinBadgeIconUrl() docblock. Overrides the blanket img/** annotation above
+# for this file.
+[[annotations]]
+path = ["img/pin-badge-light.svg"]
+precedence = "closest"
+SPDX-FileCopyrightText = "Rob Cresswell and vue-material-design-icons contributors"
+SPDX-License-Identifier = "MIT"
+
 # JSON config / lockfiles cannot hold comments, so their licensing is declared
 # here rather than via an inline header or a .license sidecar.
 [[annotations]]

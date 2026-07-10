@@ -337,6 +337,108 @@ Task **due/overdue** notifications are deferred until the Tasks integration
 
 ---
 
+## Dashboard integration
+
+Server-side only — **no new HTTP routes**. `OCA\Touchpoint\Dashboard\RecentNotesWidget`
+implements `OCP\Dashboard\IAPIWidgetV2`, `OCP\Dashboard\IButtonWidget`, and
+`OCP\Dashboard\IIconWidget` (the last is required for Nextcloud core to actually
+call `getIconUrl()` for the widget's own icon — `IAPIWidgetV2`/`IButtonWidget`
+alone do not trigger that), and is registered in `Application::register()` via
+`$context->registerDashboardWidget(RecentNotesWidget::class)`. It surfaces the
+current user's up to 7 most recent notes (**owned + shared**, same access scope
+as `NoteService::findAll()` — the same method `NoteSearchProvider`/the all-notes
+view use) on the Nextcloud dashboard home screen.
+
+**Public-notes admin setting:** when the admin's "public notes" setting
+(`SettingsService::isNotesPublic()`) is enabled, `NoteService::findAll()`
+switches to an unscoped system-wide query that ignores `$userId` entirely (see
+`NoteService::findAll()`'s own branch). The widget does not inherit that
+behaviour onto the dashboard: `getItemsV2()` checks `isNotesPublic()` itself
+(the same guard `NoteSearchProvider::search()` uses) and returns an empty
+`WidgetItems` while public mode is on, rather than surfacing every user's notes
+on every user's dashboard. The empty-content message in this case
+(`"Recent notes are hidden while public notes mode is enabled"`) is
+deliberately distinct from the genuinely-empty-list message ("No recent
+notes") so a user who actually has recent notes can tell this is an
+intentional admin-configuration effect rather than a bug.
+
+| Widget aspect | Value |
+|---|---|
+| `getId()` | `touchpoint-recent-notes` |
+| `getTitle()` | Translated `"Recent notes"` |
+| `getIconUrl()` | `app-dark.svg` (dark/black variant, per `OCP\Dashboard\IIconWidget`'s documented contract — the icon "should be colored black or not have a color" and is "inverted automatically... in dark mode" by the platform. This is rendered by Nextcloud core's "Manage widgets" picker as a plain `<img>`, not inside `NcAvatar`, with `filter: var(--background-invert-if-dark)` applied by core's own CSS; matches every first-party `IIconWidget` implementation — `UserStatusWidget`, `FavoriteWidget`, `TasksWidget`, `MailWidget`, `ActivityWidget`, `TalkWidget` — and `Notifier`/`Settings\AdminSection`'s bell dropdown/sidebar entries, all of which use the dark variant for the same reason). Only actually used as the widget's icon because the class also implements `IIconWidget`. Distinct from the per-item `iconUrl` below, which uses the light variant instead — see that bullet. |
+| `getUrl()` | The Touchpoint app page (`touchpoint.page.index`) |
+| `getItemsV2()` | Up to `$limit` (default 7, clamped to `[1, 30]` regardless of what the caller requests) most recent notes, pinned notes first, then newest first. Returns an empty `WidgetItems` (with the "No recent notes" empty-content message) without querying note types when there are zero notes, and returns an empty `WidgetItems` with a distinct message while "public notes" mode is enabled (see above). When the item list is non-empty, the empty-content message is `''` (matching the first-party `FavoriteWidget`/`MailWidget` convention of only setting it for a genuinely empty list). |
+| `getWidgetButtons()` | One `WidgetButton::TYPE_MORE` button, `"Show all"`, linking to the app page. **Known limitation:** the link does not carry the widget's own sort/pin-priority context (newest-first, pinned-first) — the all-notes view it lands on keeps whatever sort/filter state it last remembered, which may not match what the widget just showed. `src/stores/notes.js`'s `sort` is in-memory Pinia state with no URL query param or hash to pass through; adding one is tracked as a possible follow-up, not implemented here. |
+
+Each `WidgetItem`:
+
+- **title** — the note's title (or the translated `"Untitled"` fallback),
+  truncated to 60 characters with a trailing `…`.
+- **subtitle** — the linked contact's display name and the note type's label,
+  joined with `" · "` when both are present; either half is silently omitted
+  (not an error) when the note has no linked contact, the contact cannot be
+  resolved (deleted/inaccessible), or the note type is not visible to the
+  *viewing* user — which covers both an actually-deleted type and a shared
+  note whose owner used one of their own non-default (non-global) note
+  types, since `NoteTypeService`'s read scope never resolves another user's
+  custom types (see `NoteTypeMapper::readScope()`). The assembled subtitle is
+  then truncated to 60 characters with a trailing `…` (same fixed-width-card
+  constraint as the title — the contact display name is uncapped
+  address-book data). A dashboard widget must never fail to render because
+  one referenced contact/type vanished or is invisible to the viewer. The
+  contact name is resolved via `OCP\Contacts\IManager::search()` filtered on
+  the `UID` property with `strict_search => true` (exact match) plus a
+  defense-in-depth check that the returned entry's UID equals the requested
+  one — a narrower, single-field lookup than `ContactController`'s broader
+  `FN`/`EMAIL`/`TEL`/`ORG` search endpoint, which does not use
+  `strict_search`. Note-type labels
+  for all of the viewing user's notes are resolved in a single batched
+  `NoteTypeService::findAll()` call per widget request (not one lookup per
+  note) — and that call is skipped entirely when there are zero notes to
+  render.
+- **link** — a deep link straight to the note itself (`#note/<id>`), the same
+  convention `note_shared`/`note_mention` notifications use (see
+  `Notifier::buildIconUrl()`'s companion deep-link and `App.vue`'s
+  `applyNoteDeepLink()`). Opening it fetches the note, switches to its
+  contact, and scrolls to/highlights/focuses that specific note, rather than
+  landing on the contact's entire (potentially long) note history with no
+  indication of which note prompted the click.
+- **iconUrl** — the app icon, `app.svg` (light/white variant — this one *is*
+  rendered inside the dashboard client's `NcAvatar`
+  (`ApiDashboardWidgetItem.vue`), whose background follows the
+  theme-following `--color-main-background` CSS variable rather than being
+  fixed-light, with no platform-side invert filter applied, so it needs the
+  same light variant as `NoteSearchProvider`/`ContactsMenu\Provider`'s
+  tinted/dark surfaces — **not** the same value as `getIconUrl()` above,
+  which is a different render context needing the dark variant).
+- **overlayIconUrl** — a small pin badge (`pin-badge-light.svg`, the same
+  light/white-fill variant as the main icon, since it renders on the same
+  theme-following surface) when the note is pinned, empty otherwise.
+
+Pinned notes are moved ahead of unpinned notes in the returned list
+(preserving newest-first order within each group), so a pinned note is never
+pushed out of the widget's limited slot count by newer, unpinned notes.
+
+`getItemsV2($userId, ...)` defends against a missing session (no logged-in
+user) or a session/`$userId` mismatch the same way `NoteSearchProvider::search()`
+does (returns an empty `WidgetItems` rather than another user's notes) even
+though the Dashboard API only ever invokes it for the current session's own
+user.
+
+**Error boundary:** `OCA\Dashboard\Controller\DashboardApiController::getWidgetItemsV2()`
+(Nextcloud core, internal — not an OCP public-API class) loops over every installed app's registered widget in a
+single request with no per-widget try/catch of its own — an uncaught
+exception from any one widget's `getItemsV2()` would 500 the entire
+`/api/v2/widget-items` batch response, breaking every other app's dashboard
+widget on the page, not just this one. `getItemsV2()` therefore wraps its
+`NoteService::findAll()`, `NoteTypeService::findAll()`, and per-note
+`IContactsManager::search()` calls in a `try`/`catch (\Throwable)`, logs via
+`Psr\Log\LoggerInterface::warning()`, and degrades to an empty `WidgetItems`
+with a distinct `"Recent notes are unavailable right now"` message on failure.
+
+---
+
 ## Planned public API surface
 
 These are **not implemented yet** — they are the intended *stable, documented*

@@ -20,6 +20,9 @@ can be **pinned**, carry **file attachments**, render **Markdown**, and can be
 - **Sharing** with users/groups, with per-recipient edit permission.
 - **Notifications** — recipients get a Nextcloud notification when a note is
   newly shared with them, or when they're `@mentioned` in a note's content.
+- **Dashboard widget** — a "Recent notes" card on the Nextcloud dashboard home
+  screen, showing your most recent notes (owned + shared) with a deep link
+  straight to each note.
 - **Contacts app integration** (when the Contacts app is installed):
   - a **Touchpoint panel** injected into the contact detail view, with inline
     note creation;
@@ -89,7 +92,8 @@ See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the code fits togethe
 
 ```
 appinfo/     App manifest (info.xml) and routes.
-lib/         PHP — Controllers, Services, Db (QBMapper), Migrations, Listeners.
+lib/         PHP — Controllers, Services, Db (QBMapper), Migrations, Listeners,
+             Search (Unified Search), Dashboard (dashboard widget), Notification.
 src/         Vue 3 + Pinia frontend sources (built to js/ + css/ by Vite).
 templates/   PHP templates served to the page.
 l10n/        Translations.

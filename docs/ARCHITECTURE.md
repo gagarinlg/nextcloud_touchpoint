@@ -203,6 +203,32 @@ talks to the same backend API directly.
   and when the rendered app is `contacts` injects the
   `touchpoint-contacts-integration` bundle. (The Contacts app exposes no real
   tab API; this is the workaround — see gotchas.)
+- **Dashboard** — `lib/Dashboard/RecentNotesWidget` implements
+  `OCP\Dashboard\IAPIWidgetV2` + `IButtonWidget` + `IIconWidget`, registered in
+  `Application::register()` via
+  `$context->registerDashboardWidget(RecentNotesWidget::class)`. Surfaces up to
+  7 (clamped `[1, 30]`) of the current user's most recent notes on the NC
+  dashboard home screen, reusing `NoteService::findAll()`'s owned+shared scope
+  exactly (same method `NoteSearchProvider`/the all-notes view use) rather than
+  re-implementing its own — and re-checks `SettingsService::isNotesPublic()`
+  itself (the same guard `NoteSearchProvider::search()` uses) to return an
+  empty `WidgetItems` while public mode is on, since a widget renders
+  unconditionally on every dashboard load and must not leak every user's notes
+  onto every user's home screen. `getItemsV2()` wraps its three fallible calls
+  (`NoteService::findAll()`, `NoteTypeService::findAll()`,
+  `IContactsManager::search()`) in one try/catch: core's
+  `DashboardApiController::getWidgetItemsV2()` has no per-widget try/catch of
+  its own, so an uncaught exception here would 500 the entire
+  `/api/v2/widget-items` batch response and take down every other app's
+  dashboard widget on the page, not just this card — caught and logged instead,
+  falling back to an empty, translated "unavailable" message. Follows the same
+  two-icon-variant convention as the Notification bullet above: the dark
+  `app-dark.svg` for `IIconWidget::getIconUrl()` (the widget-picker's plain
+  `<img>`, auto-inverted by core CSS for dark theme) versus the light `app.svg`
+  for the per-item `WidgetItem` `iconUrl`/`overlayIconUrl` (rendered inside
+  `NcAvatar`, a theme-following surface with no platform-side invert). See
+  `docs/API.md`'s "Dashboard integration" section for the full field-by-field
+  contract.
 - **ContactController.photo()** — the historically tricky path. Reads the
   embedded vCard `PHOTO` straight from the dav `cards` table, **scoped to the
   numeric ids of address books the caller can read**, parses with
@@ -331,6 +357,7 @@ talks to the same backend API directly.
 | Search providers | `NoteSearchProvider.php` |
 | Notifiers | `NotificationService.php`, `Notifier.php` |
 | ContactsMenu | `Provider.php` |
+| Dashboard widgets | `RecentNotesWidget.php` |
 | Settings | `Admin.php`, `AdminSection.php` |
 | Vue entries | `adminSettings.js`, `contacts-integration.js`, `main.js` |
 | Vue components | `AdminSettings.vue`, `AllNotesView.vue`, `ConfirmDialog.vue`, `ContactAvatar.vue`, `ContactCard.vue`, `ContactNotesView.vue`, `NoteItem.vue`, `NoteModal.vue`, `NoteTypeBadge.vue`, `NoteTypeModal.vue`, `NoteTypesView.vue`, `SettingsView.vue` |
@@ -356,3 +383,11 @@ talks to the same backend API directly.
    property defaults.
 6. **e2e locale** — Playwright runs against a configured locale; UI-string
    assertions must match the active translation.
+7. **Dashboard icon variants are opposite-luminance, not interchangeable** —
+   `IIconWidget::getIconUrl()` (the widget-picker's `<img>`, auto-inverted by
+   core CSS) needs the **dark** glyph (`app-dark.svg`); a per-item
+   `WidgetItem`'s `iconUrl`/`overlayIconUrl` (rendered inside `NcAvatar`, no
+   platform invert) needs the **light** glyph (`app.svg`). Swapping them is a
+   silent visual regression (icon vanishes against its background) with no
+   test failure to catch it — check any future dashboard-widget change doesn't
+   flip these two.

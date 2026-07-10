@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace OCA\Touchpoint\AppInfo;
 
+use OCA\Touchpoint\Dashboard\RecentNotesWidget;
 use OCA\Touchpoint\Listener\LoadContactsTabListener;
 use OCA\Touchpoint\Notification\Notifier;
 use OCA\Touchpoint\Search\NoteSearchProvider;
@@ -37,6 +38,7 @@ class Application extends App implements IBootstrap {
         );
         $context->registerSearchProvider(NoteSearchProvider::class);
         $context->registerNotifierService(Notifier::class);
+        $context->registerDashboardWidget(RecentNotesWidget::class);
     }
 
     public function boot(IBootContext $context): void {

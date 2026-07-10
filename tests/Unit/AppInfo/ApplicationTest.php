@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace OCA\Touchpoint\Tests\Unit\AppInfo;
 
 use OCA\Touchpoint\AppInfo\Application;
+use OCA\Touchpoint\Dashboard\RecentNotesWidget;
 use OCA\Touchpoint\Notification\Notifier;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
@@ -29,6 +30,9 @@ class ApplicationTest extends TestCase {
         $context->expects($this->once())
             ->method('registerNotifierService')
             ->with(Notifier::class);
+        $context->expects($this->once())
+            ->method('registerDashboardWidget')
+            ->with(RecentNotesWidget::class);
 
         $app = new Application();
         $app->register($context);

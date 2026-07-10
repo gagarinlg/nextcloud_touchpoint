@@ -97,9 +97,13 @@ Today, sharing a note with someone is silent.
 
 ## P1 — Native-Nextcloud wins (high value, mostly quick)
 
-### 4. Dashboard widget  ·  **S–M**
-`OCP\Dashboard\IAPIWidgetV2` widget(s): "Recent notes" and/or "My open tasks"
-on the Nextcloud dashboard. Cheap, high visibility. *Verified absent.*
+### 4. Dashboard widget  ·  **S–M**  ·  ✅ Shipped (Recent notes)
+`OCA\Touchpoint\Dashboard\RecentNotesWidget` implements `OCP\Dashboard\IAPIWidgetV2`
++ `OCP\Dashboard\IButtonWidget` + `OCP\Dashboard\IIconWidget`: "Recent notes"
+(owned + shared, up to 7) on the Nextcloud dashboard, with a contact-name +
+note-type subtitle and a deep link per item. See `docs/API.md` → "Dashboard
+integration". A "My open tasks" widget remains open, deferred until the Tasks
+integration (item 2) ships.
 
 ### 5. Activity stream integration  ·  **M**
 Emit to the **Activity** app on note created/edited/deleted/shared via
@@ -356,7 +360,10 @@ land.
   phpstan 2.x and raise the level incrementally.
 - **e2e coverage** (M): expand Playwright specs to cover the new surfaces —
   embedded card, full contact list + search, Contacts-tab inline add-note,
-  photo rendering, sharing permissions.
+  photo rendering, sharing permissions, dashboard widget (covered by
+  `e2e/dashboard-widget.spec.js` — appearance/rendering, item deep-link,
+  "Show all" navigation, widget-picker icon; not yet covering reload-interval
+  polling or the public-notes-mode empty state).
 - **i18n completeness** (S): only German (`de`, `de_DE`) is filled in; every
   user-facing string is wrapped, but the other ~80 locale files are stubs.
   Publishing on the App Store wires the app into Nextcloud's **Transifex**
@@ -383,7 +390,8 @@ If picking a single coherent release: **"Find & Act v1"** —
 1. ~~Full-text note search + Unified Search provider (#1)~~ ✅ **Done**
 2. Tasks-app integration — create/link follow-up VTODOs from a note (#2)
 3. ~~Share notifications (#3)~~ ✅ **Done**
-4. Dashboard "Recent notes" / "Follow-ups" widget (#4)
+4. ~~Dashboard "Recent notes" widget (#4)~~ ✅ **Done** (a "My open tasks"-style
+   widget remains open, deferred until the Tasks integration in #2 ships)
 
 That set is what converts *notes on contacts* into something a team would run a
 CRM on, and every piece is a clean, app-store-rewarded Nextcloud integration.

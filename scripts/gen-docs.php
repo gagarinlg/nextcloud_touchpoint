@@ -118,6 +118,7 @@ $inv[] = '| Listeners | ' . bnames(rel('lib/Listener/*.php')) . ' |';
 $inv[] = '| Search providers | ' . bnames(rel('lib/Search/*.php')) . ' |';
 $inv[] = '| Notifiers | ' . bnames(rel('lib/Notification/*.php')) . ' |';
 $inv[] = '| ContactsMenu | ' . bnames(rel('lib/ContactsMenu/*.php')) . ' |';
+$inv[] = '| Dashboard widgets | ' . bnames(rel('lib/Dashboard/*.php')) . ' |';
 $inv[] = '| Settings | ' . bnames(rel('lib/Settings/*.php')) . ' |';
 $inv[] = '| Vue entries | ' . bnames(rel('src/*.js')) . ' |';
 $inv[] = '| Vue components | ' . bnames(rel('src/components/*.vue')) . ' |';
