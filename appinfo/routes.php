@@ -38,6 +38,13 @@ return [
         ['name' => 'settings#save', 'url' => '/api/settings', 'verb' => 'POST'],
         ['name' => 'settings#searchPrincipals', 'url' => '/api/settings/principals', 'verb' => 'GET'],
 
+        // Admin: global note type CRUD (no #[NoAdminRequired] → admin-only)
+        ['name' => 'admin_note_type#index',   'url' => '/api/admin/note-types',              'verb' => 'GET'],
+        ['name' => 'admin_note_type#usage',   'url' => '/api/admin/note-types/{id}/usage',   'verb' => 'GET',    'requirements' => ['id' => '\d+']],
+        ['name' => 'admin_note_type#create',  'url' => '/api/admin/note-types',              'verb' => 'POST'],
+        ['name' => 'admin_note_type#update',  'url' => '/api/admin/note-types/{id}',         'verb' => 'PUT',    'requirements' => ['id' => '\d+']],
+        ['name' => 'admin_note_type#destroy', 'url' => '/api/admin/note-types/{id}',         'verb' => 'DELETE', 'requirements' => ['id' => '\d+']],
+
         // Note type CRUD
         ['name' => 'note_type#index', 'url' => '/api/note-types', 'verb' => 'GET'],
         ['name' => 'note_type#show', 'url' => '/api/note-types/{id}', 'verb' => 'GET'],

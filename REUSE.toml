@@ -34,6 +34,15 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
 
+# Translation catalogs: the .json files cannot hold comments at all, and the
+# .js files are plain OC.L10N.register() calls with no inline SPDX header
+# either — declare their licensing here instead.
+[[annotations]]
+path = ["l10n/**.js", "l10n/**.json"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Touchpoint Contributors"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
 # Root LICENSE file (full AGPL-3.0 text) for GitHub license detection.
 [[annotations]]
 path = ["LICENSE"]

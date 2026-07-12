@@ -10,46 +10,39 @@ namespace OCA\Touchpoint\Controller;
 use OCA\Touchpoint\AppInfo\Application;
 use OCA\Touchpoint\Service\NoteTypeService;
 use OCP\AppFramework\Controller;
-use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IL10N;
 use OCP\IRequest;
-use OCP\IUserSession;
 use Psr\Log\LoggerInterface;
 
-class NoteTypeController extends Controller {
+class AdminNoteTypeController extends Controller {
     use ErrorHandler;
-    use RequiresUser;
 
     public function __construct(
         IRequest $request,
         private NoteTypeService $noteTypeService,
-        private IUserSession $userSession,
         private IL10N $l10n,
         private LoggerInterface $logger,
     ) {
         parent::__construct(Application::APP_ID, $request);
     }
 
-    #[NoAdminRequired]
     public function index(): JSONResponse {
-        return $this->handleNotFound(fn () => $this->noteTypeService->findAll($this->getUserId()));
+        return $this->handleNotFound(fn () => $this->noteTypeService->findGlobalDefaults());
     }
 
-    #[NoAdminRequired]
-    public function show(int $id): JSONResponse {
-        return $this->handleNotFound(fn () => $this->noteTypeService->find($id, $this->getUserId()));
-    }
-
-    #[NoAdminRequired]
+    /**
+     * Number of notes system-wide using a global note type — lets the admin UI
+     * check before opening a delete confirmation, mirroring the per-user
+     * GET /api/note-types/{id}/usage endpoint.
+     */
     public function usage(int $id): JSONResponse {
-        return $this->handleNotFound(fn () => [
-            'count' => $this->noteTypeService->countUsage($id, $this->getUserId()),
-        ]);
+        return $this->handleNotFound(
+            fn () => ['count' => $this->noteTypeService->countGlobalUsage($id)]
+        );
     }
 
-    #[NoAdminRequired]
     #[UserRateLimit(limit: 30, period: 60)]
     public function create(
         string $name,
@@ -57,11 +50,10 @@ class NoteTypeController extends Controller {
         string $color = '#0082c9',
     ): JSONResponse {
         return $this->handleNotFound(
-            fn () => $this->noteTypeService->create($name, $icon, $color, $this->getUserId())
+            fn () => $this->noteTypeService->createGlobal($name, $icon, $color)
         );
     }
 
-    #[NoAdminRequired]
     #[UserRateLimit(limit: 30, period: 60)]
     public function update(
         int $id,
@@ -70,13 +62,12 @@ class NoteTypeController extends Controller {
         ?string $color = null,
     ): JSONResponse {
         return $this->handleNotFound(
-            fn () => $this->noteTypeService->update($id, $this->getUserId(), $name, $icon, $color)
+            fn () => $this->noteTypeService->updateGlobal($id, $name, $icon, $color)
         );
     }
 
-    #[NoAdminRequired]
     #[UserRateLimit(limit: 30, period: 60)]
     public function destroy(int $id): JSONResponse {
-        return $this->handleNotFound(fn () => $this->noteTypeService->delete($id, $this->getUserId()));
+        return $this->handleNotFound(fn () => $this->noteTypeService->deleteGlobal($id));
     }
 }

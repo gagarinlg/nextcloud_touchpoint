@@ -28,7 +28,8 @@ can be **pinned**, carry **file attachments**, render **Markdown**, and can be
     note creation;
   - an **embedded contact card** shown next to a contact's notes in the app;
   - a **hover-menu entry** linking to a contact's notes.
-- **Admin settings** — optional "all notes public" mode and default sharing.
+- **Admin settings** — optional "all notes public" mode, default sharing, and
+  management of the shared global note types available to every user.
 
 ## Requirements
 

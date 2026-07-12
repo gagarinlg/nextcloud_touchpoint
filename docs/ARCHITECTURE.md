@@ -38,6 +38,17 @@ talks to the same backend API directly.
   status codes: `NoteNotFoundException`→404, `NoteForbiddenException`→403,
   `NoteValidationException`→400, generic `\Throwable`→500 (`{ "message": … }`
   body). `ContactController` returns its own 404 for the photo endpoint.
+  `AdminNoteTypeController` is admin-only (no `#[NoAdminRequired]` attribute,
+  unlike every other controller in the app) and manages the shared global
+  default note types (`NoteTypeService::createGlobal()`/`updateGlobal()`/
+  `deleteGlobal()`/`findGlobalDefaults()`/`countGlobalUsage()`,
+  `NoteTypeMapper::findGlobalById()`) surfaced by `AdminSettings.vue`'s "Global
+  note types" section. `countGlobalUsage()` reuses `NoteMapper::countByNoteType()`
+  (called with no `$userId` for a system-wide count) rather than a dedicated
+  mapper method — the two per-user/global delete paths (`delete()`/
+  `deleteGlobal()`) and create/update paths share private helpers
+  (`doCreate()`/`doUpdate()`/`doDelete()`) parameterized by scoping, rather than
+  duplicating validation/persistence logic.
 - **Services** hold all business logic and authorization.
   - `NoteService` — CRUD over owned **+ shared** notes; paging clamp; enriches
     each note with contacts/files/sharing via **batch** queries (avoids N+1);
@@ -244,12 +255,40 @@ talks to the same backend API directly.
   Contacts-app island).
 - **Stores (Pinia):** `notes` (all + per-contact lists, offset pagination
   PAGE_SIZE=50, pending file add/remove, sort), `contacts` (roster + selection +
-  client-side filter), `noteTypes`, `settings`.
+  client-side filter), `noteTypes`, `globalNoteTypes`, `settings`. `noteTypes`
+  and `globalNoteTypes` are both thin invocations of
+  `stores/createNoteTypeCrudStore.js`, a factory building the shared
+  list/loading/error/saving/showModal/editingType state and the
+  `saving`-guarded create/update/remove/usage/openModal/closeModal actions
+  once; each call site only supplies its own service module (`NoteTypeService.js`
+  vs. `AdminNoteTypeService.js`) and, for the global store, the
+  `globalNoteTypes` initial-state seed (refreshed via `load()` on mount).
 - **Services:** one axios client per resource, all under `/apps/touchpoint/api/…`.
+- **Composables:** `composables/useNoteTypeDeletion.js` — the delete-flow
+  orchestration shared by `NoteTypesView.vue` and `AdminSettings.vue`
+  (proactive usage lookup → confirm dialog → per-row re-entrancy guard →
+  delete → success/409 toast → focus recovery), parameterized by which
+  note-type store and confirm-dialog wording to use.
 - **Components:** `App.vue` shell (nav: Contacts / Note types / Settings),
   `ContactNotesView` (detail + inline add-note + lazy `ContactCard` embedding the
   Contacts app's own card via `window.OCA.Contacts.mountContactDetails`),
   `NoteItem`/`NoteModal`, `NoteType*`, `SettingsView`, `AdminSettings`.
+  `AdminSettings.vue` is a standalone island (see "Three entry bundles" above)
+  that drives its "Global note types" section through the `globalNoteTypes`
+  Pinia store. `AdminNoteTypeModal.vue` and `NoteTypeModal.vue` are both thin
+  wrappers (props/emits vs. Pinia store, respectively) around the shared
+  `NoteTypeFormModal.vue`, which owns the actual form markup/style/validation
+  (`scope: 'personal' | 'global'` picks the right title/DOM ids); both also
+  share their icon-option list and themed-default-color helper from
+  `utils/noteTypeIcon.js`, and their list-row markup/style via
+  `NoteTypeListItem.vue` (used by both `NoteTypesView.vue` and
+  `AdminSettings.vue`) — none of these keep a literal duplicate copy.
+  `NoteTypeListItem.vue` hides Edit/Delete behind a `manageGlobal` prop: a
+  global (`isDefault`) type shown in the personal `NoteTypesView.vue` list
+  (where it's visible but not owned by the caller — see `NoteTypeService::findAll()`)
+  renders a "Managed by admin" label instead of controls that would 404;
+  `AdminSettings.vue` passes `manageGlobal` so every row there keeps working
+  Edit/Delete.
 - **Contact list** renders the *whole* address book using CSS
   `content-visibility:auto` + `contain-intrinsic-size` for paint — **not** true
   row virtualization (a known scaling debt at ~5–6k contacts).
@@ -324,6 +363,11 @@ talks to the same backend API directly.
 | `GET` | `/api/settings` | `settings#get` |
 | `POST` | `/api/settings` | `settings#save` |
 | `GET` | `/api/settings/principals` | `settings#searchPrincipals` |
+| `GET` | `/api/admin/note-types` | `admin_note_type#index` |
+| `GET` | `/api/admin/note-types/{id}/usage` | `admin_note_type#usage` |
+| `POST` | `/api/admin/note-types` | `admin_note_type#create` |
+| `PUT` | `/api/admin/note-types/{id}` | `admin_note_type#update` |
+| `DELETE` | `/api/admin/note-types/{id}` | `admin_note_type#destroy` |
 | `GET` | `/api/note-types` | `note_type#index` |
 | `GET` | `/api/note-types/{id}` | `note_type#show` |
 | `GET` | `/api/note-types/{id}/usage` | `note_type#usage` |
@@ -346,7 +390,7 @@ talks to the same backend API directly.
 | Area | Files |
 |---|---|
 | Bootstrap | `Application.php` |
-| Controllers | `ContactController.php`, `NoteController.php`, `NoteTypeController.php`, `PageController.php`, `SettingsController.php` |
+| Controllers | `AdminNoteTypeController.php`, `ContactController.php`, `NoteController.php`, `NoteTypeController.php`, `PageController.php`, `SettingsController.php` |
 | Controller traits/helpers | `ErrorHandler.php`, `RequiresUser.php` |
 | Services | `NoteService.php`, `NoteTypeService.php`, `SettingsService.php` |
 | Exceptions | `UnauthenticatedException.php`, `NoteForbiddenException.php`, `NoteNotFoundException.php`, `NoteTypeForbiddenException.php`, `NoteTypeInUseException.php`, `NoteTypeNotFoundException.php`, `NoteValidationException.php` |
@@ -360,10 +404,11 @@ talks to the same backend API directly.
 | Dashboard widgets | `RecentNotesWidget.php` |
 | Settings | `Admin.php`, `AdminSection.php` |
 | Vue entries | `adminSettings.js`, `contacts-integration.js`, `main.js` |
-| Vue components | `AdminSettings.vue`, `AllNotesView.vue`, `ConfirmDialog.vue`, `ContactAvatar.vue`, `ContactCard.vue`, `ContactNotesView.vue`, `NoteItem.vue`, `NoteModal.vue`, `NoteTypeBadge.vue`, `NoteTypeModal.vue`, `NoteTypesView.vue`, `SettingsView.vue` |
-| Pinia stores | `contacts.js`, `noteTypes.js`, `notes.js`, `settings.js` |
-| API clients | `ContactService.js`, `NoteService.js`, `NoteTypeService.js`, `SettingsService.js` |
-| Frontend utils | `color.js`, `markdown.js`, `noteTypeIcon.js`, `scroll.js` |
+| Vue components | `AdminNoteTypeModal.vue`, `AdminSettings.vue`, `AllNotesView.vue`, `ConfirmDialog.vue`, `ContactAvatar.vue`, `ContactCard.vue`, `ContactNotesView.vue`, `NoteItem.vue`, `NoteModal.vue`, `NoteTypeBadge.vue`, `NoteTypeFormModal.vue`, `NoteTypeListItem.vue`, `NoteTypeModal.vue`, `NoteTypesView.vue`, `SettingsView.vue` |
+| Pinia stores | `contacts.js`, `createNoteTypeCrudStore.js`, `globalNoteTypes.js`, `noteTypes.js`, `notes.js`, `settings.js` |
+| API clients | `AdminNoteTypeService.js`, `ContactService.js`, `NoteService.js`, `NoteTypeService.js`, `SettingsService.js` |
+| Composables | `useNoteTypeDeletion.js` |
+| Frontend utils | `apiError.js`, `color.js`, `markdown.js`, `noteTypeIcon.js`, `scroll.js` |
 
 <!-- AUTOGEN:inventory END -->
 

@@ -489,6 +489,18 @@ namespace OCP\AppFramework\Services {
     }
 }
 
+// --- OCP\Settings\ISettings ---
+namespace OCP\Settings {
+    interface ISettings {
+        /** @return \OCP\AppFramework\Http\TemplateResponse */
+        public function getForm();
+        /** @return string the section ID, e.g. 'sharing' */
+        public function getSection();
+        /** @return int whether the form should be rather on the top or bottom of the admin section. 0-100, 100 on top */
+        public function getPriority();
+    }
+}
+
 // --- OCP\Migration ---
 namespace OCP\Migration {
     interface IOutput {

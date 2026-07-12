@@ -40,6 +40,15 @@ lint:
 	npm run lint
 	composer exec -- phpstan analyse --no-progress
 
+# Fails if any l10n/<lang>.json and l10n/<lang>.js pair disagree on key set or
+# values — .json is what Nextcloud's server-side IL10N actually loads at
+# runtime, .js is a separate client-side-only artifact; the two are
+# hand-maintained with no shared generation step, so drift between them has
+# repeatedly shipped silently untranslated strings (see CLAUDE.md).
+.PHONY: check-l10n
+check-l10n:
+	node scripts/check-l10n.js
+
 .PHONY: test
 test:
 	./vendor/bin/phpunit
@@ -49,7 +58,7 @@ test-e2e:
 	npx playwright test
 
 .PHONY: check
-check: lint test
+check: lint check-l10n test
 
 # --- documentation --------------------------------------------------------
 # Regenerates the auto-generated inventory block in docs/ARCHITECTURE.md from

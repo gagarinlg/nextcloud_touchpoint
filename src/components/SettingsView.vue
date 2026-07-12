@@ -38,7 +38,7 @@
 							@update:model-value="setTargetCanEdit(i, $event)">
 							{{ t('touchpoint', 'Can edit') }}
 						</NcCheckboxRadioSwitch>
-						<NcButton type="tertiary"
+						<NcButton variant="tertiary"
 							:aria-label="t('touchpoint', 'Remove')"
 							@click="removeTarget(i)">
 							<template #icon><IconClose :size="14" /></template>
@@ -83,7 +83,7 @@
 			</section>
 
 			<div class="crm-settings-actions">
-				<NcButton type="primary"
+				<NcButton variant="primary"
 					:disabled="settingsStore.saving || settingsStore.error"
 					@click="save">
 					{{ settingsStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
@@ -98,7 +98,7 @@
 					role="status"
 					aria-live="polite">
 					{{ t('touchpoint', 'Settings could not be loaded fully. Reload before saving to avoid overwriting your configuration.') }}
-					<NcButton type="tertiary" @click="settingsStore.load()">
+					<NcButton variant="tertiary" @click="settingsStore.load()">
 						{{ t('touchpoint', 'Reload') }}
 					</NcButton>
 				</p>
@@ -207,7 +207,7 @@ async function save() {
 <style scoped>
 .crm-settings-view {
 	padding: calc(var(--default-grid-baseline, 4px) * 6);
-	max-width: 600px;
+	max-width: 640px;
 }
 
 /* Promoted to h1 so the page has a level-1 heading for AT; keep the established

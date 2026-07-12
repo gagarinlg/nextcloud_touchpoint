@@ -101,6 +101,31 @@ class NoteTypeMapper extends QBMapper {
     }
 
     /**
+     * Find a global default note type by ID (user_id = '', is_default = true).
+     * Used for admin mutations.
+     *
+     * @throws \OCP\AppFramework\Db\DoesNotExistException
+     * @throws \OCP\AppFramework\Db\MultipleObjectsReturnedException
+     */
+    public function findGlobalById(int $id): NoteType {
+        $qb = $this->db->getQueryBuilder();
+
+        $qb->select('*')
+            ->from($this->getTableName())
+            ->where(
+                $qb->expr()->eq('id', $qb->createNamedParameter($id, IQueryBuilder::PARAM_INT))
+            )
+            ->andWhere(
+                $qb->expr()->eq('user_id', $qb->createNamedParameter('', IQueryBuilder::PARAM_STR))
+            )
+            ->andWhere(
+                $qb->expr()->eq('is_default', $qb->createNamedParameter(true, IQueryBuilder::PARAM_BOOL))
+            );
+
+        return $this->findEntity($qb);
+    }
+
+    /**
      * Read a note type that the user *owns*. Global defaults are excluded, so
      * this is the correct lookup for mutations (update/delete) — it prevents one
      * user from editing another user's (or a shared default) type.

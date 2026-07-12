@@ -42,13 +42,18 @@ trait ErrorHandler {
         } catch (NoteValidationException $e) {
             // Predictable input-validation failures (e.g. over-length fields)
             // surface as a clean 400 with the specific reason rather than a 500.
-            return new JSONResponse(
-                ['message' => $this->translateError($e->getMessage())],
-                Http::STATUS_BAD_REQUEST,
-            );
+            // `code`, when present, is a stable machine-readable identifier
+            // (e.g. 'duplicate_name') clients should branch on instead of the
+            // translated `message` text — see docs/API.md's Error handling
+            // section.
+            $body = ['message' => $this->translateError($e->getMessage())];
+            if ($e->getErrorCode() !== null) {
+                $body['code'] = $e->getErrorCode();
+            }
+            return new JSONResponse($body, Http::STATUS_BAD_REQUEST);
         } catch (NoteTypeInUseException $e) {
             return new JSONResponse(
-                ['message' => $this->translateError('This note type is still used by existing notes')],
+                ['message' => $this->translateError('This note type is still used by existing notes.')],
                 Http::STATUS_CONFLICT,
             );
         } catch (\Throwable $e) {
@@ -61,9 +66,30 @@ trait ErrorHandler {
         }
     }
 
+    /**
+     * Translate a message exactly once. $message must be a raw, untranslated
+     * template (a fixed literal defined in this trait, or an exception's
+     * getMessage() built from raw literals/concatenation) — never the output
+     * of a prior IL10N::t() call, since IL10N::t() renders via vsprintf()
+     * internally (OC\L10N\L10NString::__toString()) and translating an
+     * already-substituted string a second time would attempt to vsprintf()
+     * it again.
+     *
+     * $message may echo back attacker-controlled input (e.g. an invalid
+     * icon token in a validation message), which can contain a stray '%'
+     * that vsprintf() can't resolve with zero supplied parameters — that
+     * throws \ValueError on PHP 8.0+, not a catchable-by-callers-of-t()
+     * scenario, so it is caught here and the raw (untranslated) message is
+     * returned rather than letting a malformed-input value 500 the request.
+     */
     private function translateError(string $message): string {
         if (property_exists($this, 'l10n') && $this->l10n instanceof IL10N) {
-            return $this->l10n->t($message);
+            try {
+                return $this->l10n->t($message);
+            } catch (\ValueError $e) {
+                $this->logError($e);
+                return $message;
+            }
         }
         return $message;
     }

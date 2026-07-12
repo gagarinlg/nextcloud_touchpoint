@@ -3,11 +3,15 @@
  * SPDX-License-Identifier: AGPL-3.0-or-later
  */
 import { defineStore } from 'pinia'
+import { loadState } from '@nextcloud/initial-state'
 import * as SettingsService from '../services/SettingsService.js'
 
 export const useSettingsStore = defineStore('settings', {
 	state: () => ({
-		notesPublic: false,
+		// Seeded from Admin.php::getForm()'s provideInitialState('notesPublic', ...)
+		// so the switch renders in its true state on first paint instead of
+		// flashing "off" for one round-trip while load() (called on mount) resolves.
+		notesPublic: loadState('touchpoint', 'notesPublic', false),
 		isAdmin: false,
 		shareTargets: [],
 		loading: false,

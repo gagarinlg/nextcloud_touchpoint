@@ -190,4 +190,20 @@ class NoteTypeControllerTest extends TestCase {
         $this->assertSame(Http::STATUS_NOT_FOUND, $result->getStatus());
         $this->assertSame('Not found', $result->getData()['message']);
     }
+
+    /**
+     * Verify that #[UserRateLimit] is present on create()/update()/destroy(),
+     * matching NoteController and AdminNoteTypeController. This prevents the
+     * rate limit from being silently dropped during refactoring.
+     */
+    public function testCreateUpdateDestroyHaveUserRateLimitAttribute(): void {
+        foreach (['create', 'update', 'destroy'] as $method) {
+            $ref = new \ReflectionMethod(NoteTypeController::class, $method);
+            $attrs = $ref->getAttributes(\OCP\AppFramework\Http\Attribute\UserRateLimit::class);
+            $this->assertNotEmpty(
+                $attrs,
+                "NoteTypeController::{$method}() must carry the #[UserRateLimit] attribute",
+            );
+        }
+    }
 }

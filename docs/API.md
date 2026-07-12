@@ -22,8 +22,10 @@ implemented**.
 
 - **Base path:** `/apps/touchpoint/api`
 - **Auth:** the logged-in Nextcloud session. All endpoints are
-  `#[NoAdminRequired]` (any signed-in user) and scoped to that user — see
-  [Authorization](#authorization).
+  `#[NoAdminRequired]` (any signed-in user) and scoped to that user, **except**
+  the `/api/admin/note-types` routes, which are admin-only (no
+  `#[NoAdminRequired]`) — see [Authorization](#authorization) and
+  "Admin: global note types" below.
 - **CSRF:** required on every request except `contact#photo` (which is
   `#[NoCSRFRequired]` so `<img src>` can load it). Send the
   `requesttoken` header; `@nextcloud/axios` does this automatically.
@@ -31,8 +33,9 @@ implemented**.
 - **Path parameters** containing a contact UID (`{uid}`, `{contactUid}`) **must be
   `encodeURIComponent`-ed** — UIDs can contain `/`, `#`, `@`.
 - **Errors:** all controller errors funnel through `ErrorHandler` and return
-  `{ "message": "<reason>" }` with an appropriate status (`400` invalid input,
-  `403` not permitted, `404` not found/owned, `500` unexpected). See
+  `{ "message": "<reason>" }` (some `400`s additionally include a stable
+  `code` field) with an appropriate status (`400` invalid input, `403` not
+  permitted, `404` not found/owned, `500` unexpected). See
   [Error handling](#error-handling).
 
 ---
@@ -86,9 +89,39 @@ Both return the resulting [`Note`](#note).
 | GET | `/api/note-types` | — | The user's note types (+ defaults). Returns [`NoteType[]`](#notetype). |
 | GET | `/api/note-types/{id}` | — | One note type. |
 | GET | `/api/note-types/{id}/usage` | — | `{ count }` of notes using this type (for delete confirmation). |
-| POST | `/api/note-types` | `name` (req), `icon` (`icon-category-office`), `color` (`#0082c9`) | Create. |
-| PUT | `/api/note-types/{id}` | `name?`, `icon?`, `color?` | Update (supplied fields only). |
-| DELETE | `/api/note-types/{id}` | — | Delete a user-defined type. |
+| POST | `/api/note-types` | `name` (req), `icon` (`icon-category-office`), `color` (`#0082c9`) | Create. Rejects a blank or whitespace-only `name` with HTTP 400. `color` values over 32 characters silently fall back to the default swatch (`#0082c9`) rather than erroring. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+| PUT | `/api/note-types/{id}` | `name?`, `icon?`, `color?` | Update (supplied fields only). If `name` is supplied, rejects a blank or whitespace-only value with HTTP 400. `color`, if supplied, is subject to the same over-length fallback as create. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+| DELETE | `/api/note-types/{id}` | — | Delete a user-defined type. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+
+### Admin: global note types
+
+Admin-only (no `#[NoAdminRequired]`; enforced the same way as every other
+admin-only route in this app — see `AdminNoteTypeController`). Manages the
+shared global default note types (`user_id = ''`, `is_default = true`) that
+`NoteTypeService::findAll()` includes for every user on the instance, as
+opposed to `/api/note-types` above, which is scoped to the calling user's own
+types.
+
+| Method | Path | Body | Description |
+|---|---|---|---|
+| GET | `/api/admin/note-types` | — | All global default note types. Returns [`NoteType[]`](#notetype). |
+| GET | `/api/admin/note-types/{id}/usage` | — | `{ count }` of notes system-wide using this type (for delete confirmation). |
+| POST | `/api/admin/note-types` | `name` (req), `icon` (`icon-category-office`), `color` (`#0082c9`) | Create a global type. Rejects a blank or whitespace-only `name` with HTTP 400. `color` values over 32 characters silently fall back to the default swatch (`#0082c9`) rather than erroring. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+| PUT | `/api/admin/note-types/{id}` | `name?`, `icon?`, `color?` | Update a global type (supplied fields only). If `name` is supplied, rejects a blank or whitespace-only value with HTTP 400. `color`, if supplied, is subject to the same over-length fallback as create. Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+| DELETE | `/api/admin/note-types/{id}` | — | Delete a global type. HTTP 409 if any note anywhere on the instance still uses it (`NoteTypeService::deleteGlobal()` calls `NoteMapper::countByNoteType($id)` directly; the same count is separately exposed via `countGlobalUsage()` for the admin UI's proactive usage check). Rate-limited to 30 requests per 60 seconds per user (`#[UserRateLimit]`). |
+
+The Nextcloud admin settings page (`Settings\Admin`) seeds the list into the
+page's initial state under the key `globalNoteTypes` (the `globalNoteTypes`
+Pinia store reads it via `loadState('touchpoint', 'globalNoteTypes', [])` as
+an initial value, then reloads from `GET /api/admin/note-types` on mount and
+after every create/update/delete so the list never trusts a stale snapshot).
+`Settings\Admin::getForm()` obtains this seed list from
+`NoteTypeService::seedDefaults('')`'s return value directly (an
+`array` of the existing-or-just-created global defaults) rather than issuing
+a separate query — `seedDefaults()`'s return type is part of its contract,
+not an implementation detail, since both `Settings\Admin` and
+`PageController` (which calls it as `seedDefaults($user->getUID())` to seed
+per-user defaults) depend on it returning the resulting list.
 
 ### Settings
 
@@ -163,6 +196,17 @@ audit/identity fields (`userId`, `createdBy`, `updatedBy`).
   served.
 - **Never bypass the service layer for deletes** — there are no DB-level foreign
   keys; `NoteService::delete()` cleans the `touchpoint_note_*` child rows.
+- **`/api/admin/note-types*` is admin-only by omission, not by an explicit
+  check** — `AdminNoteTypeController` deliberately carries no
+  `#[NoAdminRequired]` attribute, so Nextcloud's core `Controller` dispatch
+  rejects a non-admin caller before any action method runs. Because this
+  enforcement happens in framework middleware, PHPUnit tests that construct
+  the controller directly (`AdminNoteTypeControllerTest`) cannot exercise it —
+  that file only asserts, via reflection, that the attribute stays absent.
+  The end-to-end proof that a non-admin is actually rejected (403) lives in
+  `e2e/crm-admin-note-types.spec.js`'s "admin-only" describe block — treat
+  that spec, not the PHPUnit suite, as the source of truth for this
+  guarantee.
 
 ## Error handling
 
@@ -174,7 +218,24 @@ exceptions to status codes and a `{ "message": … }` body:
 | `400` | Invalid/missing input (e.g. absent/invalid `noteTypeId`; `q` exceeding 500 characters on `/api/notes/search`). |
 | `403` | Authenticated but not permitted on the resource. |
 | `404` | Resource missing or not owned/accessible by the caller. |
+| `409` | The note type being deleted is still referenced by one or more notes (`NoteTypeInUseException`) — returned by both `DELETE /api/note-types/{id}` and `DELETE /api/admin/note-types/{id}`. |
 | `500` | Unexpected failure (logged; opaque message to the client). |
+
+The `message` text is translated via `IL10N::t()` at the point `ErrorHandler`
+builds the response, so it varies with the request's resolved user
+locale/`Accept-Language`. **Do not string-match on `message` for programmatic
+branching.**
+
+Some `400` responses additionally carry a stable, untranslated `code` field
+(e.g. `{ "message": "…", "code": "duplicate_name" }`) for the specific
+validation failures that need programmatic branching (currently: the
+duplicate-name rejection from `NoteTypeService::mapDuplicateName()`, on both
+`POST`/`PUT /api/note-types*` and `/api/admin/note-types*`). `code` is
+**absent** (not `null` — the key is simply omitted) for every other error;
+branch on the HTTP status code alone in that case, and never assume `code`
+is present. The frontend's
+`isDuplicateNameError()` helper (`src/utils/apiError.js`) is the canonical
+way to check for the duplicate-name case from Vue components.
 
 ---
 

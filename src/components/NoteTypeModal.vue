@@ -1,216 +1,57 @@
 <!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
-	<NcModal size="small" :name="title" @close="noteTypesStore.closeModal()">
-		<div class="crm-modal-body">
-			<div class="crm-form-row">
-				<label for="type-name">
-					{{ t('touchpoint', 'Name') }}
-					<span class="crm-required" aria-hidden="true">*</span>
-				</label>
-				<NcTextField input-id="type-name"
-					v-model="form.name"
-					label-outside
-					required
-					:placeholder="t('touchpoint', 'Type name')"
-					maxlength="128" />
-			</div>
-
-			<div class="crm-form-row">
-				<label for="type-icon">{{ t('touchpoint', 'Icon') }}</label>
-				<NcSelect v-model="form.icon"
-					input-id="type-icon"
-					:options="iconOptions"
-					:aria-label-combobox="t('touchpoint', 'Icon')"
-					label="label"
-					:reduce="o => o.value" />
-			</div>
-
-			<div class="crm-form-row">
-				<!-- A non-labelling caption (a plain styled span, like the files
-				     group in NoteModal): the control here is an NcButton whose own
-				     visible text "Choose color" is its accessible name. A <label
-				     for> would not override a button's name, so associating one
-				     would make the visible caption ("Color") and the programmatic
-				     name ("Choose color") diverge (WCAG 2.5.3 Label in Name). -->
-				<span class="crm-group-label">{{ t('touchpoint', 'Color') }}</span>
-				<NcColorPicker v-model="form.color">
-					<NcButton class="crm-color-trigger"
-						:title="form.color">
-						<template #icon>
-							<span class="crm-color-swatch" :style="{ background: form.color }" />
-						</template>
-						{{ t('touchpoint', 'Choose color') }}
-					</NcButton>
-				</NcColorPicker>
-			</div>
-
-			<p v-if="missingFieldsHint"
-				class="crm-save-hint"
-				role="status"
-				aria-live="polite">
-				{{ missingFieldsHint }}
-			</p>
-
-			<!-- Legend explaining the red asterisk that marks required fields above. -->
-			<p class="crm-required-legend">
-				<span class="crm-required" aria-hidden="true">*</span>
-				{{ t('touchpoint', 'required') }}
-			</p>
-
-			<div class="crm-modal-actions">
-				<NcButton :disabled="noteTypesStore.saving" @click="noteTypesStore.closeModal()">{{ t('touchpoint', 'Cancel') }}</NcButton>
-				<NcButton type="primary"
-					:disabled="!canSave || noteTypesStore.saving"
-					@click="onSave">
-					<template v-if="noteTypesStore.saving" #icon>
-						<NcLoadingIcon :size="16" />
-					</template>
-					{{ noteTypesStore.saving ? t('touchpoint', 'Saving…') : t('touchpoint', 'Save') }}
-				</NcButton>
-			</div>
-		</div>
-	</NcModal>
+	<NoteTypeFormModal scope="personal"
+		:editing-type="noteTypesStore.editingType"
+		:saving="noteTypesStore.saving"
+		v-model:name-error="nameError"
+		@close="onClose"
+		@save="onSave"
+	/>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
-import { showError } from '@nextcloud/dialogs'
-import NcModal from '@nextcloud/vue/components/NcModal'
-import NcButton from '@nextcloud/vue/components/NcButton'
-import NcLoadingIcon from '@nextcloud/vue/components/NcLoadingIcon'
-import NcTextField from '@nextcloud/vue/components/NcTextField'
-import NcSelect from '@nextcloud/vue/components/NcSelect'
-import NcColorPicker from '@nextcloud/vue/components/NcColorPicker'
+import { showSuccess, showError } from '@nextcloud/dialogs'
+import NoteTypeFormModal from './NoteTypeFormModal.vue'
 import { useNoteTypesStore } from '../stores/noteTypes.js'
+import { isDuplicateNameError } from '../utils/apiError.js'
 
 const noteTypesStore = useNoteTypesStore()
+const nameError = ref('')
 
-const iconOptions = [
-	{ label: t('touchpoint', 'Comment'), value: 'icon-comment' },
-	{ label: t('touchpoint', 'Phone'), value: 'icon-phone' },
-	{ label: t('touchpoint', 'Calendar'), value: 'icon-calendar-dark' },
-	{ label: t('touchpoint', 'Mail'), value: 'icon-mail' },
-	{ label: t('touchpoint', 'Checkmark'), value: 'icon-checkmark' },
-	{ label: t('touchpoint', 'Star'), value: 'icon-star' },
-	{ label: t('touchpoint', 'Link'), value: 'icon-link' },
-	{ label: t('touchpoint', 'Note'), value: 'icon-category-office' },
-]
-
-// Seed the color from the instance's themed primary rather than a hardcoded
-// brand-blue literal, so a rethemed instance's default swatch matches its
-// palette. If the variable can't be resolved (e.g. during SSR/tests), leave the
-// swatch unset (empty) rather than asserting a specific off-palette brand hex:
-// in a real browser getComputedStyle always resolves to a concrete on-palette
-// color, and on save the backend's normalizeColor() supplies the canonical
-// default for an empty/unparseable value — so no hardcoded hex is needed here.
-function themedDefaultColor() {
-	try {
-		const value = getComputedStyle(document.documentElement)
-			.getPropertyValue('--color-primary-element')
-			.trim()
-		if (value) return value
-	} catch {
-		// getComputedStyle unavailable — leave the swatch unset.
-	}
-	return ''
+function onClose() {
+	nameError.value = ''
+	noteTypesStore.closeModal()
 }
 
-const form = ref({ name: '', icon: 'icon-comment', color: themedDefaultColor() })
-
-// Match the disabled guard to onSave()'s validation: a whitespace-only name is
-// truthy but fails trim(), which would leave the button enabled yet silently do
-// nothing on click.
-const canSave = computed(() => !!form.value.name.trim())
-
-// Mirror NoteModal: tell the user which required field is still missing instead
-// of leaving Save greyed out with no explanation.
-const missingFieldsHint = computed(() => {
-	if (canSave.value) return ''
-	return t('touchpoint', 'Required: {fields}', { fields: t('touchpoint', 'Name') })
-})
-
-const title = computed(() =>
-	noteTypesStore.editingType
-		? t('touchpoint', 'Edit note type')
-		: t('touchpoint', 'Add note type'),
-)
-
-onMounted(() => {
-	if (noteTypesStore.editingType) {
-		const { name, icon, color } = noteTypesStore.editingType
-		form.value = { name, icon, color }
-	}
-})
-
-async function onSave() {
-	if (!form.value.name.trim()) return
+async function onSave(payload) {
+	nameError.value = ''
 	try {
 		if (noteTypesStore.editingType) {
-			await noteTypesStore.update(noteTypesStore.editingType.id, form.value)
+			await noteTypesStore.update(noteTypesStore.editingType.id, payload)
 		} else {
-			await noteTypesStore.create(form.value)
+			await noteTypesStore.create(payload)
 		}
-		// Close only after a successful save (NoteModal behaves the same); on
-		// error keep the modal open so the user can correct and retry.
+		showSuccess(t('touchpoint', 'Note type saved'))
+		// Close only after a successful save; on error keep the modal open so the
+		// user can correct and retry.
 		noteTypesStore.closeModal()
-	} catch {
-		showError(t('touchpoint', 'Failed to save note type.'))
+	} catch (e) {
+		const message = e?.response?.data?.message
+		// The duplicate-name rejection names exactly which field is wrong, so it
+		// is shown inline under the Name input (in addition to the toast) rather
+		// than only as a toast disconnected from the still-open field. Branch on
+		// the stable `code` field, not the translated `message` text (see
+		// docs/API.md's Error handling section).
+		if (isDuplicateNameError(e)) {
+			nameError.value = message
+		}
+		// Prefer the server's specific, actionable message (e.g. duplicate-name
+		// 400 from NoteTypeService::mapDuplicateName()) over a generic string,
+		// so the user knows what to fix rather than just that something failed.
+		showError(message || t('touchpoint', 'Failed to save note type.'))
 	}
 }
 </script>
-
-<style scoped>
-.crm-modal-body {
-	padding: calc(var(--default-grid-baseline, 4px) * 4);
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 4);
-}
-
-.crm-form-row {
-	display: flex;
-	flex-direction: column;
-	gap: calc(var(--default-grid-baseline, 4px) * 1.5);
-}
-
-.crm-form-row label,
-.crm-form-row .crm-group-label {
-	font-weight: 600;
-	font-size: var(--default-font-size, 14px);
-}
-
-.crm-required {
-	color: var(--color-error);
-	margin-inline-start: 2px;
-}
-
-.crm-save-hint {
-	margin: 0;
-	font-size: var(--font-size-small, 13px);
-	color: var(--color-text-maxcontrast);
-	text-align: end;
-}
-
-.crm-required-legend {
-	margin: 0;
-	font-size: var(--font-size-small, 13px);
-	color: var(--color-text-maxcontrast);
-}
-
-.crm-modal-actions {
-	display: flex;
-	justify-content: flex-end;
-	gap: calc(var(--default-grid-baseline, 4px) * 2);
-	margin-top: calc(var(--default-grid-baseline, 4px) * 2);
-}
-
-.crm-color-swatch {
-	display: inline-block;
-	width: 16px;
-	height: 16px;
-	border-radius: 50%;
-	border: 1px solid var(--color-border-dark);
-}
-</style>

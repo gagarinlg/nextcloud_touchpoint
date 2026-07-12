@@ -53,11 +53,11 @@
 				<span v-if="editedByline" class="crm-note-modified">{{ editedByline }}</span>
 			</div>
 			<div class="crm-note-actions">
-				<NcButton type="tertiary" :disabled="deleting" @click="$emit('edit', note)">
+				<NcButton variant="tertiary" :disabled="deleting" @click="$emit('edit', note)">
 					<template #icon><IconPencil :size="16" /></template>
 					{{ t('touchpoint', 'Edit') }}
 				</NcButton>
-				<NcButton type="tertiary" :disabled="deleting" @click="$emit('delete', note)">
+				<NcButton variant="tertiary" :disabled="deleting" @click="$emit('delete', note)">
 					<template #icon>
 						<NcLoadingIcon v-if="deleting" :size="16" />
 						<IconDelete v-else :size="16" />

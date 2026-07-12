@@ -11,14 +11,14 @@
 				</div>
 			</div>
 			<div class="crm-header-actions">
-				<NcButton type="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
+				<NcButton variant="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
 					<template #icon>
 						<IconSortDescending v-if="notesStore.sort === 'newest'" :size="20" />
 						<IconSortAscending v-else :size="20" />
 					</template>
 					{{ sortLabel }}
 				</NcButton>
-				<NcButton type="primary" @click="notesStore.openModal(null)">
+				<NcButton variant="primary" @click="notesStore.openModal(null)">
 					<template #icon><IconPlus :size="20" /></template>
 					{{ t('touchpoint', 'Add note') }}
 				</NcButton>
@@ -26,7 +26,7 @@
 		</div>
 
 		<div v-if="contactsAppEnabled && contact.email" class="crm-contact-card-section">
-			<NcButton type="tertiary"
+			<NcButton variant="tertiary"
 				:aria-expanded="showCard ? 'true' : 'false'"
 				aria-controls="crm-contact-card-region"
 				@click="showCard = !showCard"

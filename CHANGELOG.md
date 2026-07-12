@@ -10,6 +10,32 @@ All notable changes to this project are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Admin: global note type management** — the Touchpoint admin settings page
+  now has a "Global note types" section below "Note visibility" for managing
+  the shared, instance-wide default note types (create, edit, delete), backed
+  by new admin-only endpoints (`AdminNoteTypeController`,
+  `/apps/touchpoint/api/admin/note-types`; create/update/delete are
+  rate-limited exactly like the per-user note-type routes, matching
+  `NoteTypeController`'s own pattern — the two read routes, `index` and
+  `usage`, carry no rate limit on either controller) and a new frontend
+  service
+  (`src/services/AdminNoteTypeService.js`), Pinia store
+  (`src/stores/globalNoteTypes.js`) and modal component
+  (`AdminNoteTypeModal.vue`). Deleting a type still in use by any note on the
+  instance is rejected with HTTP 409; the UI now checks usage proactively via a
+  new `GET /api/admin/note-types/{id}/usage` endpoint before opening the
+  confirm dialog, showing a specific in-use count instead of a confirm-then-fail
+  flow (mirroring the pre-existing personal-type delete flow). See
+  `docs/API.md`'s "Admin: global note types" section.
+  `NoteTypeService::seedDefaults(string $userId)`'s return type widened from
+  `void` to `array` (the existing-or-just-seeded list of global defaults), so
+  `Settings\Admin::getForm()` can seed its initial state directly from the
+  call instead of a redundant follow-up query; `PageController` (per-user
+  seeding) is unaffected since it already discarded the return value.
+- **Note type validation:** creating or renaming a note type (both the
+  personal `POST`/`PUT /api/note-types` and admin
+  `POST`/`PUT /api/admin/note-types` routes) now rejects a blank or
+  whitespace-only `name` with HTTP 400 instead of persisting it.
 - **Dashboard widget** (`OCA\Touchpoint\Dashboard\RecentNotesWidget`): a "Recent
   notes" card on the Nextcloud dashboard home screen, implementing
   `OCP\Dashboard\IAPIWidgetV2` + `OCP\Dashboard\IButtonWidget` +
@@ -121,13 +147,179 @@ All notable changes to this project are documented here. The format is based on
   truncated with an ellipsis. Public mode suppresses search results in both the
   HTTP endpoint and the Unified Search provider to prevent cross-user information
   disclosure.
+- **`scripts/check-l10n.js`** (`make check-l10n`): a permanent regression guard
+  against `l10n/<lang>.json`/`l10n/<lang>.js` drift — the two are hand-maintained
+  with no shared generation step, and disagreement between them has repeatedly
+  shipped silently-untranslated strings for server-side-loaded text (the `.json`
+  file is what Nextcloud's `IL10N` actually loads at runtime). Parses every
+  language pair under `l10n/` and diffs key sets and values. Wired into
+  `make check` and, as of this round, into CI's frontend job, so a future catalog
+  edit that reintroduces `.json`/`.js` drift fails the PR check instead of merging
+  silently.
 
 ### Fixed
+- `NoteTypeService`'s validation error messages (e.g. an invalid/unknown
+  `icon` value on `POST`/`PUT /api/note-types` and the admin equivalents)
+  were being translated twice — once in `NoteTypeService` and again in
+  `ErrorHandler` — which crashed with an uncaught `ValueError` whenever the
+  message contained a stray, attacker-influenceable `%` (e.g.
+  `icon=100%d`), turning a validation failure that should be a clean `400`
+  into an unhandled fatal error. `NoteTypeService` no longer translates its
+  own exception messages; translation happens exactly once, in
+  `ErrorHandler`, matching `NoteService`'s existing convention.
+  `ErrorHandler::translateError()` also now guards its own `IL10N::t()` call
+  against this class of failure so a similarly-shaped message can never
+  crash a request in the future. No user-visible message text changed as a
+  result (the `message` field in error responses has always been localized
+  via `ErrorHandler`; see `docs/API.md`'s "Error handling" section).
+- **`NoteTypeController`'s personal note-type routes were unlimited** —
+  `POST`/`PUT`/`DELETE /api/note-types{,/{id}}` carried no `#[UserRateLimit]`
+  at all. They now carry the same `UserRateLimit(limit: 30, period: 60)` as
+  `NoteController`'s `create`/`update`, closing the gap ahead of adding the
+  admin `note-types` routes (which start out rate-limited from day one; see
+  the "Admin: global note type management" bullet above).
 - In-app search no longer flashes a false "No notes found" empty state during the
   300 ms debounce, and toggling the sort order while a search is active now
   re-runs the search instead of silently re-ordering only the background list.
 - Search results are no longer silently capped at 50 with no affordance to reach
   the rest — the search list now paginates like the all-notes list.
+- Every `<NcButton>`/`NcDialog` confirm button in the app was passing its visual
+  style via the wrong prop (`type="primary"/"secondary"/"tertiary"`, the native
+  HTML button-type attribute) instead of `variant`, the prop that actually
+  drives styling — every button silently rendered with the default
+  secondary/tertiary look, so Save/primary actions and destructive Delete
+  confirmations were visually indistinguishable from Cancel. Fixed across all
+  Vue components.
+- `AdminSettings.vue`'s icon-only Edit/Delete buttons used `:title` (a hover
+  tooltip on the native `<button>`) instead of `:aria-label`, leaving them with
+  no accessible name for screen readers. Now uses `:aria-label`, matching the
+  rest of the app.
+- The admin "Global note types" list never refreshed on mount (only after a
+  mutation) and its error state had no retry action; now loads on mount and
+  shows a retryable empty-content state, matching the personal note-types view.
+- Save/delete failures in the note-type admin UI now surface the server's
+  specific validation message (e.g. duplicate name) instead of a generic
+  string; the delete confirmation copy no longer claims notes "lose their
+  type" (deletion is always blocked while any note still uses the type).
+- `NoteTypeService::create()`/`update()`/`delete()` and their `*Global()`
+  counterparts no longer duplicate validation/persistence logic; `NoteTypeMapper`'s
+  `countGlobalUsage()` (a from-scratch reimplementation of
+  `NoteMapper::countByNoteType()`'s null-`$userId` case) was removed in favor of
+  reusing that existing method. Note-type names are now rejected as invalid if
+  empty or whitespace-only (previously only a max-length check existed),
+  applied consistently to per-user and admin/global create/update.
+- `AdminNoteTypeModal.vue`/`NoteTypeModal.vue` no longer each keep a literal
+  copy of the icon-option list and themed-default-color helper; both now import
+  a single shared version from `utils/noteTypeIcon.js` (which also gained the
+  previously-missing `icon-note` legacy option, closing a divergence from the
+  server-side icon allow-list). Both modals now show a live badge preview and
+  icon glyphs in the icon picker.
+- `AdminNoteTypeModal.vue`/`NoteTypeModal.vue` were ~90% duplicated markup and
+  styling; both are now thin wrappers around a new shared
+  `NoteTypeFormModal.vue` (props/emits vs. Pinia store respectively).
+  `NoteTypesView.vue`/`AdminSettings.vue`'s identical type-list row (badge +
+  edit/delete buttons + CSS) is likewise extracted into a new
+  `NoteTypeListItem.vue`.
+- The personal note-types list (`NoteTypesView.vue`) was missing the
+  double-click delete guard the admin list already had — a rapid double-click
+  on Delete could fire two concurrent DELETE requests for the same row. Added
+  the same per-row `deletingId` guard/spinner as `AdminSettings.vue`.
+- `AdminSettings.vue`'s "Global note types" empty state was a bare, unstyled
+  sentence; now uses the same `NcEmptyContent` (icon + description + "Add
+  type" action) pattern as every other empty state in the app.
+- Creating, renaming, or deleting a note type (personal or global) gave no
+  success feedback beyond the modal silently closing; both flows now show a
+  confirmation toast on success, matching the existing "Settings saved"
+  precedent.
+- Deleting a note-type row (personal or global) left keyboard/screen-reader
+  focus on nothing (fell back to `<body>`) since the focused Delete button was
+  removed from the DOM. Focus now moves to the next remaining row (or the "Add
+  type" button if the list is now empty).
+- The icon picker's "Note (legacy)" option — a compatibility shim for old rows,
+  not a real style choice — no longer appears when creating a new type; it
+  still appears (clearly labelled "kept for compatibility") when editing a
+  type that already carries it.
+- `AdminSettings.vue`'s "Notes are public" switch bypassed the app's
+  established `useSettingsStore()` Pinia pattern in favor of hand-rolled local
+  state; now goes through the same store `SettingsView.vue` uses.
+- `lib/Settings/Admin.php` migrated from the deprecated `OCP\IInitialStateService`
+  to `OCP\AppFramework\Services\IInitialState`, matching
+  `PageController.php`'s existing usage.
+- Added the missing German translation for the Contacts-tab island's
+  "Create a note type first." empty-state hint.
+- A global note type (e.g. one of the five seeded defaults) shown in a
+  non-admin user's personal "Note types" list rendered fully-functional-looking
+  Edit/Delete buttons that silently 404'd on click (global rows aren't owned by
+  any user, so the per-user update/delete path never matches them).
+  `NoteTypeListItem.vue` now shows a "Managed by admin" label instead of
+  controls for global types in the personal view; the admin's own "Global note
+  types" view (which passes a new `manage-global` prop) is unaffected and keeps
+  working Edit/Delete on every row.
+- `lib/Settings/Admin.php`'s admin settings page never seeded the five global
+  default note types — seeding only happened when someone opened the
+  Touchpoint app page first. An admin whose first action was Settings >
+  Touchpoint on a fresh instance saw an empty "Global note types" list. Now
+  seeds before reading the list back, mirroring `PageController::index()`.
+- The Edit/Delete icon-only buttons on every note-type row had an identical,
+  non-interpolated accessible name ("Edit type" / "Delete type") across every
+  row, giving screen-reader users no way to tell which type a control acted
+  on. Now interpolates the type's name into the label.
+- The delete-flow orchestration (usage check, confirm dialog, per-row
+  re-entrancy guard, focus recovery) duplicated between `NoteTypesView.vue`
+  and `AdminSettings.vue` is now a shared composable,
+  `composables/useNoteTypeDeletion.js`. Likewise, `stores/noteTypes.js` and
+  `stores/globalNoteTypes.js`'s identical CRUD/guard action set is now built
+  from a shared factory, `stores/createNoteTypeCrudStore.js`.
+- The icon picker's "Note (legacy, kept for compatibility)" option had no
+  German translation — the l10n catalogs only translated an older, shorter,
+  now-unused string ("Note (legacy)"), so German-locale users saw raw English.
+  Also added missing German translations for the "Note type saved"/"Note type
+  deleted" success toasts and the admin empty-state description ("These note
+  types are available to every user on this instance.").
+- Added an e2e test asserting a non-admin user is rejected (not 2xx) on every
+  `/api/admin/note-types*` route, and a reflection-based unit test asserting
+  `AdminNoteTypeController`'s action methods never carry `#[NoAdminRequired]` —
+  the admin-only access-control contract this controller relies on had no
+  regression test at either layer before this round.
+- German-locale users previously saw raw English text for the "Recent notes"
+  dashboard widget (title, empty/error states, "Show all", "Untitled") and the
+  `note_shared`/`note_mention` notification subjects: those strings existed
+  only in `l10n/de.js`/`l10n/de_DE.js` (the client-side catalog), never in
+  `l10n/de.json`/`l10n/de_DE.json` (the catalog Nextcloud's server-side
+  `IL10N` actually loads), so any server-rendered surface (notifications,
+  the dashboard API) fell back to English regardless of locale. All four
+  catalogs are now in sync. Also corrected a drifted "Note visibility"
+  translation ("Sichtbarkeit der Notiz" -> "Notizsichtbarkeit").
+- All plural (count-dependent) German strings — e.g. "%n note found", "%n
+  more note loaded", the note-type in-use warnings — were keyed by their flat
+  singular source text and were therefore unreachable by
+  `@nextcloud/l10n`'s `translatePlural()` for any count other than 1; every
+  other count silently rendered the raw English text. Re-keyed every
+  plural entry across all four catalogs to the combined
+  `"_singular_::_plural_"` identifier format `translatePlural()`/`IL10N::n()`
+  actually look up, matching the convention used by Nextcloud core apps.
+  `scripts/check-l10n.js` now also fails if a future plural entry is added
+  in the wrong key format.
+- Removed dead/orphaned translation keys accumulated across several rounds of
+  UI refactors (superseded wording for the note-type delete flow, and ~25
+  leftover strings from earlier iterations of the notes/note-type UI with no
+  remaining call site) from all four `l10n/de*.{json,js}` catalogs.
+- The admin "Global note types" settings page rendered completely unstyled
+  (rows collapsed to plain block layout, icons floating disconnected from
+  their badges) because `Admin::getForm()` registered only the page's script
+  bundle, never its stylesheet. Added the missing `Util::addStyle()` call,
+  matching `PageController.php`'s pattern.
+- The note-type add/edit modal (personal and admin/global) could only be
+  closed via its small × button — pressing Escape or clicking the backdrop
+  did nothing, because focus starts in a text input (which `@nextcloud/vue`'s
+  modal hotkey ignores) and no modal in the app opted in to
+  `close-on-click-outside`. Both dismissal conventions now work.
+- `GET /apps/touchpoint/api/admin/note-types/{id}/usage` returned a real,
+  system-wide "notes using this type" count for **any** note-type id,
+  including a regular user's private (non-global) type — inconsistent with
+  the update/delete endpoints' authorization boundary, which both reject a
+  non-global id. `NoteTypeService::countGlobalUsage()` now verifies the id
+  names a real global default first, same as `updateGlobal()`/`deleteGlobal()`.
 
 ### Removed
 - Dead, intentionally-unscoped `NoteMapper::searchPublic()` (no caller; public-mode

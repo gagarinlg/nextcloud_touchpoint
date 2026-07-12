@@ -8,9 +8,12 @@ test.setTimeout(60000);
 /**
  * Open the Add/Edit type modal's name field and wait until it is editable.
  *
- * NOTE: NcTextField in @nextcloud/vue 9.x ignores its `input-id` prop, so the
- * intended `#type-name` id is never applied (the <label for="type-name"> is left
- * dangling). We therefore target the input by its (EN|DE) placeholder.
+ * NOTE: NoteTypeFormModal.vue used to pass `input-id` to NcTextField, which
+ * @nextcloud/vue 9.x's NcTextField does not recognize (its real prop is `id`),
+ * so the `<label for="type-name">` was left dangling — fixed at the source.
+ * This still targets the input by its (EN|DE) placeholder rather than
+ * getByLabel() since the visible label text also contains a separate
+ * required-marker span, which would make a label-text match fragile.
  */
 async function typeNameField(page) {
 	const field = page.getByPlaceholder(/Type name|Typname/i);

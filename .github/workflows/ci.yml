@@ -61,5 +61,7 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Check l10n catalogs are in sync
+        run: node scripts/check-l10n.js
       - name: Build
         run: npm run build

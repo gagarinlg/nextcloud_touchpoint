@@ -45,3 +45,13 @@ appinfo/signature.json
 
 # Review-workflow scratch (verdicts, plans) — never committed
 .review-tmp/
+
+# Local dev-environment scaffolding (hardcoded admin/admin credentials, a
+# local trusted-domain IP) — never committed, and belt-and-suspenders
+# excluded from the App Store tarball via .nextcloudignore too.
+/docker-compose.yml
+/docker-setup.sh
+
+# Real docker-compose secrets file (see .env.docker.example for the
+# tracked template) — never committed.
+/.env.docker

@@ -24,7 +24,7 @@
 					<IconClose :size="16" />
 				</template>
 			</NcTextField>
-			<NcButton type="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
+			<NcButton variant="tertiary" :aria-label="sortAriaLabel" @click="toggleSort">
 				<template #icon>
 					<IconSortDescending v-if="notesStore.sort === 'newest'" :size="20" />
 					<IconSortAscending v-else :size="20" />
@@ -98,7 +98,7 @@
 				:description="t('touchpoint', 'Open a contact to add your first note.')">
 				<template #icon><IconNote :size="48" /></template>
 				<template #action>
-					<NcButton type="primary" @click="$emit('go-to-contacts')">
+					<NcButton variant="primary" @click="$emit('go-to-contacts')">
 						{{ t('touchpoint', 'Browse contacts') }}
 					</NcButton>
 				</template>
@@ -391,9 +391,13 @@ function onContactClick(uid) {
 
 /* Promoted to h1 so the page has a level-1 heading for AT; keep the established
    section-title size (the app styles these as section titles, not browser-default
-   h1) rather than the larger user-agent h1 size. */
+   h1) rather than the larger user-agent h1 size. NC's own
+   `.app-navigation-toggle` floats over the top-left of the content area
+   (~34px tall) — a zero top margin lets this page's heading render underneath
+   it, clipping its leading text, so restore top clearance explicitly rather
+   than zeroing it out. */
 .crm-view-header h1 {
-	margin: 0;
+	margin: calc(var(--default-grid-baseline, 4px) * 6) 0 0 0;
 	font-size: calc(var(--default-font-size, 14px) * 1.3);
 	font-weight: bold;
 	/* flex-shrink:0 keeps the title at its natural width so longer-locale

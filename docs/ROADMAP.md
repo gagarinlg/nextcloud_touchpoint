@@ -105,6 +105,28 @@ note-type subtitle and a deep link per item. See `docs/API.md` → "Dashboard
 integration". A "My open tasks" widget remains open, deferred until the Tasks
 integration (item 2) ships.
 
+### 4a. Admin: global note type management  ·  **S**  ·  ✅ **Shipped**
+The Touchpoint admin settings page (Settings > Touchpoint) has a "Global note
+types" section below "Note visibility" for creating, renaming, and deleting the
+shared, instance-wide default note types (Call/Meeting/Email/Task/General plus
+any admin-added ones) — visible to and selectable by every user, but only
+editable by an admin.
+- ✅ Backend: `AdminNoteTypeController` (admin-only — no `#[NoAdminRequired]`,
+  so Nextcloud's core dispatch enforces admin-group membership before any
+  action runs), `NoteTypeService::createGlobal()`/`updateGlobal()`/
+  `deleteGlobal()`/`findGlobalDefaults()`, five new routes under
+  `/apps/touchpoint/api/admin/note-types`, rate-limited like the per-user
+  note-type endpoints. Deleting a type still in use by any note on the
+  instance is rejected with HTTP 409.
+- ✅ Frontend: `AdminNoteTypeModal.vue` (thin wrapper around the shared
+  `NoteTypeFormModal.vue`), `AdminNoteTypeService.js`, `stores/globalNoteTypes.js`
+  (built on the shared `createNoteTypeCrudStore()` factory). The admin UI
+  proactively checks usage via `GET /api/admin/note-types/{id}/usage` before
+  opening the delete-confirm dialog. A global type shown in a non-admin's
+  personal "Note types" list is labelled "Managed by admin" instead of
+  offering Edit/Delete buttons that would 404.
+- See `docs/API.md` → "Admin: global note types".
+
 ### 5. Activity stream integration  ·  **M**
 Emit to the **Activity** app on note created/edited/deleted/shared via
 `IEventListener` + an activity provider, so changes show in the global activity

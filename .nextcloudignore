@@ -52,3 +52,19 @@
 /build
 *.map
 *.map.license
+
+# Local dev-environment scaffolding (not part of the running app; see
+# .gitignore — belt-and-suspenders in case it's ever committed anyway)
+/docker-compose.yml
+/docker-setup.sh
+/.env.docker
+/.env.docker.example
+
+# Review-loop scratch state & stray build-output backup (see .gitignore —
+# belt-and-suspenders in case either is ever committed anyway). js/*.mjs and
+# img/*.png (the actual shipped assets) are unaffected: these patterns are
+# anchored to the repo root only, not recursive.
+/.review-tmp
+/js.rootbak
+/*.mjs
+/*.png

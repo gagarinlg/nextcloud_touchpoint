@@ -154,4 +154,49 @@ class NoteTypeMapperTest extends SqliteTestCase {
 
         $this->assertSame([], $types);
     }
+
+    /**
+     * findGlobalById() is the admin mutation-scope lookup: it must find a
+     * global default row by id, and must NOT match a regular user-owned row
+     * even if the id happens to line up — admin mutation is scoped to the
+     * shared sentinel set only, never a real user's own type.
+     */
+    public function testFindGlobalByIdReturnsGlobalDefault(): void {
+        $id = $this->insertNoteType(['user_id' => '', 'name' => 'Global', 'is_default' => 1]);
+
+        $type = $this->makeNoteTypeMapper()->findGlobalById($id);
+
+        $this->assertSame('Global', $type->getName());
+        $this->assertSame('', $type->getUserId());
+        $this->assertTrue($type->getIsDefault());
+    }
+
+    public function testFindGlobalByIdExcludesUserOwnedType(): void {
+        $id = $this->insertNoteType(['user_id' => 'user1', 'name' => 'Mine']);
+
+        $this->expectException(DoesNotExistException::class);
+        $this->makeNoteTypeMapper()->findGlobalById($id);
+    }
+
+    public function testFindGlobalByIdExcludesEmptyUserIdRowThatIsNotDefault(): void {
+        // Only user_id = '' AND is_default = true is the sentinel; an
+        // orphaned empty-user_id/non-default row must not be admin-mutable.
+        $id = $this->insertNoteType(['user_id' => '', 'name' => 'Orphaned', 'is_default' => 0]);
+
+        $this->expectException(DoesNotExistException::class);
+        $this->makeNoteTypeMapper()->findGlobalById($id);
+    }
+
+    public function testFindGlobalByIdThrowsForMissingType(): void {
+        $this->expectException(DoesNotExistException::class);
+        $this->makeNoteTypeMapper()->findGlobalById(999999);
+    }
+
+    // countGlobalUsage() was removed from NoteTypeMapper: it duplicated
+    // NoteMapper::countByNoteType()'s SQL for the null-$userId (system-wide)
+    // case. NoteTypeService::deleteGlobal()/countGlobalUsage() now call
+    // NoteMapper::countByNoteType($id) directly instead — see
+    // NoteMapperTest for coverage of that method's null-$userId behavior, and
+    // NoteTypeServiceGlobalAdminSqliteTest for an end-to-end (real SQL, real
+    // service) proof that the admin delete guard still sees every user's notes.
 }

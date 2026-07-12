@@ -264,6 +264,45 @@ class NoteTypeServiceTest extends TestCase {
         $this->assertSame(4, $service->countUsage(7, 'user1'));
     }
 
+    public function testCountGlobalUsageDelegatesToMapperWithoutUserId(): void {
+        // Unlike countUsage(), this must call countByNoteType() with no
+        // $userId arg so the count is system-wide, matching deleteGlobal()'s
+        // own guard.
+        $noteType = new NoteType();
+        $noteType->setId(7);
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(7)
+            ->willReturn($noteType);
+
+        $noteMapper = $this->createMock(NoteMapper::class);
+        $noteMapper->expects($this->once())->method('countByNoteType')->with(7)->willReturn(9);
+        $service = new NoteTypeService($this->mapper, $noteMapper, $this->logger);
+
+        $this->assertSame(9, $service->countGlobalUsage(7));
+    }
+
+    public function testCountGlobalUsageNotFoundForNonGlobalId(): void {
+        // Mirrors testUpdateGlobalNotFound()/testDeleteGlobalNotFound(): the
+        // admin usage-check endpoint must share the same authorization
+        // boundary as its update/delete siblings, not return a count for an
+        // id that doesn't name a real global default (e.g. a regular user's
+        // private note type).
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(999)
+            ->willThrowException(new DoesNotExistException('Not found'));
+
+        $noteMapper = $this->createMock(NoteMapper::class);
+        $noteMapper->expects($this->never())->method('countByNoteType');
+        $service = new NoteTypeService($this->mapper, $noteMapper, $this->logger);
+
+        $this->expectException(NoteTypeNotFoundException::class);
+        $service->countGlobalUsage(999);
+    }
+
     public function testCreateNormalisesInvalidColor(): void {
         // An arbitrary/unsafe color string must be replaced with a safe default
         // so it never lands in an inline style.
@@ -273,6 +312,19 @@ class NoteTypeServiceTest extends TestCase {
             ->willReturnArgument(0);
 
         $result = $this->service->create('X', 'icon-note', 'red; background:url(x)', 'user1');
+        $this->assertSame('#0082c9', $result->getColor());
+    }
+
+    public function testCreateNormalisesOverLengthColor(): void {
+        // An over-length color string must be rejected up front (before the
+        // regex checks even run) and replaced with the safe default, mirroring
+        // assertNameLength()/assertValidIcon()'s explicit length guards.
+        $this->mapper->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn (NoteType $nt) => $nt->getColor() === '#0082c9'))
+            ->willReturnArgument(0);
+
+        $result = $this->service->create('X', 'icon-note', str_repeat('#', 33), 'user1');
         $this->assertSame('#0082c9', $result->getColor());
     }
 
@@ -292,7 +344,12 @@ class NoteTypeServiceTest extends TestCase {
     }
 
     public function testSeedDefaultsCreatesGlobalSetWhenAbsent(): void {
-        $this->mapper->expects($this->once())
+        // findGlobalDefaults() is now called twice on the insert path: once for
+        // the initial "already seeded?" check (empty), once at the end to build
+        // the returned global-defaults set (see NoteTypeService::seedDefaults()'s
+        // docblock — the return value lets callers like Admin::getForm() avoid a
+        // second, separate query of their own).
+        $this->mapper->expects($this->exactly(2))
             ->method('findGlobalDefaults')
             ->willReturn([]);
 
@@ -304,7 +361,8 @@ class NoteTypeServiceTest extends TestCase {
                 return $nt;
             });
 
-        $this->service->seedDefaults('user1');
+        $result = $this->service->seedDefaults('user1');
+        $this->assertSame([], $result);
     }
 
     public function testSeedDefaultsSkipsIfGlobalSetExists(): void {
@@ -315,7 +373,8 @@ class NoteTypeServiceTest extends TestCase {
 
         $this->mapper->expects($this->never())->method('insert');
 
-        $this->service->seedDefaults('user1');
+        $result = $this->service->seedDefaults('user1');
+        $this->assertSame($existing, $result);
     }
 
     public function testSeedDefaultsCorrectNames(): void {
@@ -386,8 +445,15 @@ class NoteTypeServiceTest extends TestCase {
         $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
         $this->mapper->expects($this->once())->method('insert')->willThrowException($e);
 
-        $this->expectException(NoteValidationException::class);
-        $this->service->create('Call', 'icon-phone', '#2ecc71', 'user1');
+        try {
+            $this->service->create('Call', 'icon-phone', '#2ecc71', 'user1');
+            $this->fail('Expected NoteValidationException was not thrown');
+        } catch (NoteValidationException $validationException) {
+            // getErrorCode() is the stable, machine-readable identifier
+            // ErrorHandler surfaces as `code` — clients must branch on this,
+            // not on the (translated) message text; see docs/API.md.
+            $this->assertSame('duplicate_name', $validationException->getErrorCode());
+        }
     }
 
     public function testCreateRethrowsNonUniqueDbException(): void {
@@ -415,8 +481,12 @@ class NoteTypeServiceTest extends TestCase {
         $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
         $this->mapper->expects($this->once())->method('update')->willThrowException($e);
 
-        $this->expectException(NoteValidationException::class);
-        $this->service->update(1, 'user1', 'Existing');
+        try {
+            $this->service->update(1, 'user1', 'Existing');
+            $this->fail('Expected NoteValidationException was not thrown');
+        } catch (NoteValidationException $validationException) {
+            $this->assertSame('duplicate_name', $validationException->getErrorCode());
+        }
     }
 
     public function testUpdateRethrowsNonUniqueDbException(): void {
@@ -434,6 +504,31 @@ class NoteTypeServiceTest extends TestCase {
 
         $this->expectException(DBException::class);
         $this->service->update(1, 'user1', 'Renamed');
+    }
+
+    public function testCreateRejectsBlankName(): void {
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('', 'icon-phone', '#2ecc71', 'user1');
+    }
+
+    public function testCreateRejectsWhitespaceOnlyName(): void {
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->create('   ', 'icon-phone', '#2ecc71', 'user1');
+    }
+
+    public function testUpdateRejectsBlankName(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setUserId('user1');
+        $this->mapper->method('findOwnedById')->with(1, 'user1')->willReturn($noteType);
+        $this->mapper->expects($this->never())->method('update');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->update(1, 'user1', '   ');
     }
 
     public function testCreateRejectsUnknownIcon(): void {
@@ -536,5 +631,299 @@ class NoteTypeServiceTest extends TestCase {
 
         $this->expectException(DBException::class);
         $this->service->seedDefaults('admin');
+    }
+
+    // --- Admin global note type management ---------------------------------
+
+    public function testFindGlobalDefaultsDelegatesToMapper(): void {
+        $types = [new NoteType(), new NoteType()];
+        $this->mapper->expects($this->once())
+            ->method('findGlobalDefaults')
+            ->willReturn($types);
+
+        $result = $this->service->findGlobalDefaults();
+        $this->assertCount(2, $result);
+    }
+
+    public function testFindGlobalDefaultsReturnsEmpty(): void {
+        $this->mapper->expects($this->once())
+            ->method('findGlobalDefaults')
+            ->willReturn([]);
+
+        $this->assertSame([], $this->service->findGlobalDefaults());
+    }
+
+    public function testCreateGlobal(): void {
+        $this->mapper->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(function (NoteType $nt) {
+                return $nt->getName() === 'Custom'
+                    && $nt->getIcon() === 'icon-star'
+                    && $nt->getColor() === '#ff0000'
+                    && $nt->getUserId() === ''
+                    && $nt->getIsDefault() === true;
+            }))
+            ->willReturnCallback(function (NoteType $nt) {
+                $nt->setId(1);
+                return $nt;
+            });
+
+        $result = $this->service->createGlobal('Custom', 'icon-star', '#ff0000');
+        $this->assertSame('Custom', $result->getName());
+        $this->assertTrue($result->getIsDefault());
+        $this->assertSame('', $result->getUserId());
+    }
+
+    public function testCreateGlobalRejectsOverlongName(): void {
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->createGlobal(str_repeat('a', 200), 'icon-star', '#ff0000');
+    }
+
+    public function testCreateGlobalRejectsBlankName(): void {
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->createGlobal('   ', 'icon-star', '#ff0000');
+    }
+
+    public function testCreateGlobalRejectsUnknownIcon(): void {
+        $this->mapper->expects($this->never())->method('insert');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->createGlobal('Custom', 'icon-bogus', '#ff0000');
+    }
+
+    public function testCreateGlobalNormalisesInvalidColor(): void {
+        $this->mapper->expects($this->once())
+            ->method('insert')
+            ->with($this->callback(fn (NoteType $nt) => $nt->getColor() === '#0082c9'))
+            ->willReturnArgument(0);
+
+        $result = $this->service->createGlobal('Custom', 'icon-star', 'red; background:url(x)');
+        $this->assertSame('#0082c9', $result->getColor());
+    }
+
+    public function testCreateGlobalRejectsDuplicateName(): void {
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+        $this->mapper->expects($this->once())->method('insert')->willThrowException($e);
+
+        try {
+            $this->service->createGlobal('Call', 'icon-phone', '#2ecc71');
+            $this->fail('Expected NoteValidationException was not thrown');
+        } catch (NoteValidationException $validationException) {
+            $this->assertSame('duplicate_name', $validationException->getErrorCode());
+        }
+    }
+
+    public function testCreateGlobalRethrowsNonUniqueDbException(): void {
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_CONNECTION_LOST);
+        $this->mapper->method('insert')->willThrowException($e);
+
+        $this->expectException(DBException::class);
+        $this->service->createGlobal('Call', 'icon-phone', '#2ecc71');
+    }
+
+    public function testUpdateGlobal(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setIcon('icon-phone');
+        $noteType->setColor('#000000');
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(1)
+            ->willReturn($noteType);
+
+        $this->mapper->expects($this->once())
+            ->method('update')
+            ->with($this->callback(function (NoteType $nt) {
+                return $nt->getName() === 'New'
+                    && $nt->getIcon() === 'icon-mail'
+                    && $nt->getColor() === '#ffffff';
+            }))
+            ->willReturnArgument(0);
+
+        $result = $this->service->updateGlobal(1, 'New', 'icon-mail', '#ffffff');
+        $this->assertSame('New', $result->getName());
+    }
+
+    public function testUpdateGlobalPartialPreservesUntouchedFields(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setIcon('icon-phone');
+        $noteType->setColor('#123456');
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+
+        $this->mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+
+        $this->mapper->expects($this->once())
+            ->method('update')
+            ->with($this->callback(function (NoteType $nt) {
+                return $nt->getName() === 'Renamed'
+                    && $nt->getIcon() === 'icon-phone'
+                    && $nt->getColor() === '#123456';
+            }))
+            ->willReturnArgument(0);
+
+        $result = $this->service->updateGlobal(1, 'Renamed');
+        $this->assertSame('Renamed', $result->getName());
+    }
+
+    public function testUpdateGlobalRejectsBlankName(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+        $this->mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+        $this->mapper->expects($this->never())->method('update');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->updateGlobal(1, '   ');
+    }
+
+    public function testUpdateGlobalNotFound(): void {
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(999)
+            ->willThrowException(new DoesNotExistException('Not found'));
+
+        $this->expectException(NoteTypeNotFoundException::class);
+        $this->service->updateGlobal(999, 'Name', 'icon-note', '#000');
+    }
+
+    public function testUpdateGlobalMultipleObjectsReturned(): void {
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->willThrowException(new MultipleObjectsReturnedException('Multiple'));
+
+        $this->expectException(NoteTypeNotFoundException::class);
+        $this->service->updateGlobal(1, 'Name');
+    }
+
+    public function testUpdateGlobalRejectsUnknownIcon(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+        $this->mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+        $this->mapper->expects($this->never())->method('update');
+
+        $this->expectException(NoteValidationException::class);
+        $this->service->updateGlobal(1, 'Name', 'icon-bogus', '#0082c9');
+    }
+
+    public function testUpdateGlobalRejectsDuplicateName(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+        $this->mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_UNIQUE_CONSTRAINT_VIOLATION);
+        $this->mapper->expects($this->once())->method('update')->willThrowException($e);
+
+        try {
+            $this->service->updateGlobal(1, 'Existing');
+            $this->fail('Expected NoteValidationException was not thrown');
+        } catch (NoteValidationException $validationException) {
+            $this->assertSame('duplicate_name', $validationException->getErrorCode());
+        }
+    }
+
+    public function testUpdateGlobalRethrowsNonUniqueDbException(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Old');
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+        $this->mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+
+        $e = $this->createMock(DBException::class);
+        $e->method('getReason')->willReturn(DBException::REASON_CONNECTION_LOST);
+        $this->mapper->method('update')->willThrowException($e);
+
+        $this->expectException(DBException::class);
+        $this->service->updateGlobal(1, 'Renamed');
+    }
+
+    public function testDeleteGlobal(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setName('Custom');
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(1)
+            ->willReturn($noteType);
+
+        // deleteGlobal() now reuses NoteMapper::countByNoteType() (no $userId
+        // arg -> system-wide count) instead of a dedicated mapper method.
+        $this->noteMapper->expects($this->once())
+            ->method('countByNoteType')
+            ->with(1)
+            ->willReturn(0);
+
+        $this->mapper->expects($this->once())
+            ->method('delete')
+            ->with($noteType);
+
+        $result = $this->service->deleteGlobal(1);
+        $this->assertSame('Custom', $result->getName());
+    }
+
+    public function testDeleteGlobalNotFound(): void {
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->with(999)
+            ->willThrowException(new DoesNotExistException('Not found'));
+
+        $this->expectException(NoteTypeNotFoundException::class);
+        $this->service->deleteGlobal(999);
+    }
+
+    public function testDeleteGlobalMultipleObjectsReturned(): void {
+        $this->mapper->expects($this->once())
+            ->method('findGlobalById')
+            ->willThrowException(new MultipleObjectsReturnedException('Multiple'));
+
+        $this->expectException(NoteTypeNotFoundException::class);
+        $this->service->deleteGlobal(1);
+    }
+
+    public function testDeleteGlobalBlockedWhenInUse(): void {
+        $noteType = new NoteType();
+        $noteType->setId(1);
+        $noteType->setUserId('');
+        $noteType->setIsDefault(true);
+
+        $mapper = $this->createMock(NoteTypeMapper::class);
+        $mapper->method('findGlobalById')->with(1)->willReturn($noteType);
+        $mapper->expects($this->never())->method('delete');
+
+        $noteMapper = $this->createMock(NoteMapper::class);
+        // Three notes still reference this type (system-wide, no $userId arg)
+        // — delete must be blocked. A fresh mock is required here rather than
+        // re-stubbing $this->noteMapper: setUp()'s unconstrained
+        // countByNoteType() => 0 stub would otherwise win over this one (first
+        // unconstrained stub wins).
+        $noteMapper->method('countByNoteType')->with(1)->willReturn(3);
+
+        $service = new NoteTypeService($mapper, $noteMapper, $this->logger);
+
+        $this->expectException(NoteTypeInUseException::class);
+        $service->deleteGlobal(1);
     }
 }

@@ -124,6 +124,7 @@ $inv[] = '| Vue entries | ' . bnames(rel('src/*.js')) . ' |';
 $inv[] = '| Vue components | ' . bnames(rel('src/components/*.vue')) . ' |';
 $inv[] = '| Pinia stores | ' . bnames(rel('src/stores/*.js')) . ' |';
 $inv[] = '| API clients | ' . bnames(rel('src/services/*.js')) . ' |';
+$inv[] = '| Composables | ' . bnames(rel('src/composables/*.js')) . ' |';
 $inv[] = '| Frontend utils | ' . bnames(rel('src/utils/*.js')) . ' |';
 $inv[] = '';
 $inv[] = END;

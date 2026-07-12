@@ -4,14 +4,20 @@
  */
 /**
  * Shared mapping from a note-type's stored `icon` value (the legacy `icon-*`
- * tokens offered by NoteTypeModal) to a renderable icon.
+ * tokens offered by NoteTypeModal/AdminNoteTypeModal) to a renderable icon.
  *
- * Two surfaces consume this:
+ * Three surfaces consume this:
  *  - The Vue UI (NoteTypeBadge) needs a vue-material-design-icons component.
  *  - The non-Vue Contacts-tab island needs raw SVG path data to inline.
+ *  - NoteTypeModal.vue/AdminNoteTypeModal.vue's icon picker (ICON_OPTIONS
+ *    below) needs the selectable label/value list.
  *
- * Keep the keys in sync with NoteTypeModal.vue's iconOptions.
+ * ICON_OPTIONS is the single source of truth for that picker list — both
+ * modal components import it rather than each keeping their own literal copy.
+ * Keep it in sync with NoteTypeService::ALLOWED_ICONS (the server-side
+ * allow-list) whenever an icon is added or removed.
  */
+import { translate as t } from '@nextcloud/l10n'
 import IconComment from 'vue-material-design-icons/CommentOutline.vue'
 import IconPhone from 'vue-material-design-icons/Phone.vue'
 import IconCalendar from 'vue-material-design-icons/Calendar.vue'
@@ -66,10 +72,70 @@ export function iconComponentForType(icon) {
 }
 
 /**
+ * The selectable icon options for NoteTypeModal.vue/AdminNoteTypeModal.vue's
+ * NcSelect icon picker. Built as a function (not a module-level constant) so
+ * t()'s translations are resolved at call time, matching how the rest of the
+ * app's labels are translated.
+ *
+ * `icon-note` and `icon-calendar` are deliberately excluded from the default
+ * list: both exist only so pre-existing rows that already carry one of these
+ * legacy tokens keep rendering an icon (see ICON_COMPONENTS/ICON_PATHS
+ * above), not as a real style choice for a newly-created type. Pass
+ * `includeLegacyNote: true` / `includeLegacyCalendar: true` when editing a
+ * type that already has `icon: 'icon-note'` / `icon: 'icon-calendar'`
+ * respectively, so the picker still shows the type's current value as a
+ * selectable (if clearly-marked) option instead of silently dropping it.
+ * @param {object} [opts]
+ * @param {boolean} [opts.includeLegacyNote] include the legacy 'icon-note' option
+ * @param {boolean} [opts.includeLegacyCalendar] include the legacy 'icon-calendar' option
+ * @return {Array<{label: string, value: string}>}
+ */
+export function iconOptions({ includeLegacyNote = false, includeLegacyCalendar = false } = {}) {
+	const options = [
+		{ label: t('touchpoint', 'Comment'), value: 'icon-comment' },
+		{ label: t('touchpoint', 'Phone'), value: 'icon-phone' },
+		{ label: t('touchpoint', 'Calendar'), value: 'icon-calendar-dark' },
+		{ label: t('touchpoint', 'Mail'), value: 'icon-mail' },
+		{ label: t('touchpoint', 'Checkmark'), value: 'icon-checkmark' },
+		{ label: t('touchpoint', 'Star'), value: 'icon-star' },
+		{ label: t('touchpoint', 'Link'), value: 'icon-link' },
+		{ label: t('touchpoint', 'Note'), value: 'icon-category-office' },
+	]
+	if (includeLegacyNote) {
+		options.push({ label: t('touchpoint', 'Note (legacy, kept for compatibility)'), value: 'icon-note' })
+	}
+	if (includeLegacyCalendar) {
+		options.push({ label: t('touchpoint', 'Calendar (legacy, kept for compatibility)'), value: 'icon-calendar' })
+	}
+	return options
+}
+
+/**
  * Resolve a note-type icon value to raw SVG path data, or null when unknown.
  * @param {string|null|undefined} icon stored icon token
  * @return {string|null}
  */
 export function iconPathForType(icon) {
 	return ICON_PATHS[icon] || null
+}
+
+/**
+ * Seed a new note type's color swatch from the instance's themed primary
+ * color rather than a hardcoded brand-blue literal, so a rethemed instance's
+ * default swatch matches its palette. Shared by NoteTypeModal.vue and
+ * AdminNoteTypeModal.vue. If the variable can't be resolved (e.g. during
+ * SSR/tests), returns '' — the backend's normalizeColor() supplies the
+ * canonical default for an empty/unparseable value on save.
+ * @return {string}
+ */
+export function themedDefaultColor() {
+	try {
+		const value = getComputedStyle(document.documentElement)
+			.getPropertyValue('--color-primary-element')
+			.trim()
+		if (value) return value
+	} catch {
+		// getComputedStyle unavailable — leave the swatch unset.
+	}
+	return ''
 }

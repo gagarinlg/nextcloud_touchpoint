@@ -56,6 +56,10 @@ lib/
   AppInfo/Application.php       Bootstrap; registers the Contacts-tab event listener, NoteSearchProvider,
                                 Notifier, and RecentNotesWidget.
   Controller/                   Thin controllers; errors funneled through ErrorHandler.
+                                AdminNoteTypeController is admin-only (no
+                                #[NoAdminRequired]) and manages the shared global
+                                default note types (create/update/delete/list) via
+                                NoteTypeService's *Global() methods.
   Service/                      Business logic (NoteService, NoteTypeService, SettingsService).
   Db/                           QBMapper mappers + Entities (Note, NoteType, NoteContact,
                                 NoteFile, NoteSharing).
@@ -115,6 +119,11 @@ composer install
 # Tests should use a real SQLite database instead of mocking DB layers.
 # Integration tests under tests/Integration/ already use SQLite via PdoQueryBuilder.
 
+# l10n drift check
+make check-l10n         # verify every l10n/<lang>.json and l10n/<lang>.js pair
+                         # agree on key set and values (scripts/check-l10n.js);
+                         # wired into `make check` and CI's frontend job
+
 # E2E (needs a running Nextcloud at localhost with the app installed)
 npx playwright test
 ```
@@ -141,6 +150,14 @@ prebuilt bundles under `js/`/`css/`, not the sources.
   hardcoded hex/px. Use `vue-material-design-icons`, not emoji, for iconography.
 - The repo root contains several throwaway `test_*.spec.js` files and a backup
   DB dump — these are scratch artifacts, not part of the app.
+- **`docker-compose.yml`** / **`docker-setup.sh`** at the repo root are local
+  dev-only tooling (spin up Nextcloud + Postgres, build and install Touchpoint,
+  optionally import EGroupware data) — gitignored and excluded from the App
+  Store tarball via `.nextcloudignore`, never committed. The web port is bound
+  to `127.0.0.1:8888` only (not `0.0.0.0`), `NEXTCLOUD_TRUSTED_DOMAINS` is
+  `localhost` only (no wildcard), and admin/DB credentials live in
+  `.env.docker` (gitignored; copy `.env.docker.example` to create it) rather
+  than inline in the compose file.
 - **`_searchSeq`** in the notes Pinia store is an internal race-guard counter;
   do not reset it outside of `cancelSearch()`. JavaScript numbers become
   `Infinity` at 2^53-1 (not a wrap-around); at `Infinity`, all subsequent

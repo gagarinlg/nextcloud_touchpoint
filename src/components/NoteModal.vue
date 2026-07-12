@@ -1,8 +1,11 @@
 <!-- SPDX-FileCopyrightText: 2026 Touchpoint Contributors -->
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
 <template>
-	<NcModal :name="title" @close="notesStore.closeModal()">
-		<div class="crm-modal-body">
+	<NcModal :name="title"
+		close-on-click-outside
+		@close="notesStore.closeModal()"
+	>
+		<div class="crm-modal-body" @keydown.esc="notesStore.closeModal()">
 			<!-- Contacts multi-select -->
 			<div class="crm-form-row">
 				<label for="note-contacts">
@@ -58,7 +61,7 @@
 			<div class="crm-form-row">
 				<div class="crm-content-label-row">
 					<label id="note-content-label" :for="previewMode ? null : 'note-content'">{{ t('touchpoint', 'Content') }}</label>
-					<NcButton type="tertiary"
+					<NcButton variant="tertiary"
 						size="small"
 						:aria-pressed="previewMode"
 						@click="togglePreview"
@@ -83,7 +86,7 @@
 					<template v-for="(tool, idx) in mdTools" :key="tool.type">
 						<!-- Visual separators between the format groups (3 / 3 / 3). -->
 						<span v-if="idx === 3 || idx === 6" class="crm-md-sep" />
-						<NcButton type="tertiary"
+						<NcButton variant="tertiary"
 							size="small"
 							:title="tool.label"
 							:aria-label="tool.label"
@@ -128,7 +131,7 @@
 					<div v-for="(f, i) in notesStore.pendingFiles" :key="i" class="crm-file-item">
 						<IconFile :size="14" />
 						<span class="crm-file-name">{{ fileLabel(f) }}</span>
-						<NcButton type="tertiary"
+						<NcButton variant="tertiary"
 							:aria-label="t('touchpoint', 'Remove file')"
 							@click="notesStore.removePendingFile(i)"
 						>
@@ -163,7 +166,7 @@
 
 			<div class="crm-modal-actions">
 				<NcButton :disabled="notesStore.saving" @click="notesStore.closeModal()">{{ t('touchpoint', 'Cancel') }}</NcButton>
-				<NcButton type="primary"
+				<NcButton variant="primary"
 					:disabled="!canSave || notesStore.saving"
 					@click="onSave"
 				>
